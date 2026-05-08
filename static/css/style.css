@@ -1538,6 +1538,43 @@ pre {
     font-size: 13px;
 }
 
+/* 页脚样式 */
+.site-footer {
+    margin-top: 60px;
+    padding: 40px 0;
+    border-top: 1px solid var(--line);
+    text-align: center;
+}
+
+.footer-content {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 22px;
+}
+
+.site-footer p {
+    margin: 8px 0;
+    color: var(--muted);
+    font-size: 14px;
+}
+
+.footer-limits {
+    font-size: 13px;
+    color: var(--muted);
+    margin-bottom: 20px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--line);
+}
+
+.site-footer a {
+    color: var(--accent);
+    text-decoration: none;
+}
+
+.site-footer a:hover {
+    text-decoration: underline;
+}
+
 @media (max-width: 900px) {
     .site-header,
     .hero,

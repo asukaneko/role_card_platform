@@ -61,8 +61,13 @@
     </main>
 
     <footer class="site-footer">
-        <span>JSON 上传限制 256KB，头像限制 40MB</span>
+        <div class="footer-content">
+            <p class="footer-limits">JSON 上传限制 256KB，头像限制 40MB</p>
+            <p>&copy; 2026 角色卡平台 · 开源项目：<a href="https://github.com/asukaneko/role_card_platform" target="_blank">GitHub</a></p>
+            <p>作者：<a href="https://github.com/asukaneko" target="_blank">@asukaneko</a></p>
+        </div>
     </footer>
+
     <script src="{{ url_for('asset_file', filename='static/js/main.js', _external=True) }}"></script>
 </body>
 </html>
