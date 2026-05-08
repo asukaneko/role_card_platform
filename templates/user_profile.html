@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+{% block title %}{{ profile_user.display_name or profile_user.username }} - 角色卡平台{% endblock %}
+{% block content %}
+<section class="user-profile-page">
+    <div class="user-profile-header">
+        <div class="user-avatar-large">
+            {% if profile_user.avatar_path %}
+                <img src="{{ url_for('asset_file', filename=profile_user.avatar_path) }}" alt="{{ profile_user.display_name or profile_user.username }}">
+            {% else %}
+                <span>{{ (profile_user.display_name or profile_user.username)[:1] }}</span>
+            {% endif %}
+        </div>
+        <div class="user-info">
+            <h1>{{ profile_user.display_name or profile_user.username }}</h1>
+            <p class="user-username">@{{ profile_user.username }}</p>
+            {% if profile_user.bio %}
+                <p class="user-bio">{{ profile_user.bio }}</p>
+            {% endif %}
+            <p class="user-meta">注册于 {{ profile_user.created_at[:10] }} · {{ cards|length }} 张角色卡</p>
+            {% if is_self %}
+                <a href="{{ url_for('edit_profile', username=profile_user.username) }}" class="edit-profile-btn">编辑资料</a>
+            {% endif %}
+        </div>
+    </div>
+
+    {% if is_self and profile_user.api_token %}
+    <div class="api-token-section">
+        <h3>API Token</h3>
+        <p class="api-token-desc">将此 Token 填入 NekoBot 的「平台 Token」中，即可通过 API 上传角色卡，上传的卡片会自动归入你的账户。</p>
+        <div class="api-token-row">
+            <code id="api-token-value" class="api-token-code">{{ profile_user.api_token }}</code>
+            <button type="button" class="api-token-copy" onclick="copyApiToken()">复制</button>
+        </div>
+        <form method="post" action="{{ url_for('regen_api_token', username=profile_user.username) }}" data-confirm="重新生成 Token 后旧 Token 将立即失效，确定继续吗？">
+            <button type="submit" class="api-token-regen">重新生成 Token</button>
+        </form>
+    </div>
+    {% endif %}
+</section>
+
+{% if cards %}
+<section class="toolbar">
+    <div>
+        <strong>{{ cards|length }}</strong>
+        <span>张角色卡{% if not is_self %}（仅展示公开）{% endif %}</span>
+    </div>
+</section>
+<section class="card-grid">
+    {% for card in cards %}
+        <article class="role-card">
+            <a class="card-media" href="{{ url_for('card_detail', identifier=card.slug) }}">
+                {% if card.avatar_path %}
+                    <img src="{{ url_for('asset_file', filename=card.avatar_path) }}" alt="{{ card.name }}">
+                {% else %}
+                    <span>{{ card.name[:1] }}</span>
+                {% endif %}
+            </a>
+            <div class="card-body">
+                <div class="card-title-row">
+                    <h2><a href="{{ url_for('card_detail', identifier=card.slug) }}">{{ card.name }}</a></h2>
+                    <span class="visibility">{{ card.visibility }}</span>
+                </div>
+                <p>{{ card.description or card.personality }}</p>
+                <div class="tags">
+                    {% for item in card.tags %}
+                        <a href="{{ url_for('index', tag=item) }}">#{{ item }}</a>
+                    {% endfor %}
+                </div>
+                <div class="card-meta">
+                    <span>{{ card.creator or "匿名作者" }}</span>
+                    <span>{{ card.downloads }} 下载 · {{ card.likes }} 喜欢</span>
+                </div>
+                {% if is_self %}
+                <div class="card-owner-actions">
+                    <a class="card-action-btn" href="{{ url_for('edit_card', card_id=card.id) }}">编辑</a>
+                    <form method="post" action="{{ url_for('toggle_visibility', card_id=card.id) }}" style="display:inline">
+                        <input type="hidden" name="source" value="profile">
+                        <button type="submit" class="card-action-btn">{% if card.visibility == 'public' %}设为私有{% else %}设为公开{% endif %}</button>
+                    </form>
+                    <form method="post" action="{{ url_for('delete_card', card_id=card.id) }}" style="display:inline" data-confirm="确定删除「{{ card.name }}」吗？此操作不可撤销。">
+                        <button type="submit" class="card-action-btn danger">删除</button>
+                    </form>
+                </div>
+                {% endif %}
+            </div>
+        </article>
+    {% endfor %}
+</section>
+{% else %}
+<section class="empty-state">
+    <h2>还没有角色卡</h2>
+    <p>{% if is_self %}上传你的第一张角色卡吧。{% else %}该用户还没有公开的角色卡。{% endif %}</p>
+</section>
+{% endif %}
+
+<script>
+function copyApiToken() {
+    const el = document.getElementById("api-token-value");
+    navigator.clipboard.writeText(el.textContent).then(() => {
+        const btn = document.querySelector(".api-token-copy");
+        btn.textContent = "已复制";
+        setTimeout(() => { btn.textContent = "复制"; }, 1500);
+    });
+}
+</script>
+{% endblock %}

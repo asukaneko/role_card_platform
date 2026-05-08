@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}登录 - 角色卡平台{% endblock %}
+{% block content %}
+<section class="auth-page">
+    <div class="auth-card">
+        <p class="eyebrow">Account</p>
+        <h1>登录</h1>
+        <p>登录后即可上传和管理你的角色卡。</p>
+        <form class="auth-form" method="post" action="{{ url_for('login') }}">
+            <label>
+                <span>用户名</span>
+                <input name="username" type="text" placeholder="输入你的用户名" autocomplete="username" required autofocus>
+            </label>
+            <label>
+                <span>密码</span>
+                <input name="password" type="password" placeholder="输入密码" autocomplete="current-password" required>
+            </label>
+            <button type="submit" class="auth-submit">登录</button>
+        </form>
+        <p class="auth-switch">还没有账号？<a href="{{ url_for('register') }}">立即注册</a></p>
+    </div>
+</section>
+{% endblock %}

@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}管理入口 - 角色卡平台{% endblock %}
+{% block content %}
+<section class="admin-login">
+    <p class="eyebrow">Admin</p>
+    <h1>管理入口</h1>
+    <p>输入管理 Token 后进入后台。首次启动时会自动生成 Token，并保存到 <code>role_card_platform/data/admin_token.txt</code>。</p>
+    <form class="admin-token-form" method="get" action="{{ url_for('admin') }}">
+        <label>
+            <span>管理 Token</span>
+            <input name="token" type="password" autocomplete="current-password" placeholder="粘贴你的管理令牌" autofocus required>
+        </label>
+        <button type="submit">进入管理后台</button>
+    </form>
+</section>
+{% endblock %}

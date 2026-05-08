@@ -1,0 +1,172 @@
+{% extends "base.html" %}
+{% block title %}管理面板 - 角色卡平台{% endblock %}
+{% block content %}
+<section class="page-head">
+    <p class="eyebrow">Admin</p>
+    <h1>管理面板</h1>
+    <p>管理角色卡和用户账号。</p>
+</section>
+
+<!-- 标签切换 -->
+<div class="admin-tabs">
+    <a href="{{ url_for('admin', token=token, tab='cards') }}" class="admin-tab {% if tab != 'users' %}active{% endif %}">角色卡</a>
+    <a href="{{ url_for('admin', token=token, tab='users') }}" class="admin-tab {% if tab == 'users' %}active{% endif %}">用户管理</a>
+</div>
+
+{% if tab == 'users' %}
+<!-- 用户管理 -->
+<div class="batch-bar" id="user-batch-bar">
+    <label class="batch-select-all">
+        <input type="checkbox" id="select-all-users"> 全选
+    </label>
+    <span class="batch-count">已选 <strong id="selected-user-count">0</strong> 项</span>
+    <form method="post" action="{{ url_for('admin_user_batch') }}" class="batch-form" data-batch-confirm="delete">
+        <input type="hidden" name="token" value="{{ token }}">
+        <input type="hidden" name="ids" id="batch-user-ids">
+        <input type="hidden" name="action" id="batch-user-action">
+        <button type="button" class="batch-btn danger" data-action="delete">批量删除</button>
+    </form>
+</div>
+
+<section class="admin-table">
+    {% for user in users %}
+        <div class="admin-row">
+            <label class="admin-check">
+                <input type="checkbox" class="user-checkbox" value="{{ user.id }}">
+            </label>
+            <div class="admin-avatar">
+                {% if user.avatar_path %}
+                    <img src="{{ url_for('asset_file', filename=user.avatar_path) }}" alt="{{ user.display_name or user.username }}">
+                {% else %}
+                    <span>{{ (user.display_name or user.username)[:1] }}</span>
+                {% endif %}
+            </div>
+            <div class="admin-info">
+                <strong>{{ user.display_name or user.username }}</strong>
+                <span>@{{ user.username }} · {{ user.card_count }} 张角色卡 · {{ user.comment_count }} 条评论 · 注册于 {{ user.created_at[:10] }}</span>
+            </div>
+            <div class="admin-actions">
+                <a href="{{ url_for('user_profile', username=user.username) }}">查看主页</a>
+                <form method="post" action="{{ url_for('admin_delete_user', user_id=user.id) }}" data-confirm="确定删除用户「{{ user.username }}」吗？该用户的所有角色卡和评论也将被删除。">
+                    <input type="hidden" name="token" value="{{ token }}">
+                    <button class="danger">删除</button>
+                </form>
+            </div>
+        </div>
+    {% else %}
+        <div class="empty-state">
+            <h2>暂无用户</h2>
+        </div>
+    {% endfor %}
+</section>
+
+{% else %}
+<!-- 角色卡管理 -->
+<div class="batch-bar" id="batch-bar">
+    <label class="batch-select-all">
+        <input type="checkbox" id="select-all"> 全选
+    </label>
+    <span class="batch-count">已选 <strong id="selected-count">0</strong> 项</span>
+    <form method="post" action="{{ url_for('admin_batch') }}" class="batch-form" data-batch-confirm="delete">
+        <input type="hidden" name="token" value="{{ token }}">
+        <input type="hidden" name="ids" id="batch-ids">
+        <input type="hidden" name="action" id="batch-action">
+        <button type="button" class="batch-btn" data-action="hide">批量隐藏</button>
+        <button type="button" class="batch-btn" data-action="publish">批量公开</button>
+        <button type="button" class="batch-btn danger" data-action="delete">批量删除</button>
+    </form>
+</div>
+
+<section class="admin-table">
+    {% for card in cards %}
+        <div class="admin-row">
+            <label class="admin-check">
+                <input type="checkbox" class="card-checkbox" value="{{ card.id }}">
+            </label>
+            <div class="admin-info">
+                <strong>{{ card.name }}</strong>
+                <span>{{ card.creator or "匿名" }} · {{ card.visibility }} · {{ card.created_at }}</span>
+            </div>
+            <div class="admin-actions">
+                <a href="{{ url_for('card_detail', identifier=card.slug, admin=token) }}">查看</a>
+                <form method="post" action="{{ url_for('admin_action', card_id=card.id, action='hide') }}">
+                    <input type="hidden" name="token" value="{{ token }}">
+                    <button>隐藏</button>
+                </form>
+                <form method="post" action="{{ url_for('admin_action', card_id=card.id, action='publish') }}">
+                    <input type="hidden" name="token" value="{{ token }}">
+                    <button>公开</button>
+                </form>
+                <form method="post" action="{{ url_for('admin_action', card_id=card.id, action='delete') }}" data-confirm="确定删除这张角色卡吗？">
+                    <input type="hidden" name="token" value="{{ token }}">
+                    <button class="danger">删除</button>
+                </form>
+            </div>
+        </div>
+    {% else %}
+        <div class="empty-state">
+            <h2>暂无角色卡</h2>
+        </div>
+    {% endfor %}
+</section>
+{% endif %}
+
+<script>
+// 用户批量操作
+function updateUserBatchBar() {
+    const checkboxes = document.querySelectorAll(".user-checkbox");
+    const checked = document.querySelectorAll(".user-checkbox:checked");
+    const countEl = document.getElementById("selected-user-count");
+    const selectAll = document.getElementById("select-all-users");
+    if (countEl) {
+        countEl.textContent = checked.length;
+    }
+    if (selectAll) {
+        selectAll.checked = checkboxes.length > 0 && checked.length === checkboxes.length;
+        selectAll.indeterminate = checked.length > 0 && checked.length < checkboxes.length;
+    }
+}
+
+document.addEventListener("change", (event) => {
+    if (event.target.id === "select-all-users") {
+        const checked = event.target.checked;
+        document.querySelectorAll(".user-checkbox").forEach(cb => {
+            cb.checked = checked;
+        });
+        updateUserBatchBar();
+        return;
+    }
+    if (event.target.classList.contains("user-checkbox")) {
+        updateUserBatchBar();
+    }
+});
+
+document.addEventListener("click", (event) => {
+    const batchBtn = event.target.closest("#user-batch-bar .batch-btn");
+    if (!batchBtn) return;
+    event.preventDefault();
+
+    const checked = document.querySelectorAll(".user-checkbox:checked");
+    if (checked.length === 0) {
+        alert("请先选择用户");
+        return;
+    }
+
+    const action = batchBtn.dataset.action;
+    if (action === "delete") {
+        if (!window.confirm(`确定批量删除 ${checked.length} 个用户吗？这些用户的所有角色卡和评论也将被删除。此操作不可撤销。`)) {
+            return;
+        }
+    }
+
+    const ids = Array.from(checked).map(cb => cb.value).join(",");
+    const idsInput = document.getElementById("batch-user-ids");
+    const actionInput = document.getElementById("batch-user-action");
+    if (idsInput) idsInput.value = ids;
+    if (actionInput) actionInput.value = action;
+
+    const form = document.querySelector("#user-batch-bar .batch-form");
+    if (form) form.submit();
+});
+</script>
+{% endblock %}

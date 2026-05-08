@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}编辑资料 - {{ user.display_name or user.username }}{% endblock %}
+{% block content %}
+<section class="form-section">
+    <h1>编辑个人资料</h1>
+    <form method="post" enctype="multipart/form-data" class="card-form">
+        <label>
+            头像
+            <div class="avatar-upload">
+                {% if user.avatar_path %}
+                    <img src="{{ url_for('asset_file', filename=user.avatar_path) }}" alt="头像" class="avatar-preview">
+                {% else %}
+                    <div class="avatar-preview avatar-placeholder">
+                        <span>{{ (user.display_name or user.username)[:1] }}</span>
+                    </div>
+                {% endif %}
+                <input type="file" name="avatar" accept="image/png,image/jpeg,image/jpg,image/webp,image/gif">
+            </div>
+            <small>支持 png、jpg、jpeg、webp、gif 格式，最大 40MB</small>
+        </label>
+
+        <label>
+            显示名称
+            <input type="text" name="display_name" value="{{ user.display_name or '' }}" maxlength="50">
+        </label>
+
+        <label>
+            个人简介
+            <textarea name="bio" rows="4" maxlength="500">{{ user.bio or '' }}</textarea>
+        </label>
+
+        <div class="form-actions">
+            <button type="submit">保存修改</button>
+            <a href="{{ url_for('user_profile', username=user.username) }}" class="btn-secondary">取消</a>
+        </div>
+    </form>
+</section>
+{% endblock %}

@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% block title %}上传角色卡 - 角色卡平台{% endblock %}
+{% block content %}
+<section class="page-head">
+    <p class="eyebrow">发布</p>
+    <h1>上传你的角色卡</h1>
+    <p>选择一种方式发布：导入现有文件，或手动填写一张新的角色卡。</p>
+</section>
+
+<form class="editor-form" method="post" enctype="multipart/form-data">
+    <section class="form-band upload-mode-band">
+        <div>
+            <p class="eyebrow">方式一</p>
+            <h2>导入已有角色卡文件</h2>
+            <p class="form-hint">支持平台 JSON、NekoBot 单卡 ZIP，以及 NekoBot 批量导出的多角色 ZIP。选择 ZIP 时会直接导入文件内容，不需要再填写下面的手动表单。</p>
+        </div>
+        <div class="form-grid two">
+            <label>
+                <span>角色卡文件</span>
+                <input type="file" name="card_file" accept="application/json,application/zip,.json,.zip">
+            </label>
+            <label>
+                <span>单独头像（仅 JSON 导入时可选）</span>
+                <input type="file" name="avatar" accept="image/png,image/jpeg,image/webp,image/gif">
+            </label>
+        </div>
+    </section>
+
+    <div class="upload-divider">
+        <span>或者</span>
+    </div>
+
+    <section class="form-band">
+        <p class="eyebrow">方式二</p>
+        <h2>手动填写角色信息</h2>
+        <p class="form-hint">适合从零创建一张公开展示的角色卡。系统提示词会由你的角色设定在使用时生成，这里不需要单独填写。</p>
+        <div class="form-grid two">
+            <label>
+                <span>角色名 *</span>
+                <input name="name" placeholder="例如：星野观测员">
+            </label>
+            <label>
+                <span>作者</span>
+                <input name="creator" placeholder="你的昵称" value="{{ current_user.display_name or current_user.username if current_user else '' }}">
+            </label>
+            <label>
+                <span>标签</span>
+                <input name="tags" placeholder="治愈, 助手, 科幻">
+            </label>
+            <label>
+                <span>可见性</span>
+                <select name="visibility">
+                    <option value="public">公开</option>
+                    <option value="private">私有</option>
+                </select>
+            </label>
+        </div>
+        <label>
+            <span>简介</span>
+            <textarea name="description" rows="3" placeholder="一句话说明这个角色的魅力"></textarea>
+        </label>
+    </section>
+
+    <section class="form-band">
+        <h2>角色内容</h2>
+        <label>
+            <span>性格设定 *</span>
+            <textarea name="personality" rows="7" placeholder="角色的说话方式、性格、边界和习惯"></textarea>
+        </label>
+        <label>
+            <span>开场白</span>
+            <textarea name="first_message" rows="4" placeholder="用户第一次打开角色时看到的消息"></textarea>
+        </label>
+        <label>
+            <span>场景 / 世界观</span>
+            <textarea name="scenario" rows="5" placeholder="角色所处的环境、背景或剧情前提"></textarea>
+        </label>
+    </section>
+
+    <div class="form-actions">
+        <a href="{{ url_for('index') }}">取消</a>
+        <button type="submit">发布角色卡</button>
+    </div>
+</form>
+{% endblock %}

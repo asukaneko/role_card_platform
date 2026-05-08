@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+{% block title %}{{ card.name }} - 角色卡平台{% endblock %}
+{% block content %}
+<section class="detail-layout">
+    <aside class="detail-aside">
+        <div class="portrait">
+            {% if card.avatar_path %}
+                <img src="{{ url_for('asset_file', filename=card.avatar_path) }}" alt="{{ card.name }}">
+            {% else %}
+                <span>{{ card.name[:1] }}</span>
+            {% endif %}
+        </div>
+        <div class="stat-row">
+            <span>{{ card.downloads }}<small>下载</small></span>
+            <span id="like-count">{{ card.likes }}<small>喜欢</small></span>
+            <span>{{ comments|length }}<small>评论</small></span>
+        </div>
+        {% if current_user_id %}
+            {% if user_liked %}
+                <button class="like-button" disabled>已喜欢</button>
+            {% else %}
+                <button class="like-button" data-like-url="{{ url_for('like_card', card_id=card.id) }}">喜欢这个角色</button>
+            {% endif %}
+        {% else %}
+            <button class="like-button" disabled title="请登录后喜欢">喜欢这个角色（请登录）</button>
+        {% endif %}
+        <a class="download-button" href="{{ url_for('download_card', card_id=card.id) }}">下载 JSON</a>
+        <a class="download-button" href="{{ url_for('download_nekozip', card_id=card.id) }}">下载 NekoBot ZIP</a>
+        {% if current_user and card.user_id == current_user.id %}
+        <div class="owner-actions">
+            <a class="owner-btn edit-btn" href="{{ url_for('edit_card', card_id=card.id) }}">编辑角色卡</a>
+            <form method="post" action="{{ url_for('toggle_visibility', card_id=card.id) }}">
+                <button type="submit" class="owner-btn visibility-btn">
+                    {% if card.visibility == 'public' %}设为私有{% else %}设为公开{% endif %}
+                </button>
+            </form>
+            <form method="post" action="{{ url_for('delete_card', card_id=card.id) }}" data-confirm="确定删除这张角色卡吗？此操作不可撤销。">
+                <button type="submit" class="owner-btn danger-btn">删除角色卡</button>
+            </form>
+        </div>
+        {% endif %}
+    </aside>
+
+    <article class="detail-main">
+        <p class="eyebrow">{% if card.owner_username %}by <a href="{{ url_for('user_profile', username=card.owner_username) }}">{{ card.owner_username }}</a>{% else %}{{ card.creator or "匿名作者" }}{% endif %}</p>
+        <h1>{{ card.name }}</h1>
+        <div class="tags">
+            {% for item in card.tags %}
+                <a href="{{ url_for('index', tag=item) }}">#{{ item }}</a>
+            {% endfor %}
+        </div>
+
+        <section class="text-section">
+            <h2>角色简介</h2>
+            <p>{{ card.description or "作者还没有填写简介。" }}</p>
+        </section>
+        <section class="text-section">
+            <h2>性格设定</h2>
+            <p>{{ card.personality or "暂无。" }}</p>
+        </section>
+        <section class="text-section">
+            <h2>开场白</h2>
+            <blockquote>{{ card.first_message or "暂无。" }}</blockquote>
+        </section>
+        <section class="text-section">
+            <h2>场景 / 世界观</h2>
+            <p>{{ card.scenario or "暂无。" }}</p>
+        </section>
+        <details class="prompt-detail">
+            <summary>查看系统提示词</summary>
+            <pre>{{ card.system_prompt or "暂无。" }}</pre>
+        </details>
+
+        <section class="comment-section">
+            <h2>评论 · {{ comments|length }}</h2>
+
+            {% if current_user %}
+            <form class="comment-form" method="post" action="{{ url_for('post_comment', card_id=card.id) }}">
+                <label>
+                    <textarea name="content" rows="3" placeholder="写下你的想法..." maxlength="1000"></textarea>
+                </label>
+                <button type="submit">发表评论</button>
+            </form>
+            {% else %}
+            <p class="comment-login-hint"><a href="{{ url_for('login') }}">登录</a>后即可参与评论</p>
+            {% endif %}
+
+            {% if comments %}
+            <div class="comment-list">
+                {% for c in comments %}
+                <div class="comment-item">
+                    <div class="comment-avatar">
+                        <span>{{ (c.display_name or c.username)[:1] }}</span>
+                    </div>
+                    <div class="comment-body">
+                        <div class="comment-meta">
+                            <a href="{{ url_for('user_profile', username=c.username) }}">{{ c.display_name or c.username }}</a>
+                            <time>{{ c.created_at[:16].replace('T', ' ') }}</time>
+                        </div>
+                        <p class="comment-text">{{ c.content }}</p>
+                        {% if c.can_delete %}
+                        <form method="post" action="{{ url_for('delete_comment', comment_id=c.id) }}" style="display:inline">
+                            <button type="submit" class="comment-delete">删除</button>
+                        </form>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="comment-empty">暂无评论，来做第一个评论吧！</p>
+            {% endif %}
+        </section>
+    </article>
+</section>
+{% endblock %}

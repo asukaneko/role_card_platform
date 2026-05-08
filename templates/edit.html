@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block title %}编辑 {{ card.name }} - 角色卡平台{% endblock %}
+{% block content %}
+<section class="page-head">
+    <p class="eyebrow">编辑</p>
+    <h1>编辑角色卡</h1>
+    <p>修改「{{ card.name }}」的信息。</p>
+</section>
+
+<form class="editor-form" method="post" enctype="multipart/form-data">
+    <section class="form-band">
+        <h2>基本信息</h2>
+        <div class="form-grid two">
+            <label>
+                <span>角色名 *</span>
+                <input name="name" value="{{ card.name }}" placeholder="例如：星野观测员">
+            </label>
+            <label>
+                <span>作者</span>
+                <input name="creator" value="{{ card.creator }}" placeholder="你的昵称">
+            </label>
+            <label>
+                <span>标签</span>
+                <input name="tags" value="{{ card.tags | join(', ') }}" placeholder="治愈, 助手, 科幻">
+            </label>
+            <label>
+                <span>可见性</span>
+                <select name="visibility">
+                    <option value="public" {% if card.visibility == "public" %}selected{% endif %}>公开</option>
+                    <option value="private" {% if card.visibility == "private" %}selected{% endif %}>私有</option>
+                </select>
+            </label>
+        </div>
+        <label>
+            <span>简介</span>
+            <textarea name="description" rows="3" placeholder="一句话说明这个角色的魅力">{{ card.description }}</textarea>
+        </label>
+        <label>
+            <span>更换头像（留空则不更换）</span>
+            <input type="file" name="avatar" accept="image/png,image/jpeg,image/webp,image/gif">
+        </label>
+    </section>
+
+    <section class="form-band">
+        <h2>角色内容</h2>
+        <label>
+            <span>性格设定 *</span>
+            <textarea name="personality" rows="7" placeholder="角色的说话方式、性格、边界和习惯">{{ card.personality }}</textarea>
+        </label>
+        <label>
+            <span>开场白</span>
+            <textarea name="first_message" rows="4" placeholder="用户第一次打开角色时看到的消息">{{ card.first_message }}</textarea>
+        </label>
+        <label>
+            <span>场景 / 世界观</span>
+            <textarea name="scenario" rows="5" placeholder="角色所处的环境、背景或剧情前提">{{ card.scenario }}</textarea>
+        </label>
+        <label>
+            <span>系统提示词</span>
+            <textarea name="system_prompt" rows="5" placeholder="系统级别的角色指令">{{ card.system_prompt }}</textarea>
+        </label>
+    </section>
+
+    <div class="form-actions">
+        <a href="{{ url_for('card_detail', identifier=card.slug) }}">取消</a>
+        <button type="submit">保存修改</button>
+    </div>
+</form>
+{% endblock %}

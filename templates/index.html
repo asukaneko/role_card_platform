@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% block title %}角色广场 - 角色卡平台{% endblock %}
+{% block content %}
+<section class="hero">
+    <div class="hero-copy">
+        <p class="eyebrow">角色卡广场</p>
+        <h1>收藏、发布、分享你的对话角色</h1>
+        <p>一个角色卡平台，支持 JSON 上传、头像上传、标签筛选和一键下载。</p>
+    </div>
+    <form class="search-panel" method="get" action="{{ url_for('index') }}">
+        <label>
+            <span>搜索</span>
+            <input name="q" value="{{ q }}" placeholder="角色名、简介、作者">
+        </label>
+        <label>
+            <span>排序</span>
+            <select name="sort">
+                <option value="latest" {% if sort == "latest" %}selected{% endif %}>最新发布</option>
+                <option value="popular" {% if sort == "popular" %}selected{% endif %}>下载最多</option>
+                <option value="liked" {% if sort == "liked" %}selected{% endif %}>喜欢最多</option>
+            </select>
+        </label>
+        {% if tag %}
+            <input type="hidden" name="tag" value="{{ tag }}">
+        {% endif %}
+        <button type="submit">筛选</button>
+    </form>
+</section>
+
+{% if all_tags %}
+<section class="tag-strip">
+    <a class="tag-pill {% if not tag %}active{% endif %}" href="{{ url_for('index', q=q, sort=sort) }}">全部</a>
+    {% for item in all_tags %}
+        <a class="tag-pill {% if tag == item %}active{% endif %}" href="{{ url_for('index', q=q, tag=item, sort=sort) }}">{{ item }}</a>
+    {% endfor %}
+</section>
+{% endif %}
+
+<section class="toolbar">
+    <div>
+        <strong>{{ cards|length }}</strong>
+        <span>张公开角色卡</span>
+    </div>
+    {% if current_user %}
+        <a class="primary-link" href="{{ url_for('upload') }}">上传新角色</a>
+    {% else %}
+        <a class="primary-link" href="{{ url_for('login') }}">登录后上传</a>
+    {% endif %}
+</section>
+
+{% if cards %}
+<section class="card-grid">
+    {% for card in cards %}
+        <article class="role-card">
+            <a class="card-media" href="{{ url_for('card_detail', identifier=card.slug) }}">
+                {% if card.avatar_path %}
+                    <img src="{{ url_for('asset_file', filename=card.avatar_path) }}" alt="{{ card.name }}">
+                {% else %}
+                    <span>{{ card.name[:1] }}</span>
+                {% endif %}
+            </a>
+            <div class="card-body">
+                <div class="card-title-row">
+                    <h2><a href="{{ url_for('card_detail', identifier=card.slug) }}">{{ card.name }}</a></h2>
+                    <span class="visibility">{{ card.visibility }}</span>
+                </div>
+                <p>{{ card.description or card.personality }}</p>
+                <div class="tags">
+                    {% for item in card.tags %}
+                        <a href="{{ url_for('index', tag=item) }}">#{{ item }}</a>
+                    {% endfor %}
+                </div>
+                <div class="card-meta">
+                    <span>{% if card.owner_username %}<a href="{{ url_for('user_profile', username=card.owner_username) }}">{{ card.owner_username }}</a>{% else %}{{ card.creator or "匿名作者" }}{% endif %}</span>
+                    <span>{{ card.downloads }} 下载 · {{ card.likes }} 喜欢</span>
+                </div>
+            </div>
+        </article>
+    {% endfor %}
+</section>
+{% else %}
+<section class="empty-state">
+    <h2>还没有角色卡</h2>
+    <p>上传第一张角色卡，让这个平台有自己的第一束光。</p>
+    {% if current_user %}
+        <a class="primary-link" href="{{ url_for('upload') }}">立即上传</a>
+    {% else %}
+        <a class="primary-link" href="{{ url_for('login') }}">登录后上传</a>
+    {% endif %}
+</section>
+{% endif %}
+{% endblock %}
