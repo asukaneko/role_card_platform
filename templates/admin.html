@@ -36,7 +36,7 @@
             </label>
             <div class="admin-avatar">
                 {% if user.avatar_path %}
-                    <img src="{{ url_for('asset_file', filename=user.avatar_path) }}" alt="{{ user.display_name or user.username }}">
+                    <img src="{{ url_for('asset_file', filename=user.avatar_path, _external=True) }}" alt="{{ user.display_name or user.username }}">
                 {% else %}
                     <span>{{ (user.display_name or user.username)[:1] }}</span>
                 {% endif %}
