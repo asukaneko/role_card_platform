@@ -301,10 +301,15 @@ def index():
 @server.route("/card/<identifier>")
 def card_detail(identifier):
     card = RoleCard.get_or_404(identifier)
-    if card["visibility"] != "public" and request.args.get("admin") != admin_token():
-        abort(404)
-    
     user_id = session.get("user_id")
+    
+    # 检查权限：私有卡片只有所有者和管理员可以查看
+    if card["visibility"] != "public":
+        is_owner = user_id and card.get("user_id") == user_id
+        is_admin = request.args.get("admin") == admin_token()
+        if not is_owner and not is_admin:
+            abort(404)
+    
     user_liked = False
     
     with get_db() as db:
@@ -478,6 +483,9 @@ def toggle_visibility(card_id):
     flash(f"角色卡已设为{'公开' if new_visibility == 'public' else '私有'}")
     source = request.form.get("source", "")
     owner_username = card.get("owner_username", "")
+    # 设为私有后跳转到用户主页，设为公开后留在卡片详情页
+    if new_visibility == "private" and owner_username:
+        return redirect(url_for("user_profile", username=owner_username))
     if source == "profile" and owner_username:
         return redirect(url_for("user_profile", username=owner_username))
     return redirect(url_for("card_detail", identifier=card["slug"]))

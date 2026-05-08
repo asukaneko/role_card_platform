@@ -30,6 +30,7 @@
         <div class="owner-actions">
             <a class="owner-btn edit-btn" href="{{ url_for('edit_card', card_id=card.id) }}">编辑角色卡</a>
             <form method="post" action="{{ url_for('toggle_visibility', card_id=card.id) }}">
+                <input type="hidden" name="source" value="detail">
                 <button type="submit" class="owner-btn visibility-btn">
                     {% if card.visibility == 'public' %}设为私有{% else %}设为公开{% endif %}
                 </button>
