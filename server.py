@@ -22,6 +22,8 @@ from flask import (
     session,
     url_for,
 )
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 from werkzeug.security import check_password_hash, generate_password_hash
 from werkzeug.utils import secure_filename
 
@@ -59,6 +61,19 @@ load_dotenv()
 server = Flask(__name__)
 server.config["SECRET_KEY"] = os.getenv("ROLE_CARD_SECRET_KEY", secrets.token_hex(24))
 server.config["MAX_CONTENT_LENGTH"] = MAX_ZIP_BYTES
+
+# 配置安全会话设置
+server.config["SESSION_COOKIE_SECURE"] = os.getenv("ROLE_CARD_SECURE_COOKIE", "false").lower() in {"1", "true", "yes", "on"}
+server.config["SESSION_COOKIE_HTTPONLY"] = True
+server.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+
+# 初始化速率限制器
+limiter = Limiter(
+    get_remote_address,
+    app=server,
+    default_limits=["200 per day", "50 per hour"],
+    storage_uri="memory://",
+)
 
 
 def ensure_dirs() -> None:
@@ -254,6 +269,26 @@ def validate_card(card: dict) -> None:
         raise ValueError("请至少填写简介或性格设定")
 
 
+def validate_image_content(content: bytes) -> bool:
+    """验证文件内容是否为有效的图片格式（通过文件头魔数）"""
+    if len(content) < 8:
+        return False
+
+    # 图片文件头魔数
+    image_signatures = {
+        b'\x89PNG\r\n\x1a\n': '.png',
+        b'\xff\xd8\xff': '.jpg',  # JPEG/JPG
+        b'RIFF': '.webp',  # WebP 以 RIFF 开头
+        b'GIF87a': '.gif',
+        b'GIF89a': '.gif',
+    }
+
+    for signature, ext in image_signatures.items():
+        if content.startswith(signature):
+            return True
+    return False
+
+
 def save_avatar(file_storage) -> str:
     if not file_storage or not file_storage.filename:
         return ""
@@ -267,6 +302,12 @@ def save_avatar(file_storage) -> str:
     file_storage.stream.seek(0)
     if size > MAX_AVATAR_BYTES:
         raise ValueError("头像不能超过 40MB")
+
+    # 读取内容验证图片格式
+    content = file_storage.read()
+    file_storage.stream.seek(0)
+    if not validate_image_content(content):
+        raise ValueError("上传的文件不是有效的图片格式")
 
     safe_name = secure_filename(file_storage.filename) or f"avatar{ext}"
     filename = f"{int(time.time())}_{secrets.token_hex(6)}_{safe_name}"
@@ -284,11 +325,24 @@ def save_avatar_bytes(filename: str, content: bytes) -> str:
         return ""
     if len(content) > MAX_AVATAR_BYTES:
         raise ValueError("Avatar cannot exceed 40MB")
+    # 验证图片内容
+    if not validate_image_content(content):
+        return ""
     safe_name = secure_filename(Path(filename).name) or f"avatar{ext}"
     stored = f"{int(time.time())}_{secrets.token_hex(6)}_{safe_name}"
     path = AVATAR_DIR / stored
     path.write_bytes(content)
     return f"uploads/avatars/{stored}"
+
+
+def _is_safe_zip_path(filepath: str) -> bool:
+    """检查 ZIP 中的路径是否安全（防止 Zip Slip 攻击）"""
+    # 规范化路径并检查是否包含路径遍历
+    parts = filepath.replace("\\", "/").split("/")
+    for part in parts:
+        if part == "..":
+            return False
+    return True
 
 
 def extract_zip_cards(file_storage) -> list[tuple[dict, str]]:
@@ -302,8 +356,11 @@ def extract_zip_cards(file_storage) -> list[tuple[dict, str]]:
 
     imported: list[tuple[dict, str]] = []
     with zipfile.ZipFile(io.BytesIO(raw), "r") as zf:
-        names = [name for name in zf.namelist() if not name.endswith("/")]
-        json_names = [name for name in names if name.lower().endswith("character.json")]
+        # 过滤掉不安全的文件名（防止 Zip Slip）
+        all_names = zf.namelist()
+        safe_names = [name for name in all_names if not name.endswith("/") and _is_safe_zip_path(name)]
+
+        json_names = [name for name in safe_names if name.lower().endswith("character.json")]
         if not json_names:
             raise ValueError("ZIP must contain character.json")
 
@@ -316,9 +373,11 @@ def extract_zip_cards(file_storage) -> list[tuple[dict, str]]:
 
             folder = _parent_dir(json_name)
             avatar_path = ""
-            for name in names:
+            for name in safe_names:
                 if _parent_dir(name) == folder and Path(name).stem.lower() == "portrait":
-                    avatar_path = save_avatar_bytes(name, zf.read(name))
+                    # 使用安全的文件名保存头像
+                    safe_name = Path(name).name
+                    avatar_path = save_avatar_bytes(safe_name, zf.read(name))
                     break
             imported.append((normalize_role_card_data(data), avatar_path))
     return imported
@@ -395,11 +454,7 @@ def fetch_card_or_404(identifier):
 
 
 def to_export_json(card: dict) -> dict:
-    try:
-        raw_json = json.loads(card.get("raw_json") or "{}")
-    except Exception:
-        raw_json = {}
-
+    """导出角色卡数据，只返回安全的字段"""
     exported = {
         "name": card["name"],
         "avatar": url_for("asset_file", filename=card["avatar_path"], _external=True)
@@ -415,21 +470,6 @@ def to_export_json(card: dict) -> dict:
         "visibility": card.get("visibility", "public"),
         "version": "1.0.0",
     }
-    if raw_json:
-        raw_json.update(
-            {
-                "name": exported["name"],
-                "description": exported["description"],
-                "tags": exported["tags"],
-                "personality": exported["personality"],
-                "scenario": exported["scenario"],
-            }
-        )
-        if "firstMessage" in raw_json:
-            raw_json["firstMessage"] = exported["first_message"]
-        if "systemPrompt" in raw_json:
-            raw_json["systemPrompt"] = exported["system_prompt"]
-        return raw_json
     return exported
 
 
@@ -521,6 +561,7 @@ def login_required(f):
 
 
 @server.route("/register", methods=["GET", "POST"])
+@limiter.limit("5 per minute")
 def register():
     if request.method == "GET":
         return render_template("register.html")
@@ -571,6 +612,7 @@ def register():
 
 
 @server.route("/login", methods=["GET", "POST"])
+@limiter.limit("10 per minute")
 def login():
     if request.method == "GET":
         return render_template("login.html")
@@ -679,8 +721,25 @@ def edit_profile(username):
 
 @server.route("/assets/<path:filename>")
 def asset_file(filename):
-    target = BASE_DIR / filename
-    if not target.exists() or not target.resolve().is_relative_to(BASE_DIR):
+    # 清理文件名，防止路径遍历攻击
+    # 移除任何 .. 或绝对路径
+    safe_parts = []
+    for part in filename.replace("\\", "/").split("/"):
+        if part == ".." or part.startswith("/") or not part:
+            continue
+        safe_parts.append(part)
+    safe_filename = "/".join(safe_parts)
+    if not safe_filename:
+        abort(404)
+
+    target = (BASE_DIR / safe_filename).resolve()
+    # 确保解析后的路径仍在 BASE_DIR 内
+    try:
+        target.relative_to(BASE_DIR.resolve())
+    except ValueError:
+        abort(404)
+
+    if not target.exists() or not target.is_file():
         abort(404)
     return send_file(target, max_age=0)
 
@@ -981,6 +1040,7 @@ def upload():
 
 
 @server.route("/api/cards", methods=["POST"])
+@limiter.limit("10 per minute")
 def api_create_card():
     # 优先通过 API Token 获取用户身份
     user_id = session.get("user_id")
@@ -1015,8 +1075,9 @@ def api_create_card():
         return jsonify({"success": False, "error": "Invalid JSON"}), 400
     except ValueError as exc:
         return jsonify({"success": False, "error": str(exc)}), 400
-    except Exception as exc:
-        return jsonify({"success": False, "error": f"Upload failed: {exc}"}), 500
+    except Exception:
+        # 生产环境不暴露详细错误信息
+        return jsonify({"success": False, "error": "Upload failed"}), 500
 
 
 @server.route("/card/<int:card_id>/download")
@@ -1058,6 +1119,7 @@ def download_nekozip(card_id):
 
 
 @server.route("/card/<int:card_id>/like", methods=["POST"])
+@limiter.limit("30 per minute")
 def like_card(card_id):
     # 检查用户是否登录
     user_id = session.get("user_id")
