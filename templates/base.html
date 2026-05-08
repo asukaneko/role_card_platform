@@ -11,7 +11,7 @@
             document.documentElement.dataset.theme = saved || (prefersDark ? "dark" : "light");
         })();
     </script>
-    <link rel="stylesheet" href="{{ url_for('asset_file', filename='static/css/style.css') }}?v=20260508-theme-upload">
+    <link rel="stylesheet" href="{{ url_for('asset_file', filename='static/css/style.css', _external=True) }}?v=20260508-theme-upload">
 </head>
 <body>
     <header class="site-header">
@@ -63,6 +63,6 @@
     <footer class="site-footer">
         <span>JSON 上传限制 256KB，头像限制 40MB</span>
     </footer>
-    <script src="{{ url_for('asset_file', filename='static/js/main.js') }}"></script>
+    <script src="{{ url_for('asset_file', filename='static/js/main.js', _external=True) }}"></script>
 </body>
 </html>

@@ -33,7 +33,8 @@
     <section class="form-band">
         <p class="eyebrow">方式二</p>
         <h2>手动填写角色信息</h2>
-        <p class="form-hint">适合从零创建一张公开展示的角色卡。系统提示词会由你的角色设定在使用时生成，这里不需要单独填写。</p>
+        <p class="form-hint">适合从零创建一张公开展示的角色卡。</p>
+        
         <div class="form-grid two">
             <label>
                 <span>角色名 *</span>
@@ -43,9 +44,12 @@
                 <span>作者</span>
                 <input name="creator" placeholder="你的昵称" value="{{ current_user.display_name or current_user.username if current_user else '' }}">
             </label>
+        </div>
+        
+        <div class="form-grid two">
             <label>
                 <span>标签</span>
-                <input name="tags" placeholder="治愈, 助手, 科幻">
+                <input name="tags" placeholder="兔娘, 刺客, 女仆, 主仆, OC">
             </label>
             <label>
                 <span>可见性</span>
@@ -55,25 +59,86 @@
                 </select>
             </label>
         </div>
+        
         <label>
-            <span>简介</span>
-            <textarea name="description" rows="3" placeholder="一句话说明这个角色的魅力"></textarea>
+            <span>角色描述</span>
+            <textarea name="description" rows="2" placeholder="一句话说明这个角色的魅力，例如：兔耳女仆兼冷血杀手"></textarea>
+        </label>
+        
+        <label>
+            <span>角色立绘</span>
+            <input type="file" name="avatar" accept="image/png,image/jpeg,image/webp,image/gif">
+            <small class="form-hint">支持 JPG、PNG、GIF 格式，建议尺寸 3:4 比例</small>
         </label>
     </section>
 
     <section class="form-band">
-        <h2>角色内容</h2>
+        <h2>角色设定</h2>
+        
         <label>
-            <span>性格设定 *</span>
-            <textarea name="personality" rows="7" placeholder="角色的说话方式、性格、边界和习惯"></textarea>
+            <span>基本信息</span>
+            <textarea name="basic_info" rows="4" placeholder="身高、年龄、职业、外貌特征等&#10;例如：&#10;身高：152cm&#10;年龄：19岁&#10;职业：私人仆从/保镖/杀手&#10;外貌：白色长发、红色眼睛、黑色下垂兔耳"></textarea>
+            <small class="form-hint">角色的基础设定信息</small>
         </label>
+        
         <label>
-            <span>开场白</span>
-            <textarea name="first_message" rows="4" placeholder="用户第一次打开角色时看到的消息"></textarea>
+            <span>性格特点 *</span>
+            <textarea name="personality" rows="6" placeholder="角色的说话方式、性格、心理特征&#10;例如：表面上是胆怯笨拙、说话结巴、容易脸红的软糯兔娘，对主人极度忠诚顺从；但在战斗模式下会变得冷酷无情..."></textarea>
         </label>
+        
         <label>
-            <span>场景 / 世界观</span>
-            <textarea name="scenario" rows="5" placeholder="角色所处的环境、背景或剧情前提"></textarea>
+            <span>背景设定</span>
+            <textarea name="scenario" rows="6" placeholder="角色所处的环境、背景故事&#10;例如：在一个人类与兽人共存的世界，兽人被视作二等公民。蕾波拉是兔子兽人，出生在贫民窟..."></textarea>
+        </label>
+    </section>
+
+    <section class="form-band">
+        <h2>对话设置</h2>
+        
+        <label>
+            <span>开场白 (开始场景)</span>
+            <textarea name="first_message" rows="4" placeholder="用户第一次打开角色时看到的消息&#10;例如：（蕾波拉正站在你面前，白色长发遮住半边脸...）主、主人……您的衣服我已经熨好了..."></textarea>
+            <small class="form-hint">留空则不自动发送开场消息</small>
+        </label>
+        
+        <label>
+            <span>示例对话</span>
+            <textarea name="example_dialogues" rows="8" placeholder="用 <user> 和 <assistant> 标记对话角色&#10;&#10;<user>你刚才出去买东西好像遇到麻烦了？&#10;<assistant>（兔耳抖了抖，眼神躲闪）没、没有！只是几个不长眼的混混……&#10;&#10;<user>你身上怎么有血迹？&#10;<assistant>（慌张地检查衣服）诶？！我、我刚才杀了一只老鼠……"></textarea>
+            <small class="form-hint">展示角色的说话方式，帮助 AI 理解角色风格</small>
+        </label>
+        
+        <label>
+            <span>回复格式</span>
+            <input name="response_format" placeholder="例如：（动作/神态描写）对话内容【当前情绪状态】">
+            <small class="form-hint">定义角色的回复格式规范</small>
+        </label>
+    </section>
+
+    <section class="form-band">
+        <h2>行为规则</h2>
+        <div id="rules-container">
+            <div class="rule-item">
+                <input name="rules" placeholder="规则 1：例如：在主人面前说话必须礼貌、结巴、自贬">
+            </div>
+            <div class="rule-item">
+                <input name="rules" placeholder="规则 2：例如：战斗模式下语气要冷静、简洁、精准">
+            </div>
+            <div class="rule-item">
+                <input name="rules" placeholder="规则 3">
+            </div>
+            <div class="rule-item">
+                <input name="rules" placeholder="规则 4">
+            </div>
+        </div>
+        <button type="button" class="btn-secondary" onclick="addRule()">+ 添加规则</button>
+    </section>
+
+    <section class="form-band">
+        <h2>系统提示词（可选）</h2>
+        <label>
+            <span>系统提示词</span>
+            <textarea name="system_prompt" rows="6" placeholder="系统级别的角色指令，用于覆盖自动生成的提示词"></textarea>
+            <small class="form-hint">如留空，系统会根据上面的设定自动生成</small>
         </label>
     </section>
 
@@ -82,4 +147,15 @@
         <button type="submit">发布角色卡</button>
     </div>
 </form>
+
+<script>
+function addRule() {
+    const container = document.getElementById('rules-container');
+    const count = container.children.length + 1;
+    const div = document.createElement('div');
+    div.className = 'rule-item';
+    div.innerHTML = `<input name="rules" placeholder="规则 ${count}">`;
+    container.appendChild(div);
+}
+</script>
 {% endblock %}

@@ -19,9 +19,12 @@
                 <span>作者</span>
                 <input name="creator" value="{{ card.creator }}" placeholder="你的昵称">
             </label>
+        </div>
+        
+        <div class="form-grid two">
             <label>
                 <span>标签</span>
-                <input name="tags" value="{{ card.tags | join(', ') }}" placeholder="治愈, 助手, 科幻">
+                <input name="tags" value="{{ card.tags | join(', ') }}" placeholder="兔娘, 刺客, 女仆, 主仆, OC">
             </label>
             <label>
                 <span>可见性</span>
@@ -31,33 +34,94 @@
                 </select>
             </label>
         </div>
+        
         <label>
-            <span>简介</span>
-            <textarea name="description" rows="3" placeholder="一句话说明这个角色的魅力">{{ card.description }}</textarea>
+            <span>角色描述</span>
+            <textarea name="description" rows="2" placeholder="一句话说明这个角色的魅力">{{ card.description }}</textarea>
         </label>
+        
         <label>
-            <span>更换头像（留空则不更换）</span>
+            <span>角色立绘（留空则不更换）</span>
             <input type="file" name="avatar" accept="image/png,image/jpeg,image/webp,image/gif">
+            <small class="form-hint">支持 JPG、PNG、GIF 格式，建议尺寸 3:4 比例</small>
         </label>
     </section>
 
     <section class="form-band">
-        <h2>角色内容</h2>
+        <h2>角色设定</h2>
+        
         <label>
-            <span>性格设定 *</span>
-            <textarea name="personality" rows="7" placeholder="角色的说话方式、性格、边界和习惯">{{ card.personality }}</textarea>
+            <span>基本信息</span>
+            <textarea name="basic_info" rows="4" placeholder="身高、年龄、职业、外貌特征等">{{ card.basic_info or '' }}</textarea>
+            <small class="form-hint">角色的基础设定信息</small>
         </label>
+        
         <label>
-            <span>开场白</span>
+            <span>性格特点 *</span>
+            <textarea name="personality" rows="6" placeholder="角色的说话方式、性格、心理特征">{{ card.personality }}</textarea>
+        </label>
+        
+        <label>
+            <span>背景设定</span>
+            <textarea name="scenario" rows="6" placeholder="角色所处的环境、背景故事">{{ card.scenario }}</textarea>
+        </label>
+    </section>
+
+    <section class="form-band">
+        <h2>对话设置</h2>
+        
+        <label>
+            <span>开场白 (开始场景)</span>
             <textarea name="first_message" rows="4" placeholder="用户第一次打开角色时看到的消息">{{ card.first_message }}</textarea>
+            <small class="form-hint">留空则不自动发送开场消息</small>
         </label>
+        
         <label>
-            <span>场景 / 世界观</span>
-            <textarea name="scenario" rows="5" placeholder="角色所处的环境、背景或剧情前提">{{ card.scenario }}</textarea>
+            <span>示例对话</span>
+            <textarea name="example_dialogues" rows="8" placeholder="用 <user> 和 <assistant> 标记对话角色">{{ card.example_dialogues or '' }}</textarea>
+            <small class="form-hint">展示角色的说话方式，帮助 AI 理解角色风格</small>
         </label>
+        
+        <label>
+            <span>回复格式</span>
+            <input name="response_format" value="{{ card.response_format or '' }}" placeholder="例如：（动作/神态描写）对话内容【当前情绪状态】">
+            <small class="form-hint">定义角色的回复格式规范</small>
+        </label>
+    </section>
+
+    <section class="form-band">
+        <h2>行为规则</h2>
+        <div id="rules-container">
+            {% if card.rules and card.rules | length > 0 %}
+                {% for rule in card.rules %}
+                <div class="rule-item">
+                    <input name="rules" value="{{ rule }}" placeholder="规则 {{ loop.index }}">
+                </div>
+                {% endfor %}
+            {% else %}
+                <div class="rule-item">
+                    <input name="rules" placeholder="规则 1">
+                </div>
+                <div class="rule-item">
+                    <input name="rules" placeholder="规则 2">
+                </div>
+                <div class="rule-item">
+                    <input name="rules" placeholder="规则 3">
+                </div>
+                <div class="rule-item">
+                    <input name="rules" placeholder="规则 4">
+                </div>
+            {% endif %}
+        </div>
+        <button type="button" class="btn-secondary" onclick="addRule()">+ 添加规则</button>
+    </section>
+
+    <section class="form-band">
+        <h2>系统提示词（可选）</h2>
         <label>
             <span>系统提示词</span>
-            <textarea name="system_prompt" rows="5" placeholder="系统级别的角色指令">{{ card.system_prompt }}</textarea>
+            <textarea name="system_prompt" rows="6" placeholder="系统级别的角色指令，用于覆盖自动生成的提示词">{{ card.system_prompt or '' }}</textarea>
+            <small class="form-hint">如留空，系统会根据上面的设定自动生成</small>
         </label>
     </section>
 
@@ -66,4 +130,15 @@
         <button type="submit">保存修改</button>
     </div>
 </form>
+
+<script>
+function addRule() {
+    const container = document.getElementById('rules-container');
+    const count = container.children.length + 1;
+    const div = document.createElement('div');
+    div.className = 'rule-item';
+    div.innerHTML = `<input name="rules" placeholder="规则 ${count}">`;
+    container.appendChild(div);
+}
+</script>
 {% endblock %}

@@ -44,32 +44,109 @@
     <article class="detail-main">
         <p class="eyebrow">{% if card.owner_username %}by <a href="{{ url_for('user_profile', username=card.owner_username) }}">{{ card.owner_username }}</a>{% else %}{{ card.creator or "匿名作者" }}{% endif %}</p>
         <h1>{{ card.name }}</h1>
+        
+        {% if card.description %}
+        <p class="card-description">{{ card.description }}</p>
+        {% endif %}
+        
         <div class="tags">
             {% for item in card.tags %}
                 <a href="{{ url_for('index', tag=item) }}">#{{ item }}</a>
             {% endfor %}
         </div>
 
+        {% if card.basic_info %}
         <section class="text-section">
-            <h2>角色简介</h2>
-            <p>{{ card.description or "作者还没有填写简介。" }}</p>
+            <h2>基本信息</h2>
+            <pre class="info-block">{{ card.basic_info }}</pre>
         </section>
+        {% endif %}
+
+        {% if card.personality %}
         <section class="text-section">
-            <h2>性格设定</h2>
-            <p>{{ card.personality or "暂无。" }}</p>
+            <h2>性格特点</h2>
+            <p>{{ card.personality }}</p>
         </section>
+        {% endif %}
+
+        {% if card.scenario %}
+        <section class="text-section">
+            <h2>背景设定</h2>
+            <p>{{ card.scenario }}</p>
+        </section>
+        {% endif %}
+
+        {% if card.first_message %}
         <section class="text-section">
             <h2>开场白</h2>
-            <blockquote>{{ card.first_message or "暂无。" }}</blockquote>
+            <blockquote class="first-message">{{ card.first_message }}</blockquote>
         </section>
+        {% endif %}
+
+        {% if card.example_dialogues %}
         <section class="text-section">
-            <h2>场景 / 世界观</h2>
-            <p>{{ card.scenario or "暂无。" }}</p>
+            <h2>示例对话</h2>
+            <pre class="dialogue-block">{{ card.example_dialogues }}</pre>
         </section>
+        {% endif %}
+
+        {% if card.response_format %}
+        <section class="text-section">
+            <h2>回复格式</h2>
+            <p class="format-hint">{{ card.response_format }}</p>
+        </section>
+        {% endif %}
+
+        {% if card.rules and card.rules|length > 0 %}
+        <section class="text-section">
+            <h2>行为规则</h2>
+            <ol class="rules-list">
+                {% for rule in card.rules %}
+                    {% if rule %}
+                    <li>{{ rule }}</li>
+                    {% endif %}
+                {% endfor %}
+            </ol>
+        </section>
+        {% endif %}
+
+        {% if card.state and card.state|length > 0 %}
+        <section class="text-section">
+            <h2>角色状态</h2>
+            <div class="state-grid">
+                {% if card.state.get('affection') is not none %}
+                <div class="state-item">
+                    <span class="state-label">好感度</span>
+                    <span class="state-value">{{ card.state.affection }}/100</span>
+                    <div class="affection-bar">
+                        <div class="affection-fill" style="width: {{ card.state.affection }}%"></div>
+                    </div>
+                </div>
+                {% endif %}
+                {% if card.state.mood %}
+                <div class="state-item">
+                    <span class="state-label">心情</span>
+                    <span class="state-value">{{ card.state.mood }}</span>
+                </div>
+                {% endif %}
+                {% for key, value in card.state.items() %}
+                    {% if key not in ['affection', 'mood'] %}
+                    <div class="state-item">
+                        <span class="state-label">{{ key }}</span>
+                        <span class="state-value">{{ value }}</span>
+                    </div>
+                    {% endif %}
+                {% endfor %}
+            </div>
+        </section>
+        {% endif %}
+
+        {% if card.system_prompt %}
         <details class="prompt-detail">
             <summary>查看系统提示词</summary>
-            <pre>{{ card.system_prompt or "暂无。" }}</pre>
+            <pre>{{ card.system_prompt }}</pre>
         </details>
+        {% endif %}
 
         <section class="comment-section">
             <h2>评论 · {{ comments|length }}</h2>

@@ -1,11 +1,13 @@
+"""
+角色卡平台 - 主入口文件
+采用渐进式模块化重构，使用新模块替代原有功能
+"""
 import json
-import io
 import os
 import re
 import secrets
 import sqlite3
 import time
-import zipfile
 from datetime import datetime
 from functools import wraps
 from pathlib import Path
@@ -27,537 +29,35 @@ from flask_limiter.util import get_remote_address
 from werkzeug.security import check_password_hash, generate_password_hash
 from werkzeug.utils import secure_filename
 
+# 导入新模块
+from config import (
+    BASE_DIR, DATA_DIR, UPLOAD_DIR, AVATAR_DIR, CARD_DIR, DB_PATH,
+    MAX_CARD_BYTES, MAX_AVATAR_BYTES, MAX_ZIP_BYTES,
+    ALLOWED_AVATAR_EXTENSIONS, IMAGE_SIGNATURES, Config
+)
+from models import init_db, get_db, User, RoleCard, Comment, UserLike
+from auth import (
+    generate_user_api_token, resolve_api_user, api_token_valid,
+    admin_token, get_current_user, login_required, AuthService
+)
+from utils import (
+    ensure_dirs, slugify, unique_slug, normalize_tags, limit_text,
+    validate_image_content, save_avatar, save_avatar_bytes,
+    extract_zip_cards, card_from_json_upload, to_export_json
+)
+from card_utils import normalize_role_card_data, card_from_form, validate_card
 
-BASE_DIR = Path(__file__).resolve().parent
-DATA_DIR = BASE_DIR / "data"
-UPLOAD_DIR = BASE_DIR / "uploads"
-AVATAR_DIR = UPLOAD_DIR / "avatars"
-CARD_DIR = UPLOAD_DIR / "cards"
-DB_PATH = DATA_DIR / "role_cards.db"
-
-MAX_CARD_BYTES = 256 * 1024
-MAX_AVATAR_BYTES = 40 * 1024 * 1024
-MAX_ZIP_BYTES = 64 * 1024 * 1024
-ALLOWED_AVATAR_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp", ".gif"}
-
-
-def load_dotenv() -> None:
-    env_path = BASE_DIR / ".env"
-    if not env_path.exists():
-        return
-    for raw_line in env_path.read_text(encoding="utf-8").splitlines():
-        line = raw_line.strip()
-        if not line or line.startswith("#") or "=" not in line:
-            continue
-        key, value = line.split("=", 1)
-        key = key.strip()
-        value = value.strip().strip('"').strip("'")
-        if key and key not in os.environ:
-            os.environ[key] = value
-
-
-load_dotenv()
-
+# 创建 Flask 应用
 server = Flask(__name__)
-server.config["SECRET_KEY"] = os.getenv("ROLE_CARD_SECRET_KEY", secrets.token_hex(24))
-server.config["MAX_CONTENT_LENGTH"] = MAX_ZIP_BYTES
-
-# 配置安全会话设置
-server.config["SESSION_COOKIE_SECURE"] = os.getenv("ROLE_CARD_SECURE_COOKIE", "false").lower() in {"1", "true", "yes", "on"}
-server.config["SESSION_COOKIE_HTTPONLY"] = True
-server.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+server.config.from_object(Config)
 
 # 初始化速率限制器
 limiter = Limiter(
     get_remote_address,
     app=server,
-    default_limits=["200 per day", "50 per hour"],
-    storage_uri="memory://",
+    default_limits=Config.RATELIMIT_DEFAULT_LIMITS,
+    storage_uri=Config.RATELIMIT_STORAGE_URI,
 )
-
-
-def ensure_dirs() -> None:
-    DATA_DIR.mkdir(parents=True, exist_ok=True)
-    AVATAR_DIR.mkdir(parents=True, exist_ok=True)
-    CARD_DIR.mkdir(parents=True, exist_ok=True)
-
-
-def get_db():
-    ensure_dirs()
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    return conn
-
-
-def init_db() -> None:
-    with get_db() as db:
-        db.execute(
-            """
-            CREATE TABLE IF NOT EXISTS users (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                username TEXT NOT NULL UNIQUE,
-                password_hash TEXT NOT NULL,
-                display_name TEXT DEFAULT '',
-                bio TEXT DEFAULT '',
-                api_token TEXT NOT NULL DEFAULT '',
-                created_at TEXT NOT NULL
-            )
-            """
-        )
-        db.execute(
-            """
-            CREATE TABLE IF NOT EXISTS role_cards (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT NOT NULL,
-                slug TEXT NOT NULL UNIQUE,
-                avatar_path TEXT DEFAULT '',
-                description TEXT DEFAULT '',
-                personality TEXT DEFAULT '',
-                scenario TEXT DEFAULT '',
-                first_message TEXT DEFAULT '',
-                system_prompt TEXT DEFAULT '',
-                tags_json TEXT DEFAULT '[]',
-                creator TEXT DEFAULT '',
-                visibility TEXT DEFAULT 'public',
-                downloads INTEGER DEFAULT 0,
-                likes INTEGER DEFAULT 0,
-                source_format TEXT DEFAULT 'platform',
-                raw_json TEXT DEFAULT '{}',
-                user_id INTEGER DEFAULT NULL,
-                created_at TEXT NOT NULL,
-                updated_at TEXT NOT NULL,
-                FOREIGN KEY (user_id) REFERENCES users(id)
-            )
-            """
-        )
-        columns = {row["name"] for row in db.execute("PRAGMA table_info(role_cards)").fetchall()}
-        if "source_format" not in columns:
-            db.execute("ALTER TABLE role_cards ADD COLUMN source_format TEXT DEFAULT 'platform'")
-        if "raw_json" not in columns:
-            db.execute("ALTER TABLE role_cards ADD COLUMN raw_json TEXT DEFAULT '{}'")
-        if "user_id" not in columns:
-            db.execute("ALTER TABLE role_cards ADD COLUMN user_id INTEGER DEFAULT NULL")
-        # 用户表迁移：补充 api_token 字段
-        user_columns = {row["name"] for row in db.execute("PRAGMA table_info(users)").fetchall()}
-        if "api_token" not in user_columns:
-            db.execute("ALTER TABLE users ADD COLUMN api_token TEXT NOT NULL DEFAULT ''")
-        # 用户表迁移：补充 avatar_path 字段
-        if "avatar_path" not in user_columns:
-            db.execute("ALTER TABLE users ADD COLUMN avatar_path TEXT DEFAULT ''")
-        db.execute(
-            """
-            CREATE TABLE IF NOT EXISTS comments (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                card_id INTEGER NOT NULL,
-                user_id INTEGER NOT NULL,
-                content TEXT NOT NULL,
-                created_at TEXT NOT NULL,
-                FOREIGN KEY (card_id) REFERENCES role_cards(id) ON DELETE CASCADE,
-                FOREIGN KEY (user_id) REFERENCES users(id)
-            )
-            """
-        )
-        # 用户喜欢记录表
-        db.execute(
-            """
-            CREATE TABLE IF NOT EXISTS user_likes (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id INTEGER NOT NULL,
-                card_id INTEGER NOT NULL,
-                created_at TEXT NOT NULL,
-                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-                FOREIGN KEY (card_id) REFERENCES role_cards(id) ON DELETE CASCADE,
-                UNIQUE(user_id, card_id)
-            )
-            """
-        )
-        db.commit()
-
-
-def slugify(value: str) -> str:
-    slug = re.sub(r"[^a-zA-Z0-9\u4e00-\u9fff]+", "-", value.strip()).strip("-").lower()
-    return slug or f"card-{int(time.time())}"
-
-
-def unique_slug(db, name: str, existing_id: int | None = None) -> str:
-    base = slugify(name)
-    candidate = base
-    suffix = 2
-    while True:
-        row = db.execute("SELECT id FROM role_cards WHERE slug = ?", (candidate,)).fetchone()
-        if not row or (existing_id and row["id"] == existing_id):
-            return candidate
-        candidate = f"{base}-{suffix}"
-        suffix += 1
-
-
-def normalize_tags(raw_tags) -> list[str]:
-    if isinstance(raw_tags, list):
-        tags = raw_tags
-    else:
-        tags = re.split(r"[,，#\s]+", str(raw_tags or ""))
-    cleaned = []
-    for tag in tags:
-        text = str(tag).strip()
-        if text and text not in cleaned:
-            cleaned.append(text[:24])
-    return cleaned[:12]
-
-
-def limit_text(value, max_len: int) -> str:
-    return str(value or "").strip()[:max_len]
-
-
-def card_from_form(form) -> dict:
-    return {
-        "name": limit_text(form.get("name"), 80),
-        "description": limit_text(form.get("description"), 500),
-        "personality": limit_text(form.get("personality"), 3000),
-        "scenario": limit_text(form.get("scenario"), 3000),
-        "first_message": limit_text(form.get("first_message"), 1200),
-        "system_prompt": limit_text(form.get("system_prompt"), 6000),
-        "tags": normalize_tags(form.get("tags")),
-        "creator": limit_text(form.get("creator"), 80),
-        "visibility": "public" if form.get("visibility") == "public" else "private",
-    }
-
-
-def card_from_json_upload(file_storage) -> dict:
-    raw = file_storage.read(MAX_CARD_BYTES + 1)
-    if len(raw) > MAX_CARD_BYTES:
-        raise ValueError("角色卡 JSON 不能超过 256KB")
-    try:
-        data = json.loads(raw.decode("utf-8-sig"))
-    except Exception as exc:
-        raise ValueError("JSON 格式不正确，请上传 UTF-8 编码的角色卡") from exc
-
-    if not isinstance(data, dict):
-        raise ValueError("角色卡 JSON 顶层必须是对象")
-
-    return normalize_role_card_data(data)
-
-
-def normalize_role_card_data(data: dict, visibility: str = "public") -> dict:
-    """Accept platform cards, common role-card JSON, and NekoBot character cards."""
-    raw = dict(data or {})
-    description = raw.get("description") or raw.get("summary") or raw.get("basicInfo")
-    first_message = raw.get("first_message") or raw.get("first_mes") or raw.get("firstMessage")
-    system_prompt = raw.get("system_prompt") or raw.get("prompt") or raw.get("systemPrompt")
-    source_format = raw.get("source_format") or raw.get("source") or "platform"
-    if raw.get("basicInfo") or raw.get("firstMessage") or raw.get("systemPrompt"):
-        source_format = "nekobot"
-
-    return {
-        "name": limit_text(raw.get("name") or raw.get("char_name"), 80),
-        "description": limit_text(description, 500),
-        "personality": limit_text(raw.get("personality"), 3000),
-        "scenario": limit_text(raw.get("scenario") or raw.get("world"), 3000),
-        "first_message": limit_text(first_message, 1200),
-        "system_prompt": limit_text(system_prompt, 6000),
-        "tags": normalize_tags(raw.get("tags")),
-        "creator": limit_text(raw.get("creator") or raw.get("author"), 80),
-        "visibility": "public" if visibility == "public" else "private",
-        "source_format": limit_text(source_format, 40) or "platform",
-        "raw_json": raw,
-    }
-
-
-def validate_card(card: dict) -> None:
-    if not card.get("name"):
-        raise ValueError("请填写角色名")
-    if not card.get("description") and not card.get("personality"):
-        raise ValueError("请至少填写简介或性格设定")
-
-
-def validate_image_content(content: bytes) -> bool:
-    """验证文件内容是否为有效的图片格式（通过文件头魔数）"""
-    if len(content) < 8:
-        return False
-
-    # 图片文件头魔数
-    image_signatures = {
-        b'\x89PNG\r\n\x1a\n': '.png',
-        b'\xff\xd8\xff': '.jpg',  # JPEG/JPG
-        b'RIFF': '.webp',  # WebP 以 RIFF 开头
-        b'GIF87a': '.gif',
-        b'GIF89a': '.gif',
-    }
-
-    for signature, ext in image_signatures.items():
-        if content.startswith(signature):
-            return True
-    return False
-
-
-def save_avatar(file_storage) -> str:
-    if not file_storage or not file_storage.filename:
-        return ""
-
-    ext = Path(file_storage.filename).suffix.lower()
-    if ext not in ALLOWED_AVATAR_EXTENSIONS:
-        raise ValueError("头像仅支持 png、jpg、jpeg、webp、gif")
-
-    file_storage.stream.seek(0, os.SEEK_END)
-    size = file_storage.stream.tell()
-    file_storage.stream.seek(0)
-    if size > MAX_AVATAR_BYTES:
-        raise ValueError("头像不能超过 40MB")
-
-    # 读取内容验证图片格式
-    content = file_storage.read()
-    file_storage.stream.seek(0)
-    if not validate_image_content(content):
-        raise ValueError("上传的文件不是有效的图片格式")
-
-    safe_name = secure_filename(file_storage.filename) or f"avatar{ext}"
-    filename = f"{int(time.time())}_{secrets.token_hex(6)}_{safe_name}"
-    path = AVATAR_DIR / filename
-    file_storage.save(path)
-    return f"uploads/avatars/{filename}"
-
-
-def save_avatar_bytes(filename: str, content: bytes) -> str:
-    if not content:
-        return ""
-    ensure_dirs()
-    ext = Path(filename).suffix.lower()
-    if ext not in ALLOWED_AVATAR_EXTENSIONS:
-        return ""
-    if len(content) > MAX_AVATAR_BYTES:
-        raise ValueError("Avatar cannot exceed 40MB")
-    # 验证图片内容
-    if not validate_image_content(content):
-        return ""
-    safe_name = secure_filename(Path(filename).name) or f"avatar{ext}"
-    stored = f"{int(time.time())}_{secrets.token_hex(6)}_{safe_name}"
-    path = AVATAR_DIR / stored
-    path.write_bytes(content)
-    return f"uploads/avatars/{stored}"
-
-
-def _is_safe_zip_path(filepath: str) -> bool:
-    """检查 ZIP 中的路径是否安全（防止 Zip Slip 攻击）"""
-    # 规范化路径并检查是否包含路径遍历
-    parts = filepath.replace("\\", "/").split("/")
-    for part in parts:
-        if part == "..":
-            return False
-    return True
-
-
-def extract_zip_cards(file_storage) -> list[tuple[dict, str]]:
-    raw = file_storage.read(MAX_ZIP_BYTES + 1)
-    if len(raw) > MAX_ZIP_BYTES:
-        raise ValueError("ZIP cannot exceed 64MB")
-
-    def _parent_dir(filepath: str) -> str:
-        d = str(Path(filepath).parent).replace("\\", "/")
-        return "" if d == "." else d
-
-    imported: list[tuple[dict, str]] = []
-    with zipfile.ZipFile(io.BytesIO(raw), "r") as zf:
-        # 过滤掉不安全的文件名（防止 Zip Slip）
-        all_names = zf.namelist()
-        safe_names = [name for name in all_names if not name.endswith("/") and _is_safe_zip_path(name)]
-
-        json_names = [name for name in safe_names if name.lower().endswith("character.json")]
-        if not json_names:
-            raise ValueError("ZIP must contain character.json")
-
-        for json_name in json_names:
-            if zf.getinfo(json_name).file_size > MAX_CARD_BYTES:
-                raise ValueError(f"{json_name} is larger than 256KB")
-            data = json.loads(zf.read(json_name).decode("utf-8-sig"))
-            if not isinstance(data, dict):
-                raise ValueError(f"{json_name} is not a JSON object")
-
-            folder = _parent_dir(json_name)
-            avatar_path = ""
-            for name in safe_names:
-                if _parent_dir(name) == folder and Path(name).stem.lower() == "portrait":
-                    # 使用安全的文件名保存头像
-                    safe_name = Path(name).name
-                    avatar_path = save_avatar_bytes(safe_name, zf.read(name))
-                    break
-            imported.append((normalize_role_card_data(data), avatar_path))
-    return imported
-
-
-def insert_card(card: dict, avatar_path: str = "", user_id: int | None = None) -> dict:
-    validate_card(card)
-    # 登录用户上传时，自动填充作者为用户名
-    if not card.get("creator") and user_id:
-        with get_db() as db:
-            user_row = db.execute("SELECT username, display_name FROM users WHERE id = ?", (user_id,)).fetchone()
-        if user_row:
-            card["creator"] = user_row["display_name"] or user_row["username"]
-    now = datetime.now().isoformat(timespec="seconds")
-    with get_db() as db:
-        slug = unique_slug(db, card["name"])
-        db.execute(
-            """
-            INSERT INTO role_cards (
-                name, slug, avatar_path, description, personality, scenario,
-                first_message, system_prompt, tags_json, creator, visibility,
-                source_format, raw_json, user_id, created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            (
-                card["name"],
-                slug,
-                avatar_path,
-                card["description"],
-                card["personality"],
-                card["scenario"],
-                card["first_message"],
-                card["system_prompt"],
-                json.dumps(card["tags"], ensure_ascii=False),
-                card["creator"],
-                card["visibility"],
-                card.get("source_format", "platform"),
-                json.dumps(card.get("raw_json") or {}, ensure_ascii=False),
-                user_id,
-                now,
-                now,
-            ),
-        )
-        db.commit()
-        row = db.execute("SELECT * FROM role_cards WHERE slug = ?", (slug,)).fetchone()
-    return row_to_card(row)
-
-
-def row_to_card(row) -> dict:
-    card = dict(row)
-    try:
-        card["tags"] = json.loads(card.pop("tags_json") or "[]")
-    except Exception:
-        card["tags"] = []
-    # 查询角色卡所属用户的用户名
-    user_id = card.get("user_id")
-    if user_id:
-        with get_db() as db:
-            user_row = db.execute("SELECT username FROM users WHERE id = ?", (user_id,)).fetchone()
-        if user_row:
-            card["owner_username"] = user_row["username"]
-    return card
-
-
-def fetch_card_or_404(identifier):
-    with get_db() as db:
-        if str(identifier).isdigit():
-            row = db.execute("SELECT * FROM role_cards WHERE id = ?", (identifier,)).fetchone()
-        else:
-            row = db.execute("SELECT * FROM role_cards WHERE slug = ?", (identifier,)).fetchone()
-    if not row:
-        abort(404)
-    return row_to_card(row)
-
-
-def to_export_json(card: dict) -> dict:
-    """导出角色卡数据，只返回安全的字段"""
-    exported = {
-        "name": card["name"],
-        "avatar": url_for("asset_file", filename=card["avatar_path"], _external=True)
-        if card.get("avatar_path")
-        else "",
-        "description": card.get("description", ""),
-        "personality": card.get("personality", ""),
-        "scenario": card.get("scenario", ""),
-        "first_message": card.get("first_message", ""),
-        "system_prompt": card.get("system_prompt", ""),
-        "tags": card.get("tags", []),
-        "creator": card.get("creator", ""),
-        "visibility": card.get("visibility", "public"),
-        "version": "1.0.0",
-    }
-    return exported
-
-
-def generate_user_api_token() -> str:
-    """生成唯一的用户 API Token"""
-    token = secrets.token_urlsafe(32)
-    with get_db() as db:
-        # 确保全局唯一
-        while db.execute("SELECT 1 FROM users WHERE api_token = ?", (token,)).fetchone():
-            token = secrets.token_urlsafe(32)
-    return token
-
-
-def resolve_api_user() -> int | None:
-    """验证 API Token，返回对应的 user_id（None 表示无效）"""
-    provided = (
-        request.headers.get("X-Role-Card-Token", "")
-        or request.args.get("token", "")
-        or request.form.get("token", "")
-    ).strip()
-    auth = request.headers.get("Authorization", "")
-    if auth.lower().startswith("bearer "):
-        provided = auth.split(" ", 1)[1].strip()
-    if not provided:
-        return None
-    # 优先匹配用户级 Token（精确匹配，防时序攻击）
-    with get_db() as db:
-        urow = db.execute("SELECT id FROM users WHERE api_token = ?", (provided,)).fetchone()
-    if urow:
-        return urow["id"]
-    # 兼容全局管理员 Token
-    configured = os.getenv("ROLE_CARD_API_TOKEN", "").strip()
-    if configured and secrets.compare_digest(provided, configured):
-        return 0  # 特殊值：管理员 Token，无具体用户
-    return None
-
-
-def api_token_valid() -> bool:
-    configured = os.getenv("ROLE_CARD_API_TOKEN", "").strip()
-    provided = (
-        request.headers.get("X-Role-Card-Token", "")
-        or request.args.get("token", "")
-        or request.form.get("token", "")
-    ).strip()
-    auth = request.headers.get("Authorization", "")
-    if auth.lower().startswith("bearer "):
-        provided = auth.split(" ", 1)[1].strip()
-    required = configured or os.getenv("ROLE_CARD_REQUIRE_TOKEN", "").lower() in {"1", "true", "yes", "on"}
-    if not required:
-        return not bool(provided)
-    return bool(configured and secrets.compare_digest(provided, configured))
-
-
-def admin_token() -> str:
-    token = os.getenv("ROLE_CARD_ADMIN_TOKEN", "").strip()
-    if token:
-        return token
-    token_path = DATA_DIR / "admin_token.txt"
-    if token_path.exists():
-        return token_path.read_text(encoding="utf-8").strip()
-    ensure_dirs()
-    generated = secrets.token_urlsafe(18)
-    token_path.write_text(generated, encoding="utf-8")
-    return generated
-
-
-def get_current_user():
-    """从 session 中获取当前登录用户信息，未登录返回 None"""
-    user_id = session.get("user_id")
-    if not user_id:
-        return None
-    with get_db() as db:
-        row = db.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
-    if not row:
-        session.pop("user_id", None)
-        return None
-    return dict(row)
-
-
-def login_required(f):
-    """要求登录才能访问的装饰器"""
-    @wraps(f)
-    def decorated(*args, **kwargs):
-        if not session.get("user_id"):
-            flash("请先登录后再执行此操作", "error")
-            return redirect(url_for("login"))
-        return f(*args, **kwargs)
-    return decorated
 
 
 @server.route("/register", methods=["GET", "POST"])
@@ -668,7 +168,7 @@ def user_profile(username):
                 "SELECT * FROM role_cards WHERE user_id = ? AND visibility = 'public' ORDER BY created_at DESC",
                 (user["id"],),
             ).fetchall()
-    cards = [row_to_card(row) for row in rows]
+    cards = [RoleCard.row_to_card(row) for row in rows]
     return render_template("user_profile.html", profile_user=dict(user), cards=cards, is_self=is_self)
 
 
@@ -732,10 +232,16 @@ def asset_file(filename):
     if not safe_filename:
         abort(404)
 
-    target = (BASE_DIR / safe_filename).resolve()
+    # 构建目标路径（不使用 resolve() 避免符号链接问题）
+    target = BASE_DIR / safe_filename
+    target = target.absolute()
+
     # 确保解析后的路径仍在 BASE_DIR 内
+    base_resolved = BASE_DIR.absolute()
     try:
-        target.relative_to(BASE_DIR.resolve())
+        # 检查目标路径是否以基础路径开头
+        if not str(target).startswith(str(base_resolved)):
+            abort(404)
     except ValueError:
         abort(404)
 
@@ -775,7 +281,7 @@ def index():
             "SELECT tags_json FROM role_cards WHERE visibility = 'public'"
         ).fetchall()
 
-    cards = [row_to_card(row) for row in rows]
+    cards = [RoleCard.row_to_card(row) for row in rows]
     all_tags = []
     for row in tag_rows:
         for item in normalize_tags(json.loads(row["tags_json"] or "[]")):
@@ -794,7 +300,7 @@ def index():
 
 @server.route("/card/<identifier>")
 def card_detail(identifier):
-    card = fetch_card_or_404(identifier)
+    card = RoleCard.get_or_404(identifier)
     if card["visibility"] != "public" and request.args.get("admin") != admin_token():
         abort(404)
     
@@ -829,7 +335,7 @@ def card_detail(identifier):
 @server.route("/card/<int:card_id>/comment", methods=["POST"])
 @login_required
 def post_comment(card_id):
-    fetch_card_or_404(card_id)
+    RoleCard.get_or_404(card_id)
     content = (request.form.get("content") or "").strip()
     if not content:
         flash("评论内容不能为空", "error")
@@ -871,7 +377,7 @@ def owner_required(card_id):
         row = db.execute("SELECT * FROM role_cards WHERE id = ?", (card_id,)).fetchone()
     if not row:
         abort(404)
-    card = row_to_card(row)
+    card = RoleCard.row_to_card(row)
     user_id = session.get("user_id")
     if not user_id or card.get("user_id") != user_id:
         abort(403)
@@ -897,6 +403,9 @@ def edit_card(card_id):
                 "scenario = ?", "first_message = ?", "system_prompt = ?",
                 "tags_json = ?", "creator = ?", "visibility = ?",
                 "updated_at = ?",
+                # NekoBot 扩展字段
+                "basic_info = ?", "example_dialogues = ?", "response_format = ?",
+                "rules_json = ?", "state_json = ?",
             ]
             params = [
                 updated["name"],
@@ -909,6 +418,12 @@ def edit_card(card_id):
                 updated["creator"],
                 updated["visibility"],
                 now,
+                # NekoBot 扩展字段
+                updated["basic_info"],
+                updated["example_dialogues"],
+                updated["response_format"],
+                json.dumps(updated["rules"], ensure_ascii=False),
+                json.dumps(updated["state"], ensure_ascii=False),
             ]
             # 如果上传了新头像则更新
             if avatar_path:
@@ -980,7 +495,7 @@ def upload():
             if card_file.filename.lower().endswith(".zip"):
                 imported_cards = extract_zip_cards(card_file)
                 user_id = session.get("user_id")
-                saved_cards = [insert_card(card, avatar_path, user_id=user_id) for card, avatar_path in imported_cards]
+                saved_cards = [RoleCard.create(card, avatar_path, user_id=user_id) for card, avatar_path in imported_cards]
                 flash(f"Imported {len(saved_cards)} role card(s) from ZIP")
                 if len(saved_cards) == 1:
                     return redirect(url_for("card_detail", identifier=saved_cards[0]["slug"]))
@@ -1011,8 +526,9 @@ def upload():
                 INSERT INTO role_cards (
                     name, slug, avatar_path, description, personality, scenario,
                     first_message, system_prompt, tags_json, creator, visibility,
-                    user_id, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    user_id, created_at, updated_at,
+                    basic_info, example_dialogues, response_format, rules_json, state_json
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     card["name"],
@@ -1029,6 +545,12 @@ def upload():
                     user_id,
                     now,
                     now,
+                    # NekoBot 扩展字段
+                    card.get("basic_info", ""),
+                    card.get("example_dialogues", ""),
+                    card.get("response_format", ""),
+                    json.dumps(card.get("rules", []), ensure_ascii=False),
+                    json.dumps(card.get("state", {}), ensure_ascii=False),
                 ),
             )
             db.commit()
@@ -1063,7 +585,7 @@ def api_create_card():
             return jsonify({"success": False, "error": "Card JSON must be an object"}), 400
 
         card = normalize_role_card_data(raw_card, request.form.get("visibility", "public"))
-        saved = insert_card(card, avatar_path, user_id=user_id)
+        saved = RoleCard.create(card, avatar_path, user_id=user_id)
         return jsonify(
             {
                 "success": True,
@@ -1082,7 +604,7 @@ def api_create_card():
 
 @server.route("/card/<int:card_id>/download")
 def download_card(card_id):
-    card = fetch_card_or_404(card_id)
+    card = RoleCard.get_or_404(card_id)
     with get_db() as db:
         db.execute("UPDATE role_cards SET downloads = downloads + 1 WHERE id = ?", (card_id,))
         db.commit()
@@ -1097,7 +619,7 @@ def download_card(card_id):
 
 @server.route("/card/<int:card_id>/download-nekozip")
 def download_nekozip(card_id):
-    card = fetch_card_or_404(card_id)
+    card = RoleCard.get_or_404(card_id)
     with get_db() as db:
         db.execute("UPDATE role_cards SET downloads = downloads + 1 WHERE id = ?", (card_id,))
         db.commit()
@@ -1178,7 +700,7 @@ def admin():
             return render_template("admin.html", users=users, token=token, tab=tab)
         else:
             rows = db.execute("SELECT * FROM role_cards ORDER BY created_at DESC").fetchall()
-            return render_template("admin.html", cards=[row_to_card(row) for row in rows], token=token, tab=tab)
+            return render_template("admin.html", cards=[RoleCard.row_to_card(row) for row in rows], token=token, tab=tab)
 
 
 @server.route("/admin/card/<int:card_id>/<action>", methods=["POST"])
