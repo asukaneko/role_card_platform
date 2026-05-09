@@ -9,11 +9,37 @@
 
 <!-- 标签切换 -->
 <div class="admin-tabs">
-    <a href="{{ url_for('admin', token=token, tab='cards') }}" class="admin-tab {% if tab != 'users' %}active{% endif %}">角色卡</a>
+    <a href="{{ url_for('admin', token=token, tab='cards') }}" class="admin-tab {% if tab != 'users' and tab != 'review' %}active{% endif %}">角色卡</a>
+    {% if is_admin %}
     <a href="{{ url_for('admin', token=token, tab='users') }}" class="admin-tab {% if tab == 'users' %}active{% endif %}">用户管理</a>
+    <a href="{{ url_for('admin', token=token, tab='review') }}" class="admin-tab {% if tab == 'review' %}active{% endif %}">审核管理</a>
+    {% endif %}
 </div>
 
-{% if tab == 'users' %}
+{% if tab == 'review' and is_admin %}
+<!-- 审核管理 -->
+<section class="admin-table">
+    <div class="admin-row">
+        <div class="admin-info">
+            <strong>审核员管理</strong>
+            <span>添加或移除审核员账号</span>
+        </div>
+        <div class="admin-actions">
+            <a href="{{ url_for('admin_reviewers', token=token) }}">进入</a>
+        </div>
+    </div>
+    <div class="admin-row">
+        <div class="admin-info">
+            <strong>AI审核配置</strong>
+            <span>配置AI审核API接口</span>
+        </div>
+        <div class="admin-actions">
+            <a href="{{ url_for('admin_ai_config', token=token) }}">进入</a>
+        </div>
+    </div>
+</section>
+
+{% elif tab == 'users' and is_admin %}
 <!-- 用户管理 -->
 <div class="batch-bar" id="user-batch-bar">
     <label class="batch-select-all">
@@ -84,22 +110,44 @@
                 <input type="checkbox" class="card-checkbox" value="{{ card.id }}">
             </label>
             <div class="admin-info">
-                <strong>{{ card.name }}</strong>
-                <span>{{ card.creator or "匿名" }} · {{ card.visibility }} · {{ card.created_at }}</span>
+                <div class="card-title-line">
+                    <a href="{{ url_for('card_detail', identifier=card.slug, admin=token) }}" class="card-name-link">{{ card.name }}</a>
+                    <span class="status-badge status-{{ card.status or 'approved' }}">{{ card.status or 'approved' }}</span>
+                </div>
+                <span class="card-meta">{{ card.creator or "匿名" }} · {{ card.visibility }} · {{ card.created_at }}</span>
             </div>
             <div class="admin-actions">
-                <a href="{{ url_for('card_detail', identifier=card.slug, admin=token) }}">查看</a>
-                <form method="post" action="{{ url_for('admin_action', card_id=card.id, action='hide') }}">
+                <a href="{{ url_for('card_detail', identifier=card.slug, admin=token) }}" class="action-btn">查看</a>
+                {% if card.visibility == 'public' %}
+                <form method="post" action="{{ url_for('admin_action', card_id=card.id, action='hide') }}" class="inline-form ajax-form">
                     <input type="hidden" name="token" value="{{ token }}">
-                    <button>隐藏</button>
+                    <button class="action-btn toggle-btn" type="submit">隐藏</button>
                 </form>
-                <form method="post" action="{{ url_for('admin_action', card_id=card.id, action='publish') }}">
+                {% else %}
+                <form method="post" action="{{ url_for('admin_action', card_id=card.id, action='publish') }}" class="inline-form ajax-form">
                     <input type="hidden" name="token" value="{{ token }}">
-                    <button>公开</button>
+                    <button class="action-btn toggle-btn" type="submit">公开</button>
                 </form>
-                <form method="post" action="{{ url_for('admin_action', card_id=card.id, action='delete') }}" data-confirm="确定删除这张角色卡吗？">
+                {% endif %}
+                {% if card.status == 'pending' %}
+                <form method="post" action="{{ url_for('review_approve_card', card_id=card.id) }}" class="inline-form ajax-form">
+                    <input type="hidden" name="result" value="管理员通过">
+                    <button class="action-btn approve-btn" type="submit">通过</button>
+                </form>
+                {% elif card.status == 'rejected' %}
+                <form method="post" action="{{ url_for('review_approve_card', card_id=card.id) }}" class="inline-form ajax-form">
+                    <input type="hidden" name="result" value="管理员恢复">
+                    <button class="action-btn approve-btn" type="submit">恢复</button>
+                </form>
+                {% else %}
+                <form method="post" action="{{ url_for('review_reject_card', card_id=card.id) }}" class="inline-form ajax-form">
+                    <input type="hidden" name="result" value="管理员拒绝">
+                    <button class="action-btn reject-btn" type="submit">拒绝</button>
+                </form>
+                {% endif %}
+                <form method="post" action="{{ url_for('admin_action', card_id=card.id, action='delete') }}" data-confirm="确定删除这张角色卡吗？" class="inline-form ajax-form">
                     <input type="hidden" name="token" value="{{ token }}">
-                    <button class="danger">删除</button>
+                    <button class="action-btn danger-btn" type="submit">删除</button>
                 </form>
             </div>
         </div>
@@ -109,9 +157,159 @@
         </div>
     {% endfor %}
 </section>
+
+<style>
+.card-title-line {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 4px;
+}
+
+.card-name-link {
+    color: var(--ink);
+    text-decoration: none;
+    font-weight: 600;
+    font-size: 1rem;
+}
+
+.card-name-link:hover {
+    color: var(--accent);
+}
+
+.card-meta {
+    color: var(--muted);
+    font-size: 0.8125rem;
+}
+
+.status-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.status-pending {
+    background: rgba(251, 191, 36, 0.15);
+    color: #b45309;
+    border: 1px solid rgba(251, 191, 36, 0.3);
+}
+
+.status-approved {
+    background: rgba(16, 185, 129, 0.15);
+    color: #059669;
+    border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.status-rejected {
+    background: rgba(239, 68, 68, 0.15);
+    color: #dc2626;
+    border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+.inline-form {
+    display: inline-flex;
+}
+
+.action-btn {
+    padding: 6px 14px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 500;
+    text-decoration: none;
+    border: 1px solid var(--line);
+    background: var(--paper);
+    color: var(--ink);
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.action-btn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+.toggle-btn {
+    background: rgba(47, 111, 115, 0.08);
+    border-color: rgba(47, 111, 115, 0.3);
+    color: var(--accent);
+}
+
+.toggle-btn:hover {
+    background: rgba(47, 111, 115, 0.15);
+    border-color: var(--accent);
+}
+
+.danger-btn {
+    background: rgba(239, 68, 68, 0.08);
+    border-color: rgba(239, 68, 68, 0.3);
+    color: #dc2626;
+}
+
+.danger-btn:hover {
+    background: rgba(239, 68, 68, 0.15);
+    border-color: #dc2626;
+}
+
+.approve-btn {
+    background: rgba(16, 185, 129, 0.08);
+    border-color: rgba(16, 185, 129, 0.3);
+    color: #059669;
+}
+
+.approve-btn:hover {
+    background: rgba(16, 185, 129, 0.15);
+    border-color: #059669;
+}
+
+.reject-btn {
+    background: rgba(239, 68, 68, 0.08);
+    border-color: rgba(239, 68, 68, 0.3);
+    color: #dc2626;
+}
+
+.reject-btn:hover {
+    background: rgba(239, 68, 68, 0.15);
+    border-color: #dc2626;
+}
+</style>
 {% endif %}
 
 <script>
+// AJAX 表单提交
+document.addEventListener("submit", function(event) {
+    const form = event.target;
+    if (!form.classList.contains("ajax-form")) return;
+
+    // 检查确认对话框
+    const confirmMsg = form.dataset.confirm;
+    if (confirmMsg && !window.confirm(confirmMsg)) {
+        event.preventDefault();
+        return;
+    }
+
+    event.preventDefault();
+    const formData = new FormData(form);
+
+    fetch(form.action, {
+        method: "POST",
+        body: formData,
+        headers: {
+            "X-Requested-With": "XMLHttpRequest"
+        }
+    }).then(() => {
+        // 操作成功后刷新当前页面，保持滚动位置
+        window.location.reload();
+    }).catch(err => {
+        console.error("操作失败:", err);
+        alert("操作失败，请重试");
+    });
+});
+
 // 用户批量操作
 function updateUserBatchBar() {
     const checkboxes = document.querySelectorAll(".user-checkbox");

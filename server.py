@@ -38,7 +38,7 @@ from config import (
     MAX_CARD_BYTES, MAX_AVATAR_BYTES, MAX_ZIP_BYTES,
     ALLOWED_AVATAR_EXTENSIONS, IMAGE_SIGNATURES, Config
 )
-from models import init_db, get_db, User, RoleCard, Comment, UserLike, UserFavorite
+from models import init_db, get_db, User, RoleCard, Comment, UserLike, UserFavorite, Reviewer, ReviewQueue, AIReviewConfig
 from auth import (
     generate_user_api_token, resolve_api_user, api_token_valid,
     admin_token, get_current_user, login_required, AuthService
@@ -49,6 +49,7 @@ from utils import (
     extract_zip_cards, card_from_json_upload, to_export_json
 )
 from card_utils import normalize_role_card_data, card_from_form, validate_card
+from ai_review import AIReviewer
 
 # 创建 Flask 应用
 server = Flask(__name__)
@@ -261,7 +262,7 @@ def index():
     tag = request.args.get("tag", "").strip()
     sort = request.args.get("sort", "latest")
 
-    where = ["visibility = 'public'"]
+    where = ["visibility = 'public'", "status = 'approved'"]
     params = []
     if query:
         where.append("(name LIKE ? OR description LIKE ? OR creator LIKE ?)")
@@ -283,7 +284,7 @@ def index():
             params,
         ).fetchall()
         tag_rows = db.execute(
-            "SELECT tags_json FROM role_cards WHERE visibility = 'public'"
+            "SELECT tags_json FROM role_cards WHERE visibility = 'public' AND status = 'approved'"
         ).fetchall()
 
     cards = [RoleCard.row_to_card(row) for row in rows]
@@ -305,27 +306,62 @@ def index():
 
 @server.route("/card/<identifier>")
 def card_detail(identifier):
-    card = RoleCard.get_or_404(identifier)
     user_id = session.get("user_id")
-    
+
+    # 先尝试获取已审核的角色卡
+    card = RoleCard.get_by_slug(identifier)
+
+    # 如果找不到，检查是否是所有者或审核员在查看待审核内容
+    if not card:
+        with get_db() as db:
+            if str(identifier).isdigit():
+                row = db.execute("SELECT * FROM role_cards WHERE id = ?", (identifier,)).fetchone()
+            else:
+                row = db.execute("SELECT * FROM role_cards WHERE slug = ?", (identifier,)).fetchone()
+
+            if row:
+                # 检查权限：只有所有者、审核员和管理员可以查看待审核内容
+                is_owner = user_id and row["user_id"] == user_id
+                is_reviewer = user_id and Reviewer.is_reviewer(user_id)
+                is_admin = request.args.get("admin") == admin_token()
+
+                if is_owner or is_reviewer or is_admin:
+                    card = RoleCard.row_to_card(row)
+                else:
+                    abort(404)
+            else:
+                abort(404)
+
     # 检查权限：私有卡片只有所有者和管理员可以查看
     if card["visibility"] != "public":
         is_owner = user_id and card.get("user_id") == user_id
         is_admin = request.args.get("admin") == admin_token()
         if not is_owner and not is_admin:
             abort(404)
-    
+
     user_liked = False
     user_favorited = False
-    
+
     with get_db() as db:
-        rows = db.execute(
-            "SELECT c.*, u.username, u.display_name FROM comments c "
-            "JOIN users u ON c.user_id = u.id "
-            "WHERE c.card_id = ? ORDER BY c.created_at ASC",
-            (card["id"],),
-        ).fetchall()
-        
+        # 评论查询：普通用户只显示已审核评论，所有者和审核员显示全部
+        is_owner = user_id and card.get("user_id") == user_id
+        is_reviewer = user_id and Reviewer.is_reviewer(user_id)
+
+        if is_owner or is_reviewer:
+            rows = db.execute(
+                "SELECT c.*, u.username, u.display_name FROM comments c "
+                "JOIN users u ON c.user_id = u.id "
+                "WHERE c.card_id = ? ORDER BY c.created_at ASC",
+                (card["id"],),
+            ).fetchall()
+        else:
+            rows = db.execute(
+                "SELECT c.*, u.username, u.display_name FROM comments c "
+                "JOIN users u ON c.user_id = u.id "
+                "WHERE c.card_id = ? AND c.status = 'approved' ORDER BY c.created_at ASC",
+                (card["id"],),
+            ).fetchall()
+
         # 检查当前用户是否已经喜欢过该角色
         if user_id:
             like_row = db.execute(
@@ -339,13 +375,13 @@ def card_detail(identifier):
                 (user_id, card["id"])
             ).fetchone()
             user_favorited = fav_row is not None
-    
+
     comments = []
     for row in rows:
         item = dict(row)
         item["can_delete"] = user_id == row["user_id"]
         comments.append(item)
-    
+
     return render_template("detail.html", card=card, comments=comments, user_liked=user_liked, user_favorited=user_favorited, current_user_id=user_id)
 
 
@@ -368,7 +404,7 @@ def post_comment(card_id):
             (card_id, user_id, content, now),
         )
         db.commit()
-    flash("评论已发布")
+    flash("评论已提交审核，审核通过后将显示")
     return redirect(url_for("card_detail", identifier=card_id))
 
 
@@ -574,8 +610,8 @@ def upload():
                 ),
             )
             db.commit()
-        flash("角色卡已发布")
-        return redirect(url_for("card_detail", identifier=slug))
+        flash("角色卡已提交审核，审核通过后将自动发布")
+        return redirect(url_for("user_profile", username=current["username"]))
     except ValueError as exc:
         flash(str(exc), "error")
         return redirect(url_for("upload"))
@@ -713,14 +749,26 @@ def toggle_favorite(card_id):
         return jsonify({"favorited": True})
 
 
+def admin_or_reviewer_required():
+    """检查是否为管理员或审核员"""
+    token = request.args.get("token", "") or request.form.get("token", "")
+    user_id = session.get("user_id")
+    is_admin = token == admin_token()
+    is_reviewer_user = user_id and Reviewer.is_reviewer(user_id)
+    return is_admin, is_reviewer_user, token
+
+
 @server.route("/admin")
 def admin():
-    token = request.args.get("token", "")
-    if token != admin_token():
+    is_admin, is_reviewer_user, token = admin_or_reviewer_required()
+    if not is_admin and not is_reviewer_user:
         return render_template("admin_login.html")
     tab = request.args.get("tab", "cards")
     with get_db() as db:
         if tab == "users":
+            # 只有管理员可以查看用户管理
+            if not is_admin:
+                return redirect(url_for("admin", token=token, tab="cards"))
             # 获取用户列表及统计信息
             users = db.execute(
                 """
@@ -734,16 +782,16 @@ def admin():
                 ORDER BY u.created_at DESC
                 """
             ).fetchall()
-            return render_template("admin.html", users=users, token=token, tab=tab)
+            return render_template("admin.html", users=users, token=token, tab=tab, is_admin=is_admin, is_reviewer=is_reviewer_user)
         else:
             rows = db.execute("SELECT * FROM role_cards ORDER BY created_at DESC").fetchall()
-            return render_template("admin.html", cards=[RoleCard.row_to_card(row) for row in rows], token=token, tab=tab)
+            return render_template("admin.html", cards=[RoleCard.row_to_card(row) for row in rows], token=token, tab=tab, is_admin=is_admin, is_reviewer=is_reviewer_user)
 
 
 @server.route("/admin/card/<int:card_id>/<action>", methods=["POST"])
 def admin_action(card_id, action):
-    token = request.form.get("token", "")
-    if token != admin_token():
+    is_admin, is_reviewer_user, token = admin_or_reviewer_required()
+    if not is_admin and not is_reviewer_user:
         abort(403)
     with get_db() as db:
         if action == "hide":
@@ -755,13 +803,14 @@ def admin_action(card_id, action):
         else:
             abort(404)
         db.commit()
-    return redirect(url_for("admin", token=token))
+    # 返回空响应，由前端处理刷新
+    return "", 204
 
 
 @server.route("/admin/batch", methods=["POST"])
 def admin_batch():
-    token = request.form.get("token", "")
-    if token != admin_token():
+    is_admin, is_reviewer_user, token = admin_or_reviewer_required()
+    if not is_admin and not is_reviewer_user:
         abort(403)
     action = request.form.get("action", "")
     ids_raw = request.form.get("ids", "")
@@ -832,9 +881,192 @@ def admin_user_batch():
     return redirect(url_for("admin", token=token, tab="users"))
 
 
+def reviewer_required(f):
+    """要求审核员权限的装饰器"""
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        user_id = session.get("user_id")
+        if not user_id:
+            flash("请先登录", "error")
+            return redirect(url_for("login"))
+        if not Reviewer.is_reviewer(user_id):
+            flash("需要审核员权限", "error")
+            return redirect(url_for("index"))
+        return f(*args, **kwargs)
+    return decorated
+
+
+@server.route("/review")
+@reviewer_required
+def review_queue():
+    """审核队列页面"""
+    tab = request.args.get("tab", "cards")
+    stats = ReviewQueue.get_stats()
+
+    if tab == "comments":
+        items = ReviewQueue.get_pending_comments()
+    else:
+        items = ReviewQueue.get_pending_cards()
+
+    return render_template("review_queue.html", items=items, tab=tab, stats=stats)
+
+
+@server.route("/review/card/<int:card_id>/approve", methods=["POST"])
+@reviewer_required
+def review_approve_card(card_id):
+    """批准角色卡"""
+    reviewer_id = session.get("user_id")
+    result = request.form.get("result", "")
+    ReviewQueue.approve_card(card_id, reviewer_id, result)
+    flash("角色卡已通过审核")
+    # 检查是否是 AJAX 请求
+    if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+        return "", 204
+    return redirect(url_for("review_queue", tab="cards"))
+
+
+@server.route("/review/card/<int:card_id>/reject", methods=["POST"])
+@reviewer_required
+def review_reject_card(card_id):
+    """拒绝角色卡"""
+    reviewer_id = session.get("user_id")
+    result = request.form.get("result", "")
+    ReviewQueue.reject_card(card_id, reviewer_id, result)
+    flash("角色卡已被拒绝")
+    # 检查是否是 AJAX 请求
+    if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+        return "", 204
+    return redirect(url_for("review_queue", tab="cards"))
+
+
+@server.route("/review/comment/<int:comment_id>/approve", methods=["POST"])
+@reviewer_required
+def review_approve_comment(comment_id):
+    """批准评论"""
+    reviewer_id = session.get("user_id")
+    result = request.form.get("result", "")
+    ReviewQueue.approve_comment(comment_id, reviewer_id, result)
+    flash("评论已通过审核")
+    return redirect(url_for("review_queue", tab="comments"))
+
+
+@server.route("/review/comment/<int:comment_id>/reject", methods=["POST"])
+@reviewer_required
+def review_reject_comment(comment_id):
+    """拒绝评论"""
+    reviewer_id = session.get("user_id")
+    result = request.form.get("result", "")
+    ReviewQueue.reject_comment(comment_id, reviewer_id, result)
+    flash("评论已被拒绝")
+    return redirect(url_for("review_queue", tab="comments"))
+
+
+@server.route("/review/ai-card/<int:card_id>", methods=["POST"])
+@reviewer_required
+def review_ai_card(card_id):
+    """使用AI审核角色卡"""
+    card = RoleCard.get_by_id(card_id, include_pending=True)
+    if not card:
+        abort(404)
+
+    is_approved, result = AIReviewer.review_card(card)
+
+    reviewer_id = session.get("user_id")
+    if is_approved:
+        ReviewQueue.approve_card(card_id, reviewer_id, f"[AI审核] {result}")
+        flash(f"AI审核完成：通过。{result}")
+    else:
+        ReviewQueue.reject_card(card_id, reviewer_id, f"[AI审核] {result}")
+        flash(f"AI审核完成：拒绝。{result}", "error")
+
+    return redirect(url_for("review_queue", tab="cards"))
+
+
+@server.route("/review/ai-comment/<int:comment_id>", methods=["POST"])
+@reviewer_required
+def review_ai_comment(comment_id):
+    """使用AI审核评论"""
+    comment = Comment.get_by_id(comment_id)
+    if not comment:
+        abort(404)
+
+    is_approved, result = AIReviewer.review_comment(comment["content"])
+
+    reviewer_id = session.get("user_id")
+    if is_approved:
+        ReviewQueue.approve_comment(comment_id, reviewer_id, f"[AI审核] {result}")
+        flash(f"AI审核完成：通过。{result}")
+    else:
+        ReviewQueue.reject_comment(comment_id, reviewer_id, f"[AI审核] {result}")
+        flash(f"AI审核完成：拒绝。{result}", "error")
+
+    return redirect(url_for("review_queue", tab="comments"))
+
+
+# Admin 审核员管理路由
+@server.route("/admin/reviewers", methods=["GET", "POST"])
+def admin_reviewers():
+    """管理审核员"""
+    token = request.args.get("token", "") or request.form.get("token", "")
+    if token != admin_token():
+        abort(403)
+
+    if request.method == "POST":
+        action = request.form.get("action", "")
+
+        if action == "add":
+            username = request.form.get("username", "").strip()
+            user = User.get_by_username(username)
+            if not user:
+                flash(f"用户 '{username}' 不存在", "error")
+            elif Reviewer.is_reviewer(user["id"]):
+                flash(f"用户 '{username}' 已经是审核员", "error")
+            else:
+                admin_id = session.get("user_id") or 0
+                Reviewer.add(user["id"], admin_id)
+                flash(f"已添加审核员：{username}")
+
+        elif action == "remove":
+            user_id = int(request.form.get("user_id", 0))
+            if user_id:
+                Reviewer.remove(user_id)
+                flash("已移除审核员")
+
+        return redirect(url_for("admin_reviewers", token=token))
+
+    reviewers = Reviewer.list_all()
+    return render_template("admin_reviewers.html", reviewers=reviewers, token=token)
+
+
+@server.route("/admin/ai-config", methods=["GET", "POST"])
+def admin_ai_config():
+    """AI审核配置"""
+    token = request.args.get("token", "") or request.form.get("token", "")
+    if token != admin_token():
+        abort(403)
+
+    if request.method == "POST":
+        api_key = request.form.get("api_key", "")
+        api_url = request.form.get("api_url", "")
+        model = request.form.get("model", "")
+        enabled = request.form.get("enabled") == "on"
+
+        AIReviewConfig.update(api_key, api_url, model, enabled)
+        flash("AI审核配置已更新")
+        return redirect(url_for("admin_ai_config", token=token))
+
+    config = AIReviewConfig.get()
+    return render_template("admin_ai_config.html", config=config, token=token)
+
+
 @server.context_processor
 def inject_globals():
-    return {"admin_token": admin_token, "current_user": get_current_user()}
+    from models import Reviewer
+    user = get_current_user()
+    is_reviewer = False
+    if user:
+        is_reviewer = Reviewer.is_reviewer(user["id"])
+    return {"admin_token": admin_token, "current_user": user, "is_reviewer": is_reviewer}
 
 
 if __name__ == "__main__":

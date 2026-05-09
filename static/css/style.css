@@ -190,26 +190,68 @@ textarea {
     text-decoration: underline;
 }
 
+/* 导航栏按钮统一样式 */
+.nav-review-link,
+.nav-admin-link,
+.nav-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 8px 14px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    text-decoration: none;
+    border: 1px solid transparent;
+    cursor: pointer;
+    transition: all 0.2s;
+    height: 36px;
+    box-sizing: border-box;
+}
+
+.nav-review-link {
+    background: #fbbf24;
+    color: #78350f !important;
+    border-color: #f59e0b;
+}
+
+.nav-review-link:hover {
+    background: #f59e0b;
+    transform: translateY(-1px);
+}
+
+.nav-admin-link {
+    background: var(--accent);
+    color: var(--ink) !important;
+    border-color: var(--accent);
+}
+
+.nav-admin-link:hover {
+    background: var(--accent-hover);
+    border-color: var(--accent-hover);
+    transform: translateY(-1px);
+}
+
+/* 深色模式下管理按钮适配 */
+:root[data-theme="dark"] .nav-admin-link {
+    color: var(--paper) !important;
+}
+
 .nav-form {
     margin: 0;
     display: contents;
 }
 
 .nav-btn {
-    border: 1px solid var(--line);
-    border-radius: 7px;
-    padding: 8px 12px;
     background: var(--paper);
     color: var(--ink);
-    cursor: pointer;
-    font: inherit;
-    font-size: 13px;
-    font-weight: 600;
+    border-color: var(--line);
 }
 
 .nav-btn:hover {
     border-color: var(--rose);
     color: var(--rose);
+    transform: translateY(-1px);
 }
 
 .theme-toggle {
@@ -723,6 +765,54 @@ textarea:focus {
 .profile-tab.active {
     color: var(--accent);
     border-bottom-color: var(--accent);
+}
+
+/* 管理员快速审核操作 */
+.card-admin-actions {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid var(--border);
+    align-items: center;
+}
+
+.admin-status {
+    font-size: 12px;
+    color: var(--muted);
+    margin-right: auto;
+}
+
+.admin-btn {
+    display: inline-flex;
+    align-items: center;
+    min-height: 24px;
+    border-radius: 4px;
+    border: none;
+    padding: 4px 10px;
+    font-size: 11px;
+    font-weight: 700;
+    cursor: pointer;
+    text-decoration: none;
+}
+
+.admin-approve {
+    background: #10b981;
+    color: white;
+}
+
+.admin-approve:hover {
+    background: #059669;
+}
+
+.admin-reject {
+    background: #ef4444;
+    color: white;
+}
+
+.admin-reject:hover {
+    background: #dc2626;
 }
 
 .unfavorite-btn {
@@ -1679,4 +1769,62 @@ pre {
     .detail-main h1 {
         font-size: 38px;
     }
+}
+
+/* 审核状态标签 */
+.status {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.status-pending {
+    background: #fbbf24;
+    color: #78350f;
+}
+
+.status-approved {
+    background: #10b981;
+    color: white;
+}
+
+.status-rejected {
+    background: #ef4444;
+    color: white;
+}
+
+/* 审核状态横幅 */
+.review-status-banner {
+    padding: 12px 16px;
+    border-radius: 8px;
+    margin: 16px 0;
+    font-size: 14px;
+}
+
+.review-status-banner strong {
+    display: block;
+    margin-bottom: 4px;
+}
+
+.review-status-banner p {
+    margin: 0;
+    font-size: 13px;
+    opacity: 0.9;
+}
+
+.review-status-banner.status-pending {
+    background: rgba(251, 191, 36, 0.15);
+    border: 1px solid #fbbf24;
+    color: #78350f;
+}
+
+.review-status-banner.status-rejected {
+    background: rgba(239, 68, 68, 0.15);
+    border: 1px solid #ef4444;
+    color: #991b1b;
 }

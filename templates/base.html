@@ -29,17 +29,18 @@
             {% endif %}
             <div class="nav-divider"></div>
             {% if current_user %}
-                <div class="nav-user">
-                    <a class="nav-username" href="{{ url_for('user_profile', username=current_user.username) }}">{{ current_user.display_name or current_user.username }}</a>
-                    <form method="post" action="{{ url_for('logout') }}" class="nav-form">
-                        <button type="submit" class="nav-btn">退出</button>
-                    </form>
-                </div>
+                <a class="nav-username" href="{{ url_for('user_profile', username=current_user.username) }}">{{ current_user.display_name or current_user.username }}</a>
+                {% if is_reviewer %}
+                    <a href="{{ url_for('review_queue') }}" class="nav-review-link">审核</a>
+                    <a href="{{ url_for('admin') }}" class="nav-admin-link">管理</a>
+                {% endif %}
+                <form method="post" action="{{ url_for('logout') }}" class="nav-form">
+                    <button type="submit" class="nav-btn">退出</button>
+                </form>
             {% else %}
                 <a href="{{ url_for('login') }}">登录</a>
                 <a href="{{ url_for('register') }}">注册</a>
             {% endif %}
-            <a href="{{ url_for('admin') }}">管理</a>
             <button class="theme-toggle" type="button" data-theme-toggle aria-label="切换深色模式">
                 <span data-theme-icon>◐</span>
             </button>

@@ -71,7 +71,12 @@ def init_db() -> None:
                 response_format TEXT DEFAULT '',
                 rules_json TEXT DEFAULT '[]',
                 state_json TEXT DEFAULT '{}',
-                FOREIGN KEY (user_id) REFERENCES users(id)
+                status TEXT DEFAULT 'pending',
+                reviewed_by INTEGER DEFAULT NULL,
+                reviewed_at TEXT DEFAULT NULL,
+                review_result TEXT DEFAULT NULL,
+                FOREIGN KEY (user_id) REFERENCES users(id),
+                FOREIGN KEY (reviewed_by) REFERENCES users(id)
             )
             """
         )
@@ -87,6 +92,10 @@ def init_db() -> None:
             ("response_format", "ALTER TABLE role_cards ADD COLUMN response_format TEXT DEFAULT ''"),
             ("rules_json", "ALTER TABLE role_cards ADD COLUMN rules_json TEXT DEFAULT '[]'"),
             ("state_json", "ALTER TABLE role_cards ADD COLUMN state_json TEXT DEFAULT '{}'"),
+            ("status", "ALTER TABLE role_cards ADD COLUMN status TEXT DEFAULT 'approved'"),
+            ("reviewed_by", "ALTER TABLE role_cards ADD COLUMN reviewed_by INTEGER DEFAULT NULL"),
+            ("reviewed_at", "ALTER TABLE role_cards ADD COLUMN reviewed_at TEXT DEFAULT NULL"),
+            ("review_result", "ALTER TABLE role_cards ADD COLUMN review_result TEXT DEFAULT NULL"),
         ]
         for col, sql in migrations:
             if col not in columns:
@@ -108,8 +117,53 @@ def init_db() -> None:
                 user_id INTEGER NOT NULL,
                 content TEXT NOT NULL,
                 created_at TEXT NOT NULL,
+                status TEXT DEFAULT 'pending',
+                reviewed_by INTEGER DEFAULT NULL,
+                reviewed_at TEXT DEFAULT NULL,
+                review_result TEXT DEFAULT NULL,
                 FOREIGN KEY (card_id) REFERENCES role_cards(id) ON DELETE CASCADE,
-                FOREIGN KEY (user_id) REFERENCES users(id)
+                FOREIGN KEY (user_id) REFERENCES users(id),
+                FOREIGN KEY (reviewed_by) REFERENCES users(id)
+            )
+            """
+        )
+
+        # 评论表迁移：添加审核相关字段
+        comment_columns = {row["name"] for row in db.execute("PRAGMA table_info(comments)").fetchall()}
+        comment_migrations = [
+            ("status", "ALTER TABLE comments ADD COLUMN status TEXT DEFAULT 'approved'"),
+            ("reviewed_by", "ALTER TABLE comments ADD COLUMN reviewed_by INTEGER DEFAULT NULL"),
+            ("reviewed_at", "ALTER TABLE comments ADD COLUMN reviewed_at TEXT DEFAULT NULL"),
+            ("review_result", "ALTER TABLE comments ADD COLUMN review_result TEXT DEFAULT NULL"),
+        ]
+        for col, sql in comment_migrations:
+            if col not in comment_columns:
+                db.execute(sql)
+
+        # 审核员表
+        db.execute(
+            """
+            CREATE TABLE IF NOT EXISTS reviewers (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL UNIQUE,
+                created_by INTEGER NOT NULL,
+                created_at TEXT NOT NULL,
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+                FOREIGN KEY (created_by) REFERENCES users(id)
+            )
+            """
+        )
+
+        # AI审核配置表
+        db.execute(
+            """
+            CREATE TABLE IF NOT EXISTS ai_review_config (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                api_key TEXT DEFAULT '',
+                api_url TEXT DEFAULT '',
+                model TEXT DEFAULT '',
+                enabled INTEGER DEFAULT 0,
+                updated_at TEXT NOT NULL
             )
             """
         )
@@ -261,34 +315,58 @@ class RoleCard:
         return card
 
     @staticmethod
-    def get_by_id(card_id: int) -> Optional[dict]:
+    def get_by_id(card_id: int, include_pending: bool = False) -> Optional[dict]:
         """通过 ID 获取角色卡"""
         with get_db() as db:
-            row = db.execute("SELECT * FROM role_cards WHERE id = ?", (card_id,)).fetchone()
+            if include_pending:
+                row = db.execute("SELECT * FROM role_cards WHERE id = ?", (card_id,)).fetchone()
+            else:
+                row = db.execute(
+                    "SELECT * FROM role_cards WHERE id = ? AND status = 'approved'",
+                    (card_id,)
+                ).fetchone()
         return RoleCard.row_to_card(row) if row else None
 
     @staticmethod
-    def get_by_slug(slug: str) -> Optional[dict]:
+    def get_by_slug(slug: str, include_pending: bool = False) -> Optional[dict]:
         """通过 slug 获取角色卡"""
         with get_db() as db:
-            row = db.execute("SELECT * FROM role_cards WHERE slug = ?", (slug,)).fetchone()
+            if include_pending:
+                row = db.execute("SELECT * FROM role_cards WHERE slug = ?", (slug,)).fetchone()
+            else:
+                row = db.execute(
+                    "SELECT * FROM role_cards WHERE slug = ? AND status = 'approved'",
+                    (slug,)
+                ).fetchone()
         return RoleCard.row_to_card(row) if row else None
 
     @staticmethod
-    def get_or_404(identifier):
+    def get_or_404(identifier, include_pending: bool = False):
         """获取角色卡，不存在则返回 404"""
         with get_db() as db:
             if str(identifier).isdigit():
-                row = db.execute("SELECT * FROM role_cards WHERE id = ?", (identifier,)).fetchone()
+                if include_pending:
+                    row = db.execute("SELECT * FROM role_cards WHERE id = ?", (identifier,)).fetchone()
+                else:
+                    row = db.execute(
+                        "SELECT * FROM role_cards WHERE id = ? AND status = 'approved'",
+                        (identifier,)
+                    ).fetchone()
             else:
-                row = db.execute("SELECT * FROM role_cards WHERE slug = ?", (identifier,)).fetchone()
+                if include_pending:
+                    row = db.execute("SELECT * FROM role_cards WHERE slug = ?", (identifier,)).fetchone()
+                else:
+                    row = db.execute(
+                        "SELECT * FROM role_cards WHERE slug = ? AND status = 'approved'",
+                        (identifier,)
+                    ).fetchone()
         if not row:
             abort(404)
         return RoleCard.row_to_card(row)
 
     @staticmethod
     def create(card_data: dict, avatar_path: str = "", user_id: int = None) -> dict:
-        """创建新角色卡"""
+        """创建新角色卡（默认进入待审核状态）"""
         now = datetime.now().isoformat(timespec="seconds")
         with get_db() as db:
             from utils import unique_slug
@@ -299,8 +377,9 @@ class RoleCard:
                     name, slug, avatar_path, description, personality, scenario,
                     first_message, system_prompt, tags_json, creator, visibility,
                     source_format, raw_json, user_id, created_at, updated_at,
-                    basic_info, example_dialogues, response_format, rules_json, state_json
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    basic_info, example_dialogues, response_format, rules_json, state_json,
+                    status
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     card_data["name"],
@@ -324,6 +403,7 @@ class RoleCard:
                     card_data.get("response_format", ""),
                     json.dumps(card_data.get("rules", []), ensure_ascii=False),
                     json.dumps(card_data.get("state", {}), ensure_ascii=False),
+                    "pending",  # 新创建的角色卡默认进入待审核状态
                 ),
             )
             db.commit()
@@ -401,7 +481,7 @@ class RoleCard:
             db.commit()
 
     @staticmethod
-    def search(query: str = "", tag: str = "", sort: str = "latest", visibility: str = None) -> list:
+    def search(query: str = "", tag: str = "", sort: str = "latest", visibility: str = None, include_pending: bool = False) -> list:
         """搜索角色卡"""
         where = []
         params = []
@@ -410,6 +490,10 @@ class RoleCard:
             where.append(f"visibility = '{visibility}'")
         else:
             where.append("visibility = 'public'")
+
+        # 默认只显示已审核的内容
+        if not include_pending:
+            where.append("status = 'approved'")
 
         if query:
             where.append("(name LIKE ? OR description LIKE ? OR creator LIKE ?)")
@@ -434,19 +518,27 @@ class RoleCard:
         return [RoleCard.row_to_card(row) for row in rows]
 
     @staticmethod
-    def get_by_user(user_id: int, include_private: bool = False) -> list:
+    def get_by_user(user_id: int, include_private: bool = False, include_pending: bool = False) -> list:
         """获取用户的角色卡"""
         with get_db() as db:
             if include_private:
+                # 用户自己查看自己的卡片，显示所有状态
                 rows = db.execute(
                     "SELECT * FROM role_cards WHERE user_id = ? ORDER BY created_at DESC",
                     (user_id,),
                 ).fetchall()
             else:
-                rows = db.execute(
-                    "SELECT * FROM role_cards WHERE user_id = ? AND visibility = 'public' ORDER BY created_at DESC",
-                    (user_id,),
-                ).fetchall()
+                # 其他人查看，只显示公开且已审核的
+                if include_pending:
+                    rows = db.execute(
+                        "SELECT * FROM role_cards WHERE user_id = ? AND visibility = 'public' ORDER BY created_at DESC",
+                        (user_id,),
+                    ).fetchall()
+                else:
+                    rows = db.execute(
+                        "SELECT * FROM role_cards WHERE user_id = ? AND visibility = 'public' AND status = 'approved' ORDER BY created_at DESC",
+                        (user_id,),
+                    ).fetchall()
         return [RoleCard.row_to_card(row) for row in rows]
 
     @staticmethod
@@ -454,7 +546,9 @@ class RoleCard:
         """获取所有标签"""
         from utils import normalize_tags
         with get_db() as db:
-            rows = db.execute("SELECT tags_json FROM role_cards WHERE visibility = 'public'").fetchall()
+            rows = db.execute(
+                "SELECT tags_json FROM role_cards WHERE visibility = 'public' AND status = 'approved'"
+            ).fetchall()
 
         all_tags = []
         for row in rows:
@@ -468,18 +562,29 @@ class Comment:
     """评论模型"""
 
     @staticmethod
-    def get_by_card(card_id: int) -> list:
+    def get_by_card(card_id: int, include_pending: bool = False) -> list:
         """获取角色卡的所有评论"""
         with get_db() as db:
-            rows = db.execute(
-                """
-                SELECT c.*, u.username, u.display_name
-                FROM comments c
-                JOIN users u ON c.user_id = u.id
-                WHERE c.card_id = ? ORDER BY c.created_at ASC
-                """,
-                (card_id,),
-            ).fetchall()
+            if include_pending:
+                rows = db.execute(
+                    """
+                    SELECT c.*, u.username, u.display_name
+                    FROM comments c
+                    JOIN users u ON c.user_id = u.id
+                    WHERE c.card_id = ? ORDER BY c.created_at ASC
+                    """,
+                    (card_id,),
+                ).fetchall()
+            else:
+                rows = db.execute(
+                    """
+                    SELECT c.*, u.username, u.display_name
+                    FROM comments c
+                    JOIN users u ON c.user_id = u.id
+                    WHERE c.card_id = ? AND c.status = 'approved' ORDER BY c.created_at ASC
+                    """,
+                    (card_id,),
+                ).fetchall()
 
         current_user_id = session.get("user_id")
         comments = []
@@ -491,11 +596,11 @@ class Comment:
 
     @staticmethod
     def create(card_id: int, user_id: int, content: str) -> None:
-        """创建评论"""
+        """创建评论（默认进入待审核状态）"""
         now = datetime.now().isoformat(timespec="seconds")
         with get_db() as db:
             db.execute(
-                "INSERT INTO comments (card_id, user_id, content, created_at) VALUES (?, ?, ?, ?)",
+                "INSERT INTO comments (card_id, user_id, content, created_at, status) VALUES (?, ?, ?, ?, 'pending')",
                 (card_id, user_id, content, now),
             )
             db.commit()
@@ -589,7 +694,7 @@ class UserFavorite:
                 """
                 SELECT rc.* FROM role_cards rc
                 JOIN user_favorites uf ON rc.id = uf.card_id
-                WHERE uf.user_id = ? AND rc.visibility = 'public'
+                WHERE uf.user_id = ? AND rc.visibility = 'public' AND rc.status = 'approved'
                 ORDER BY uf.created_at DESC
                 """,
                 (user_id,)
@@ -604,8 +709,226 @@ class UserFavorite:
                 """
                 SELECT COUNT(*) as cnt FROM user_favorites uf
                 JOIN role_cards rc ON rc.id = uf.card_id
-                WHERE uf.user_id = ? AND rc.visibility = 'public'
+                WHERE uf.user_id = ? AND rc.visibility = 'public' AND rc.status = 'approved'
                 """,
                 (user_id,)
             ).fetchone()
         return row["cnt"] if row else 0
+
+
+class Reviewer:
+    """审核员模型"""
+
+    @staticmethod
+    def is_reviewer(user_id: int) -> bool:
+        """检查用户是否为审核员"""
+        with get_db() as db:
+            row = db.execute(
+                "SELECT id FROM reviewers WHERE user_id = ?",
+                (user_id,)
+            ).fetchone()
+        return row is not None
+
+    @staticmethod
+    def add(user_id: int, created_by: int) -> None:
+        """添加审核员"""
+        now = datetime.now().isoformat(timespec="seconds")
+        with get_db() as db:
+            db.execute(
+                "INSERT INTO reviewers (user_id, created_by, created_at) VALUES (?, ?, ?)",
+                (user_id, created_by, now)
+            )
+            db.commit()
+
+    @staticmethod
+    def remove(user_id: int) -> None:
+        """移除审核员"""
+        with get_db() as db:
+            db.execute("DELETE FROM reviewers WHERE user_id = ?", (user_id,))
+            db.commit()
+
+    @staticmethod
+    def list_all() -> list:
+        """获取所有审核员列表"""
+        with get_db() as db:
+            rows = db.execute(
+                """
+                SELECT r.*, u.username, u.display_name, u.avatar_path,
+                       creator.username as creator_username
+                FROM reviewers r
+                JOIN users u ON r.user_id = u.id
+                JOIN users creator ON r.created_by = creator.id
+                ORDER BY r.created_at DESC
+                """
+            ).fetchall()
+        return [dict(row) for row in rows]
+
+
+class ReviewQueue:
+    """审核队列模型"""
+
+    @staticmethod
+    def get_pending_cards(limit: int = 50) -> list:
+        """获取待审核的角色卡列表"""
+        with get_db() as db:
+            rows = db.execute(
+                """
+                SELECT rc.*, u.username as owner_username
+                FROM role_cards rc
+                LEFT JOIN users u ON rc.user_id = u.id
+                WHERE rc.status = 'pending'
+                ORDER BY rc.created_at ASC
+                LIMIT ?
+                """,
+                (limit,)
+            ).fetchall()
+        return [RoleCard.row_to_card(row) for row in rows]
+
+    @staticmethod
+    def get_pending_comments(limit: int = 50) -> list:
+        """获取待审核的评论列表"""
+        with get_db() as db:
+            rows = db.execute(
+                """
+                SELECT c.*, u.username, u.display_name, rc.name as card_name, rc.slug as card_slug
+                FROM comments c
+                JOIN users u ON c.user_id = u.id
+                JOIN role_cards rc ON c.card_id = rc.id
+                WHERE c.status = 'pending'
+                ORDER BY c.created_at ASC
+                LIMIT ?
+                """,
+                (limit,)
+            ).fetchall()
+        return [dict(row) for row in rows]
+
+    @staticmethod
+    def approve_card(card_id: int, reviewer_id: int, result: str = None) -> None:
+        """批准角色卡"""
+        now = datetime.now().isoformat(timespec="seconds")
+        with get_db() as db:
+            db.execute(
+                """
+                UPDATE role_cards 
+                SET status = 'approved', reviewed_by = ?, reviewed_at = ?, review_result = ?
+                WHERE id = ?
+                """,
+                (reviewer_id, now, result, card_id)
+            )
+            db.commit()
+
+    @staticmethod
+    def reject_card(card_id: int, reviewer_id: int, result: str = None) -> None:
+        """拒绝角色卡"""
+        now = datetime.now().isoformat(timespec="seconds")
+        with get_db() as db:
+            db.execute(
+                """
+                UPDATE role_cards 
+                SET status = 'rejected', reviewed_by = ?, reviewed_at = ?, review_result = ?
+                WHERE id = ?
+                """,
+                (reviewer_id, now, result, card_id)
+            )
+            db.commit()
+
+    @staticmethod
+    def approve_comment(comment_id: int, reviewer_id: int, result: str = None) -> None:
+        """批准评论"""
+        now = datetime.now().isoformat(timespec="seconds")
+        with get_db() as db:
+            db.execute(
+                """
+                UPDATE comments 
+                SET status = 'approved', reviewed_by = ?, reviewed_at = ?, review_result = ?
+                WHERE id = ?
+                """,
+                (reviewer_id, now, result, comment_id)
+            )
+            db.commit()
+
+    @staticmethod
+    def reject_comment(comment_id: int, reviewer_id: int, result: str = None) -> None:
+        """拒绝评论"""
+        now = datetime.now().isoformat(timespec="seconds")
+        with get_db() as db:
+            db.execute(
+                """
+                UPDATE comments 
+                SET status = 'rejected', reviewed_by = ?, reviewed_at = ?, review_result = ?
+                WHERE id = ?
+                """,
+                (reviewer_id, now, result, comment_id)
+            )
+            db.commit()
+
+    @staticmethod
+    def get_stats() -> dict:
+        """获取审核统计信息"""
+        with get_db() as db:
+            card_stats = db.execute(
+                """
+                SELECT 
+                    COUNT(CASE WHEN status = 'pending' THEN 1 END) as pending_cards,
+                    COUNT(CASE WHEN status = 'approved' THEN 1 END) as approved_cards,
+                    COUNT(CASE WHEN status = 'rejected' THEN 1 END) as rejected_cards
+                FROM role_cards
+                """
+            ).fetchone()
+
+            comment_stats = db.execute(
+                """
+                SELECT 
+                    COUNT(CASE WHEN status = 'pending' THEN 1 END) as pending_comments,
+                    COUNT(CASE WHEN status = 'approved' THEN 1 END) as approved_comments,
+                    COUNT(CASE WHEN status = 'rejected' THEN 1 END) as rejected_comments
+                FROM comments
+                """
+            ).fetchone()
+
+        return {
+            "pending_cards": card_stats["pending_cards"],
+            "approved_cards": card_stats["approved_cards"],
+            "rejected_cards": card_stats["rejected_cards"],
+            "pending_comments": comment_stats["pending_comments"],
+            "approved_comments": comment_stats["approved_comments"],
+            "rejected_comments": comment_stats["rejected_comments"],
+        }
+
+
+class AIReviewConfig:
+    """AI审核配置模型"""
+
+    @staticmethod
+    def get() -> dict:
+        """获取AI审核配置"""
+        with get_db() as db:
+            row = db.execute("SELECT * FROM ai_review_config LIMIT 1").fetchone()
+            if not row:
+                # 初始化默认配置
+                now = datetime.now().isoformat(timespec="seconds")
+                db.execute(
+                    """
+                    INSERT INTO ai_review_config (api_key, api_url, model, enabled, updated_at)
+                    VALUES ('', '', '', 0, ?)
+                    """,
+                    (now,)
+                )
+                db.commit()
+                row = db.execute("SELECT * FROM ai_review_config LIMIT 1").fetchone()
+        return dict(row)
+
+    @staticmethod
+    def update(api_key: str, api_url: str, model: str, enabled: bool) -> None:
+        """更新AI审核配置"""
+        now = datetime.now().isoformat(timespec="seconds")
+        with get_db() as db:
+            db.execute(
+                """
+                UPDATE ai_review_config 
+                SET api_key = ?, api_url = ?, model = ?, enabled = ?, updated_at = ?
+                WHERE id = 1
+                """,
+                (api_key, api_url, model, 1 if enabled else 0, now)
+            )
+            db.commit()

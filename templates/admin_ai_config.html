@@ -1,0 +1,327 @@
+{% extends "base.html" %}
+{% block title %}AI审核配置 - 角色卡平台{% endblock %}
+{% block content %}
+<section class="page-head">
+    <p class="eyebrow">Admin / AI Config</p>
+    <h1>AI审核配置</h1>
+    <p>配置AI内容审核的API接口。</p>
+</section>
+
+<section class="form-section glass">
+    <form method="post" action="{{ url_for('admin_ai_config') }}" class="ai-config-form">
+        <input type="hidden" name="token" value="{{ token }}">
+
+        <div class="form-group">
+            <label class="toggle-label">
+                <input type="checkbox" name="enabled" {% if config.enabled %}checked{% endif %} class="toggle-input">
+                <span class="toggle-slider"></span>
+                <span class="toggle-text">启用AI审核</span>
+            </label>
+            <p class="form-hint">启用后，审核员可以使用AI辅助审核内容</p>
+        </div>
+
+        <div class="form-group">
+            <label for="api_url">API地址</label>
+            <input type="url" id="api_url" name="api_url" value="{{ config.api_url or '' }}" placeholder="https://api.openai.com/v1/chat/completions" class="glass-input">
+            <p class="form-hint">支持OpenAI格式的API接口地址</p>
+        </div>
+
+        <div class="form-group">
+            <label for="api_key">API密钥</label>
+            <input type="password" id="api_key" name="api_key" value="{{ config.api_key or '' }}" placeholder="sk-..." class="glass-input">
+            <p class="form-hint">您的API密钥将被安全存储</p>
+        </div>
+
+        <div class="form-group">
+            <label for="model">模型名称</label>
+            <input type="text" id="model" name="model" value="{{ config.model or '' }}" placeholder="gpt-3.5-turbo" class="glass-input">
+            <p class="form-hint">例如：gpt-3.5-turbo, gpt-4, 或其他兼容模型</p>
+        </div>
+
+        <div class="form-actions">
+            <button type="submit" class="btn-save">保存配置</button>
+            <a href="{{ url_for('admin', token=token) }}" class="btn-back">返回</a>
+        </div>
+    </form>
+</section>
+
+<section class="info-section glass">
+    <h2>使用说明</h2>
+    <div class="info-content">
+        <p>AI审核功能可以帮助审核员自动检测以下内容：</p>
+        <ul>
+            <li>色情、淫秽内容</li>
+            <li>暴力、恐怖内容</li>
+            <li>反动、政治敏感内容</li>
+            <li>违法、违规内容</li>
+            <li>违背社会主义核心价值观的内容</li>
+        </ul>
+        <p class="info-note">注意：AI审核结果仅供参考，最终审核决定仍需人工确认。</p>
+    </div>
+</section>
+
+<style>
+/* 玻璃拟态基础 */
+.glass {
+    background: rgba(255, 255, 255, 0.08);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+}
+
+.glass-input {
+    background: rgba(0, 0, 0, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    backdrop-filter: blur(4px);
+}
+
+/* 表单区域 */
+.form-section {
+    border-radius: 20px;
+    padding: 2rem;
+    margin-bottom: 2rem;
+}
+
+.ai-config-form {
+    display: flex;
+    flex-direction: column;
+    gap: 1.75rem;
+}
+
+.form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.625rem;
+}
+
+.form-group label {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.form-group input[type="text"],
+.form-group input[type="url"],
+.form-group input[type="password"] {
+    padding: 0.875rem 1rem;
+    border-radius: 12px;
+    color: var(--ink);
+    font-size: 0.9375rem;
+    transition: all 0.2s;
+}
+
+.form-group input:focus {
+    outline: none;
+    border-color: var(--accent);
+    background: rgba(255, 255, 255, 0.06);
+}
+
+.form-group input::placeholder {
+    color: var(--muted);
+    opacity: 0.5;
+}
+
+/* 切换开关 */
+.toggle-label {
+    display: flex !important;
+    align-items: center;
+    gap: 0.875rem;
+    cursor: pointer;
+    flex-direction: row !important;
+}
+
+.toggle-input {
+    display: none;
+}
+
+.toggle-slider {
+    position: relative;
+    width: 52px;
+    height: 28px;
+    background: rgba(0, 0, 0, 0.15);
+    border-radius: 14px;
+    transition: all 0.3s;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.toggle-slider::after {
+    content: '';
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 20px;
+    height: 20px;
+    background: white;
+    border-radius: 50%;
+    transition: all 0.3s;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.toggle-input:checked + .toggle-slider {
+    background: var(--accent);
+    border-color: rgba(255, 255, 255, 0.3);
+}
+
+.toggle-input:checked + .toggle-slider::after {
+    transform: translateX(24px);
+}
+
+.toggle-text {
+    font-size: 1rem !important;
+    font-weight: 600 !important;
+    color: var(--ink) !important;
+    text-transform: none !important;
+    letter-spacing: normal !important;
+}
+
+.form-hint {
+    font-size: 0.8125rem;
+    color: var(--muted);
+    margin: 0;
+    opacity: 0.8;
+}
+
+/* 操作按钮 */
+.form-actions {
+    display: flex;
+    gap: 1rem;
+    margin-top: 0.5rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.btn-save {
+    padding: 0.875rem 1.75rem;
+    background: rgba(47, 111, 115, 0.15);
+    color: var(--accent);
+    border: 1px solid rgba(47, 111, 115, 0.4);
+    border-radius: 12px;
+    cursor: pointer;
+    font-size: 0.9375rem;
+    font-weight: 600;
+    backdrop-filter: blur(4px);
+    box-shadow: 0 4px 12px rgba(47, 111, 115, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    transition: all 0.2s;
+}
+
+.btn-save:hover {
+    background: rgba(47, 111, 115, 0.25);
+    border-color: rgba(47, 111, 115, 0.6);
+    box-shadow: 0 6px 16px rgba(47, 111, 115, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.15);
+    transform: translateY(-1px);
+}
+
+.btn-back {
+    padding: 0.875rem 1.75rem;
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--ink);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 12px;
+    cursor: pointer;
+    font-size: 0.9375rem;
+    font-weight: 600;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    backdrop-filter: blur(4px);
+    transition: all 0.2s;
+}
+
+.btn-back:hover {
+    background: rgba(255, 255, 255, 0.15);
+    border-color: rgba(255, 255, 255, 0.3);
+    transform: translateY(-1px);
+}
+
+/* 信息区域 */
+.info-section {
+    border-radius: 20px;
+    padding: 2rem;
+}
+
+.info-section h2 {
+    margin-bottom: 1.25rem;
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: var(--ink);
+}
+
+.info-content {
+    color: var(--muted);
+    font-size: 0.9375rem;
+    line-height: 1.7;
+}
+
+.info-content p {
+    margin: 0 0 1rem 0;
+}
+
+.info-content ul {
+    margin: 1rem 0;
+    padding-left: 1.25rem;
+}
+
+.info-content li {
+    margin: 0.5rem 0;
+    position: relative;
+}
+
+.info-content li::marker {
+    color: var(--accent);
+}
+
+.info-note {
+    background: rgba(251, 191, 36, 0.08);
+    border: 1px solid rgba(251, 191, 36, 0.25);
+    border-radius: 12px;
+    padding: 1rem 1.25rem;
+    margin-top: 1.25rem;
+    color: var(--ink);
+    font-size: 0.875rem;
+    backdrop-filter: blur(4px);
+}
+
+/* 深色模式适配 */
+:root[data-theme="dark"] .glass {
+    background: rgba(0, 0, 0, 0.25);
+    border-color: rgba(255, 255, 255, 0.1);
+}
+
+:root[data-theme="dark"] .glass-input {
+    background: rgba(0, 0, 0, 0.2);
+}
+
+:root[data-theme="dark"] .form-group input:focus {
+    background: rgba(0, 0, 0, 0.3);
+}
+
+:root[data-theme="dark"] .toggle-slider {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+:root[data-theme="dark"] .info-note {
+    background: rgba(251, 191, 36, 0.05);
+}
+
+/* 响应式 */
+@media (max-width: 640px) {
+    .form-section,
+    .info-section {
+        padding: 1.5rem;
+    }
+
+    .form-actions {
+        flex-direction: column;
+    }
+
+    .btn-save,
+    .btn-back {
+        width: 100%;
+    }
+}
+</style>
+{% endblock %}

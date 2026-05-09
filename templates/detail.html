@@ -51,6 +51,15 @@
     <article class="detail-main">
         <p class="eyebrow">{% if card.owner_username %}by <a href="{{ url_for('user_profile', username=card.owner_username) }}">{{ card.owner_username }}</a>{% else %}{{ card.creator or "匿名作者" }}{% endif %}</p>
         <h1>{{ card.name }}</h1>
+
+        {% if card.status and card.status != 'approved' %}
+        <div class="review-status-banner status-{{ card.status }}">
+            <strong>审核状态: {{ card.status }}</strong>
+            {% if card.review_result %}
+                <p>审核结果: {{ card.review_result }}</p>
+            {% endif %}
+        </div>
+        {% endif %}
         
         {% if card.description %}
         <p class="card-description">{{ card.description }}</p>

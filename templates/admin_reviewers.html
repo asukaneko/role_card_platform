@@ -1,0 +1,336 @@
+{% extends "base.html" %}
+{% block title %}审核员管理 - 角色卡平台{% endblock %}
+{% block content %}
+<section class="page-head">
+    <p class="eyebrow">Admin / Reviewers</p>
+    <h1>审核员管理</h1>
+    <p>管理具有内容审核权限的用户。</p>
+</section>
+
+<!-- 添加审核员表单 -->
+<section class="form-section glass">
+    <h2>添加审核员</h2>
+    <form method="post" action="{{ url_for('admin_reviewers') }}" class="reviewer-form">
+        <input type="hidden" name="token" value="{{ token }}">
+        <input type="hidden" name="action" value="add">
+        <div class="form-group">
+            <label for="username">用户名</label>
+            <input type="text" id="username" name="username" placeholder="输入要设为审核员的用户名" required class="glass-input">
+        </div>
+        <button type="submit" class="btn-add">添加审核员</button>
+    </form>
+</section>
+
+<!-- 审核员列表 -->
+<section class="reviewer-list">
+    <h2>当前审核员</h2>
+    {% if reviewers %}
+        <div class="reviewers-grid">
+            {% for reviewer in reviewers %}
+                <div class="reviewer-card glass">
+                    <div class="reviewer-avatar">
+                        {% if reviewer.avatar_path %}
+                            <img src="{{ url_for('asset_file', filename=reviewer.avatar_path) }}" alt="{{ reviewer.display_name or reviewer.username }}">
+                        {% else %}
+                            <span>{{ (reviewer.display_name or reviewer.username)[:1] }}</span>
+                        {% endif %}
+                    </div>
+                    <div class="reviewer-info">
+                        <strong>{{ reviewer.display_name or reviewer.username }}</strong>
+                        <span class="reviewer-username">@{{ reviewer.username }}</span>
+                        <span class="reviewer-meta">由 {{ reviewer.creator_username }} 添加于 {{ reviewer.created_at[:10] }}</span>
+                    </div>
+                    <div class="reviewer-actions">
+                        <form method="post" action="{{ url_for('admin_reviewers') }}" data-confirm="确定移除审核员「{{ reviewer.username }}」吗？">
+                            <input type="hidden" name="token" value="{{ token }}">
+                            <input type="hidden" name="action" value="remove">
+                            <input type="hidden" name="user_id" value="{{ reviewer.user_id }}">
+                            <button class="btn-remove">移除</button>
+                        </form>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="empty-state glass">
+            <p>暂无审核员</p>
+        </div>
+    {% endif %}
+</section>
+
+<div class="back-link">
+    <a href="{{ url_for('admin', token=token) }}">返回管理面板</a>
+</div>
+
+<style>
+/* 玻璃拟态基础 */
+.glass {
+    background: rgba(255, 255, 255, 0.08);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+}
+
+.glass-input {
+    background: rgba(0, 0, 0, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    backdrop-filter: blur(4px);
+}
+
+/* 表单区域 */
+.form-section {
+    border-radius: 20px;
+    padding: 1.75rem;
+    margin-bottom: 2rem;
+}
+
+.form-section h2 {
+    margin-bottom: 1.25rem;
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: var(--ink);
+}
+
+.reviewer-form {
+    display: flex;
+    gap: 1rem;
+    align-items: flex-end;
+}
+
+.form-group {
+    flex: 1;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.form-group input {
+    width: 100%;
+    padding: 0.875rem 1rem;
+    border-radius: 12px;
+    color: var(--ink);
+    font-size: 0.9375rem;
+    transition: all 0.2s;
+}
+
+.form-group input:focus {
+    outline: none;
+    border-color: var(--accent);
+    background: rgba(255, 255, 255, 0.06);
+}
+
+.form-group input::placeholder {
+    color: var(--muted);
+    opacity: 0.6;
+}
+
+.btn-add {
+    padding: 0.875rem 1.75rem;
+    background: rgba(47, 111, 115, 0.15);
+    color: var(--accent);
+    border: 1px solid rgba(47, 111, 115, 0.4);
+    border-radius: 12px;
+    cursor: pointer;
+    font-size: 0.9375rem;
+    font-weight: 600;
+    white-space: nowrap;
+    backdrop-filter: blur(4px);
+    box-shadow: 0 4px 12px rgba(47, 111, 115, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    transition: all 0.2s;
+}
+
+.btn-add:hover {
+    background: rgba(47, 111, 115, 0.25);
+    border-color: rgba(47, 111, 115, 0.6);
+    box-shadow: 0 6px 16px rgba(47, 111, 115, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.15);
+    transform: translateY(-1px);
+}
+
+/* 审核员列表 */
+.reviewer-list h2 {
+    margin-bottom: 1.25rem;
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: var(--ink);
+}
+
+.reviewers-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.reviewer-card {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 1.25rem;
+    border-radius: 16px;
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.reviewer-card:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.12);
+}
+
+.reviewer-avatar {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--accent), var(--gold));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    flex-shrink: 0;
+    border: 2px solid rgba(255, 255, 255, 0.2);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.reviewer-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.reviewer-avatar span {
+    color: white;
+    font-weight: 700;
+    font-size: 1.125rem;
+}
+
+.reviewer-info {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.reviewer-info strong {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--ink);
+}
+
+.reviewer-username {
+    font-size: 0.8125rem;
+    color: var(--accent);
+    font-weight: 500;
+}
+
+.reviewer-meta {
+    font-size: 0.75rem;
+    color: var(--muted);
+    opacity: 0.8;
+}
+
+.reviewer-actions {
+    flex-shrink: 0;
+}
+
+.btn-remove {
+    padding: 0.625rem 1.25rem;
+    background: rgba(239, 68, 68, 0.1);
+    color: #ef4444;
+    border: 1px solid rgba(239, 68, 68, 0.35);
+    border-radius: 10px;
+    cursor: pointer;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    backdrop-filter: blur(4px);
+    box-shadow: 0 4px 12px rgba(239, 68, 68, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    transition: all 0.2s;
+}
+
+.btn-remove:hover {
+    background: rgba(239, 68, 68, 0.2);
+    border-color: rgba(239, 68, 68, 0.55);
+    box-shadow: 0 6px 16px rgba(239, 68, 68, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.15);
+    transform: translateY(-1px);
+}
+
+/* 空状态 */
+.empty-state {
+    text-align: center;
+    padding: 3rem;
+    border-radius: 16px;
+    color: var(--muted);
+}
+
+/* 返回链接 */
+.back-link {
+    margin-top: 2rem;
+}
+
+.back-link a {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.625rem 1.25rem;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 10px;
+    color: var(--ink);
+    text-decoration: none;
+    font-size: 0.875rem;
+    font-weight: 500;
+    backdrop-filter: blur(4px);
+    transition: all 0.2s;
+}
+
+.back-link a:hover {
+    background: var(--accent);
+    color: white;
+    border-color: var(--accent);
+    box-shadow: 0 4px 12px rgba(47, 111, 115, 0.3);
+}
+
+/* 深色模式适配 */
+:root[data-theme="dark"] .glass {
+    background: rgba(0, 0, 0, 0.25);
+    border-color: rgba(255, 255, 255, 0.1);
+}
+
+:root[data-theme="dark"] .glass-input {
+    background: rgba(0, 0, 0, 0.2);
+}
+
+:root[data-theme="dark"] .form-group input:focus {
+    background: rgba(0, 0, 0, 0.3);
+}
+
+/* 响应式 */
+@media (max-width: 640px) {
+    .reviewer-form {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .btn-add {
+        width: 100%;
+    }
+
+    .reviewer-card {
+        flex-wrap: wrap;
+    }
+
+    .reviewer-actions {
+        width: 100%;
+        margin-top: 0.75rem;
+    }
+
+    .btn-remove {
+        width: 100%;
+    }
+}
+</style>
+{% endblock %}

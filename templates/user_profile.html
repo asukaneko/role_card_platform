@@ -113,6 +113,9 @@
                 <div class="card-title-row">
                     <h2><a href="{{ url_for('card_detail', identifier=card.slug) }}">{{ card.name }}</a></h2>
                     <span class="visibility">{{ card.visibility }}</span>
+                    {% if is_self and card.status %}
+                        <span class="status status-{{ card.status }}">{{ card.status }}</span>
+                    {% endif %}
                 </div>
                 <p>{{ card.description or card.personality }}</p>
                 <div class="tags">
@@ -134,6 +137,22 @@
                     <form method="post" action="{{ url_for('delete_card', card_id=card.id) }}" style="display:inline" data-confirm="确定删除「{{ card.name }}」吗？此操作不可撤销。">
                         <button type="submit" class="card-action-btn danger">删除</button>
                     </form>
+                </div>
+                {% endif %}
+                {% if is_reviewer and not is_self %}
+                <!-- 管理员快速审核 -->
+                <div class="card-admin-actions">
+                    <span class="admin-status">状态: {{ card.status or 'approved' }}</span>
+                    {% if card.status == 'pending' %}
+                    <form method="post" action="{{ url_for('review_approve_card', card_id=card.id) }}" style="display:inline">
+                        <input type="hidden" name="result" value="管理员快速通过">
+                        <button type="submit" class="admin-btn admin-approve">✓ 通过</button>
+                    </form>
+                    <form method="post" action="{{ url_for('review_reject_card', card_id=card.id) }}" style="display:inline">
+                        <input type="hidden" name="result" value="管理员快速拒绝">
+                        <button type="submit" class="admin-btn admin-reject">✗ 拒绝</button>
+                    </form>
+                    {% endif %}
                 </div>
                 {% endif %}
             </div>
