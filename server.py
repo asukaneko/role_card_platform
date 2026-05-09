@@ -636,8 +636,9 @@ def upload():
                     name, slug, avatar_path, description, personality, scenario,
                     first_message, system_prompt, tags_json, creator, visibility,
                     user_id, created_at, updated_at,
-                    basic_info, example_dialogues, response_format, rules_json, state_json
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    basic_info, example_dialogues, response_format, rules_json, state_json,
+                    status
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     card["name"],
@@ -660,6 +661,7 @@ def upload():
                     card.get("response_format", ""),
                     json.dumps(card.get("rules", []), ensure_ascii=False),
                     json.dumps(card.get("state", {}), ensure_ascii=False),
+                    "pending",  # 明确设置为待审核状态
                 ),
             )
             db.commit()
