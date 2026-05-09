@@ -52,14 +52,51 @@ load_dotenv()
 
 class Config:
     """Flask 配置类"""
-    SECRET_KEY = os.getenv("ROLE_CARD_SECRET_KEY", os.urandom(24).hex())
+    # SECRET_KEY：生产环境必须从环境变量获取
+    SECRET_KEY = os.getenv("ROLE_CARD_SECRET_KEY")
+    if not SECRET_KEY:
+        import secrets
+        SECRET_KEY = secrets.token_hex(32)
+        import warnings
+        warnings.warn(
+            "警告: ROLE_CARD_SECRET_KEY 未设置，使用临时生成的密钥。"
+            "生产环境请务必设置 ROLE_CARD_SECRET_KEY 环境变量！",
+            RuntimeWarning
+        )
+    
     MAX_CONTENT_LENGTH = MAX_ZIP_BYTES
 
     # 会话安全设置
+    # 生产环境应该启用Secure Cookie（需要HTTPS）
     SESSION_COOKIE_SECURE = os.getenv("ROLE_CARD_SECURE_COOKIE", "false").lower() in {"1", "true", "yes", "on"}
     SESSION_COOKIE_HTTPONLY = True
     SESSION_COOKIE_SAMESITE = "Lax"
 
-    # 速率限制
-    RATELIMIT_STORAGE_URI = "memory://"
+    # CSRF保护设置
+    WTF_CSRF_ENABLED = True
+    WTF_CSRF_TIME_LIMIT = 3600  # CSRF token有效期1小时
+    WTF_CSRF_SSL_STRICT = os.getenv("ROLE_CARD_CSRF_SSL_STRICT", "false").lower() in {"1", "true", "yes", "on"}
+
+    # 速率限制设置
+    # 生产环境建议使用Redis存储
+    RATELIMIT_STORAGE_URI = os.getenv("ROLE_CARD_RATELIMIT_STORAGE", "memory://")
     RATELIMIT_DEFAULT_LIMITS = ["200 per day", "50 per hour"]
+    
+    # 安全响应头
+    @staticmethod
+    def init_app(app):
+        """初始化应用安全设置"""
+        # 添加安全响应头
+        @app.after_request
+        def add_security_headers(response):
+            # 防止MIME类型嗅探
+            response.headers['X-Content-Type-Options'] = 'nosniff'
+            # 防止点击劫持
+            response.headers['X-Frame-Options'] = 'SAMEORIGIN'
+            # XSS保护
+            response.headers['X-XSS-Protection'] = '1; mode=block'
+            # Referrer策略
+            response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
+            # 内容安全策略（CSP）- 基础配置
+            response.headers['Content-Security-Policy'] = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; media-src 'self'; object-src 'none'; frame-ancestors 'self';"
+            return response

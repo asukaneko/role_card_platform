@@ -133,6 +133,12 @@ def _is_safe_zip_path(filepath: str) -> bool:
     return True
 
 
+# ZIP解压安全限制
+MAX_ZIP_ENTRIES = 100  # 最大文件数
+MAX_UNZIPPED_BYTES = 128 * 1024 * 1024  # 解压后最大128MB
+MAX_COMPRESSION_RATIO = 100  # 最大压缩比
+
+
 def extract_zip_cards(file_storage) -> List[Tuple[dict, str]]:
     """从 ZIP 文件中提取角色卡"""
     raw = file_storage.read(MAX_ZIP_BYTES + 1)
@@ -145,6 +151,20 @@ def extract_zip_cards(file_storage) -> List[Tuple[dict, str]]:
 
     imported: List[Tuple[dict, str]] = []
     with zipfile.ZipFile(io.BytesIO(raw), "r") as zf:
+        # 安全检查：文件数量、解压后大小、压缩比
+        infos = [i for i in zf.infolist() if not i.is_dir()]
+        
+        if len(infos) > MAX_ZIP_ENTRIES:
+            raise ValueError(f"ZIP文件包含太多文件（最多{MAX_ZIP_ENTRIES}个）")
+        
+        total_uncompressed = sum(i.file_size for i in infos)
+        if total_uncompressed > MAX_UNZIPPED_BYTES:
+            raise ValueError(f"ZIP解压后体积过大（最大{MAX_UNZIPPED_BYTES // 1024 // 1024}MB）")
+        
+        for info in infos:
+            if info.compress_size > 0 and info.file_size / info.compress_size > MAX_COMPRESSION_RATIO:
+                raise ValueError("ZIP压缩率异常，疑似压缩炸弹")
+        
         # 过滤掉不安全的文件名（防止 Zip Slip）
         all_names = zf.namelist()
         safe_names = [name for name in all_names if not name.endswith("/") and _is_safe_zip_path(name)]
@@ -154,7 +174,8 @@ def extract_zip_cards(file_storage) -> List[Tuple[dict, str]]:
             raise ValueError("ZIP must contain character.json")
 
         for json_name in json_names:
-            if zf.getinfo(json_name).file_size > MAX_CARD_BYTES:
+            json_info = zf.getinfo(json_name)
+            if json_info.file_size > MAX_CARD_BYTES:
                 raise ValueError(f"{json_name} is larger than 256KB")
             data = json.loads(zf.read(json_name).decode("utf-8-sig"))
             if not isinstance(data, dict):
@@ -164,6 +185,10 @@ def extract_zip_cards(file_storage) -> List[Tuple[dict, str]]:
             avatar_path = ""
             for name in safe_names:
                 if _parent_dir(name) == folder and Path(name).stem.lower() == "portrait":
+                    # 安全检查：读取前验证头像大小
+                    portrait_info = zf.getinfo(name)
+                    if portrait_info.file_size > MAX_AVATAR_BYTES:
+                        raise ValueError(f"头像文件过大（最大{MAX_AVATAR_BYTES // 1024 // 1024}MB）")
                     # 使用安全的文件名保存头像
                     safe_name = Path(name).name
                     avatar_path = save_avatar_bytes(safe_name, zf.read(name))
@@ -197,7 +222,9 @@ def to_export_json(card: dict) -> dict:
     # 构建头像 URL
     avatar_url = ""
     if card.get("avatar_path"):
-        avatar_url = url_for("asset_file", filename=card["avatar_path"], _external=True)
+        # 从路径中提取文件名
+        avatar_filename = card["avatar_path"].split("/")[-1]
+        avatar_url = url_for("avatar_file", filename=avatar_filename, _external=True)
 
     # 使用 NekoBot 格式
     exported = {

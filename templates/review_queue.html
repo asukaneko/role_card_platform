@@ -64,13 +64,16 @@
             </div>
             <div class="review-actions">
                 <form method="post" action="{{ url_for('review_ai_comment', comment_id=comment.id) }}" class="inline-form">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <button type="submit" class="btn-ai">AI审核</button>
                 </form>
                 <form method="post" action="{{ url_for('review_approve_comment', comment_id=comment.id) }}" class="inline-form">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <input type="hidden" name="result" value="人工审核通过">
                     <button type="submit" class="btn-approve">通过</button>
                 </form>
                 <form method="post" action="{{ url_for('review_reject_comment', comment_id=comment.id) }}" class="inline-form reject-form">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <input type="text" name="result" placeholder="拒绝原因" class="reject-reason" required>
                     <button type="submit" class="btn-reject">拒绝</button>
                 </form>
@@ -92,7 +95,7 @@
             <div class="review-header">
                 <div class="review-avatar">
                     {% if card.avatar_path %}
-                        <img src="{{ url_for('asset_file', filename=card.avatar_path) }}" alt="{{ card.name }}">
+                        <img src="{{ url_for('avatar_file', filename=card.avatar_path.split('/')[-1]) }}" alt="{{ card.name }}">
                     {% else %}
                         <span>{{ card.name[:1] }}</span>
                     {% endif %}
@@ -132,13 +135,16 @@
             <div class="review-actions">
                 <a href="{{ url_for('card_detail', identifier=card.slug) }}" target="_blank" class="btn-view">查看详情</a>
                 <form method="post" action="{{ url_for('review_ai_card', card_id=card.id) }}" class="inline-form">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <button type="submit" class="btn-ai">AI审核</button>
                 </form>
                 <form method="post" action="{{ url_for('review_approve_card', card_id=card.id) }}" class="inline-form">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <input type="hidden" name="result" value="人工审核通过">
                     <button type="submit" class="btn-approve">通过</button>
                 </form>
                 <form method="post" action="{{ url_for('review_reject_card', card_id=card.id) }}" class="inline-form reject-form">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <input type="text" name="result" placeholder="拒绝原因" class="reject-reason" required>
                     <button type="submit" class="btn-reject">拒绝</button>
                 </form>

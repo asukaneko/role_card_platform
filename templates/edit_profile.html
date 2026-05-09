@@ -4,11 +4,12 @@
 <section class="form-section">
     <h1>编辑个人资料</h1>
     <form method="post" enctype="multipart/form-data" class="card-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <label>
             头像
             <div class="avatar-upload">
                 {% if user.avatar_path %}
-                    <img src="{{ url_for('asset_file', filename=user.avatar_path) }}" alt="头像" class="avatar-preview">
+                    <img src="{{ url_for('avatar_file', filename=user.avatar_path.split('/')[-1]) }}" alt="头像" class="avatar-preview">
                 {% else %}
                     <div class="avatar-preview avatar-placeholder">
                         <span>{{ (user.display_name or user.username)[:1] }}</span>

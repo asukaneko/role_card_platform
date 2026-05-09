@@ -23,11 +23,13 @@ from flask import (
     render_template,
     request,
     send_file,
+    send_from_directory,
     session,
     url_for,
 )
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
+from flask_wtf.csrf import CSRFProtect
 from werkzeug.security import check_password_hash, generate_password_hash
 from werkzeug.utils import secure_filename
 from werkzeug.middleware.proxy_fix import ProxyFix
@@ -41,7 +43,8 @@ from config import (
 from models import init_db, get_db, User, RoleCard, Comment, UserLike, UserFavorite, Reviewer, ReviewQueue, AIReviewConfig
 from auth import (
     generate_user_api_token, resolve_api_user, api_token_valid,
-    admin_token, get_current_user, login_required, AuthService
+    admin_token, get_current_user, login_required, AuthService,
+    get_or_create_admin_user, is_admin_user
 )
 from utils import (
     ensure_dirs, slugify, unique_slug, normalize_tags, limit_text,
@@ -54,7 +57,16 @@ from ai_review import AIReviewer
 # 创建 Flask 应用
 server = Flask(__name__)
 server.config.from_object(Config)
-server.wsgi_app = ProxyFix(server.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
+
+# 初始化安全设置
+Config.init_app(server)
+
+# 配置ProxyFix（仅在可信代理后启用）
+if os.getenv("ROLE_CARD_BEHIND_PROXY", "").lower() in {"1", "true", "yes", "on"}:
+    server.wsgi_app = ProxyFix(server.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
+
+# 初始化CSRF保护
+csrf = CSRFProtect(server)
 
 # 初始化速率限制器
 limiter = Limiter(
@@ -65,8 +77,19 @@ limiter = Limiter(
 )
 
 
+# 应用启动时初始化
+@server.before_request
+def init_admin_user():
+    """确保 admin 用户存在"""
+    # 使用一个标志位确保只执行一次
+    if not hasattr(server, '_admin_initialized'):
+        get_or_create_admin_user()
+        server._admin_initialized = True
+
+
 @server.route("/register", methods=["GET", "POST"])
 @limiter.limit("5 per minute")
+@csrf.exempt  # 登录前页面豁免CSRF
 def register():
     if request.method == "GET":
         return render_template("register.html")
@@ -118,6 +141,7 @@ def register():
 
 @server.route("/login", methods=["GET", "POST"])
 @limiter.limit("10 per minute")
+@csrf.exempt  # 登录前页面豁免CSRF
 def login():
     if request.method == "GET":
         return render_template("login.html")
@@ -163,6 +187,7 @@ def user_profile(username):
         if not user:
             abort(404)
         is_self = session.get("user_id") == user["id"]
+        is_admin = is_admin_user(session.get("user_id"))
         if is_self:
             # 自己查看：显示所有角色卡（包括待审核和已拒绝的）
             rows = db.execute(
@@ -177,7 +202,7 @@ def user_profile(username):
             ).fetchall()
     cards = [RoleCard.row_to_card(row) for row in rows]
     favorite_cards = UserFavorite.get_by_user(user["id"]) if is_self else []
-    return render_template("user_profile.html", profile_user=dict(user), cards=cards, favorite_cards=favorite_cards, is_self=is_self, tab=tab)
+    return render_template("user_profile.html", profile_user=dict(user), cards=cards, favorite_cards=favorite_cards, is_self=is_self, tab=tab, is_admin=is_admin)
 
 
 @server.route("/user/<username>/regen-token", methods=["POST"])
@@ -227,35 +252,46 @@ def edit_profile(username):
     return render_template("edit_profile.html", user=user)
 
 
-@server.route("/assets/<path:filename>")
-def asset_file(filename):
+@server.route("/assets/uploads/avatars/<path:filename>")
+def avatar_file(filename):
+    """提供头像文件访问 - 只允许访问 uploads/avatars 目录"""
     # 清理文件名，防止路径遍历攻击
-    # 移除任何 .. 或绝对路径
-    safe_parts = []
-    for part in filename.replace("\\", "/").split("/"):
-        if part == ".." or part.startswith("/") or not part:
-            continue
-        safe_parts.append(part)
-    safe_filename = "/".join(safe_parts)
-    if not safe_filename:
+    safe_name = secure_filename(filename)
+    if not safe_name:
         abort(404)
 
-    # 构建目标路径（不使用 resolve() 避免符号链接问题）
-    target = BASE_DIR / safe_filename
-    target = target.absolute()
+    # 只允许访问 AVATAR_DIR 目录
+    return send_from_directory(AVATAR_DIR, safe_name, max_age=3600)
 
-    # 确保解析后的路径仍在 BASE_DIR 内
-    base_resolved = BASE_DIR.absolute()
-    try:
-        # 检查目标路径是否以基础路径开头
-        if not str(target).startswith(str(base_resolved)):
-            abort(404)
-    except ValueError:
+
+@server.route("/assets/uploads/cards/<path:filename>")
+def card_asset_file(filename):
+    """提供角色卡导出文件访问 - 只允许访问 uploads/cards 目录"""
+    # 清理文件名，防止路径遍历攻击
+    safe_name = secure_filename(filename)
+    if not safe_name or not safe_name.endswith(".json"):
         abort(404)
 
-    if not target.exists() or not target.is_file():
+    # 只允许访问 CARD_DIR 目录
+    return send_from_directory(CARD_DIR, safe_name, max_age=3600)
+
+
+@server.route("/static/css/<path:filename>")
+def static_css(filename):
+    """提供 CSS 静态文件"""
+    safe_name = secure_filename(filename)
+    if not safe_name or not safe_name.endswith(".css"):
         abort(404)
-    return send_file(target, max_age=3600)
+    return send_from_directory(BASE_DIR / "static" / "css", safe_name, max_age=3600)
+
+
+@server.route("/static/js/<path:filename>")
+def static_js(filename):
+    """提供 JS 静态文件"""
+    safe_name = secure_filename(filename)
+    if not safe_name or not safe_name.endswith(".js"):
+        abort(404)
+    return send_from_directory(BASE_DIR / "static" / "js", safe_name, max_age=3600)
 
 
 @server.route("/")
@@ -309,6 +345,9 @@ def index():
 @server.route("/card/<identifier>")
 def card_detail(identifier):
     user_id = session.get("user_id")
+    
+    # 检查是否为 admin 用户
+    is_admin = is_admin_user(user_id)
 
     # 先尝试获取已审核的角色卡
     card = RoleCard.get_by_slug(identifier)
@@ -325,7 +364,6 @@ def card_detail(identifier):
                 # 检查权限：只有所有者、审核员和管理员可以查看待审核内容
                 is_owner = user_id and row["user_id"] == user_id
                 is_reviewer = user_id and Reviewer.is_reviewer(user_id)
-                is_admin = request.args.get("admin") == admin_token()
 
                 if is_owner or is_reviewer or is_admin:
                     card = RoleCard.row_to_card(row)
@@ -337,7 +375,6 @@ def card_detail(identifier):
     # 检查权限：私有卡片只有所有者和管理员可以查看
     if card["visibility"] != "public":
         is_owner = user_id and card.get("user_id") == user_id
-        is_admin = request.args.get("admin") == admin_token()
         if not is_owner and not is_admin:
             abort(404)
 
@@ -637,6 +674,7 @@ def upload():
 
 @server.route("/api/cards", methods=["POST"])
 @limiter.limit("10 per minute")
+@csrf.exempt  # API接口使用Token认证，豁免CSRF
 def api_create_card():
     # 优先通过 API Token 获取用户身份
     user_id = session.get("user_id")
@@ -768,12 +806,38 @@ def toggle_favorite(card_id):
 
 
 def admin_or_reviewer_required():
-    """检查是否为管理员或审核员"""
-    token = request.args.get("token", "") or request.form.get("token", "")
+    """检查是否为管理员或审核员
+    
+    管理员通过session验证（必须是admin用户）
+    审核员通过session验证
+    """
     user_id = session.get("user_id")
-    is_admin = token == admin_token()
+    is_admin = is_admin_user(user_id)
     is_reviewer_user = user_id and Reviewer.is_reviewer(user_id)
-    return is_admin, is_reviewer_user, token
+    
+    return is_admin, is_reviewer_user, None
+
+
+@server.route("/admin/login", methods=["POST"])
+@csrf.exempt  # 登录前页面豁免CSRF
+def admin_login():
+    """管理员登录处理"""
+    username = request.form.get("username", "").strip()
+    password = request.form.get("password", "").strip()
+    
+    # 确保 admin 用户存在
+    get_or_create_admin_user()
+    
+    # 验证登录
+    user, error = AuthService.login(username, password)
+    if error or user["username"] != "admin":
+        flash("用户名或密码错误", "error")
+        return render_template("admin_login.html")
+    
+    # 登录成功，设置 session
+    session["user_id"] = user["id"]
+    flash("登录成功")
+    return redirect(url_for("admin"))
 
 
 @server.route("/admin")
@@ -786,7 +850,7 @@ def admin():
         if tab == "users":
             # 只有管理员可以查看用户管理
             if not is_admin:
-                return redirect(url_for("admin", token=token, tab="cards"))
+                return redirect(url_for("admin", tab="cards"))
             # 获取用户列表及统计信息
             users = db.execute(
                 """
@@ -800,10 +864,10 @@ def admin():
                 ORDER BY u.created_at DESC
                 """
             ).fetchall()
-            return render_template("admin.html", users=users, token=token, tab=tab, is_admin=is_admin, is_reviewer=is_reviewer_user)
+            return render_template("admin.html", users=users, tab=tab, is_admin=is_admin, is_reviewer=is_reviewer_user)
         else:
             rows = db.execute("SELECT * FROM role_cards ORDER BY created_at DESC").fetchall()
-            return render_template("admin.html", cards=[RoleCard.row_to_card(row) for row in rows], token=token, tab=tab, is_admin=is_admin, is_reviewer=is_reviewer_user)
+            return render_template("admin.html", cards=[RoleCard.row_to_card(row) for row in rows], tab=tab, is_admin=is_admin, is_reviewer=is_reviewer_user)
 
 
 @server.route("/admin/card/<int:card_id>/<action>", methods=["POST"])
@@ -834,14 +898,14 @@ def admin_batch():
     ids_raw = request.form.get("ids", "")
     if not action or not ids_raw:
         flash("请选择操作和目标角色卡", "error")
-        return redirect(url_for("admin", token=token))
+        return redirect(url_for("admin"))
     try:
         card_ids = [int(x) for x in ids_raw.split(",") if x.strip()]
     except ValueError:
         abort(400)
     if not card_ids:
         flash("请选择至少一张角色卡", "error")
-        return redirect(url_for("admin", token=token))
+        return redirect(url_for("admin"))
     with get_db() as db:
         placeholders = ",".join("?" for _ in card_ids)
         if action == "hide":
@@ -855,39 +919,39 @@ def admin_batch():
         db.commit()
     action_labels = {"hide": "隐藏", "publish": "公开", "delete": "删除"}
     flash(f"已批量{action_labels.get(action, '操作')} {len(card_ids)} 张角色卡")
-    return redirect(url_for("admin", token=token))
+    return redirect(url_for("admin"))
 
 
 @server.route("/admin/user/<int:user_id>/delete", methods=["POST"])
 def admin_delete_user(user_id):
-    token = request.form.get("token", "")
-    if token != admin_token():
+    # 检查是否为 admin 用户
+    if not is_admin_user(session.get("user_id")):
         abort(403)
     with get_db() as db:
         # 删除用户（关联的角色卡和评论会通过外键级联删除）
         db.execute("DELETE FROM users WHERE id = ?", (user_id,))
         db.commit()
     flash("用户已删除")
-    return redirect(url_for("admin", token=token, tab="users"))
+    return redirect(url_for("admin", tab="users"))
 
 
 @server.route("/admin/user/batch", methods=["POST"])
 def admin_user_batch():
-    token = request.form.get("token", "")
-    if token != admin_token():
+    # 检查是否为 admin 用户
+    if not is_admin_user(session.get("user_id")):
         abort(403)
     action = request.form.get("action", "")
     ids_raw = request.form.get("ids", "")
     if not action or not ids_raw:
         flash("请选择操作和目标用户", "error")
-        return redirect(url_for("admin", token=token, tab="users"))
+        return redirect(url_for("admin", tab="users"))
     try:
         user_ids = [int(x) for x in ids_raw.split(",") if x.strip()]
     except ValueError:
         abort(400)
     if not user_ids:
         flash("请选择至少一个用户", "error")
-        return redirect(url_for("admin", token=token, tab="users"))
+        return redirect(url_for("admin", tab="users"))
     with get_db() as db:
         placeholders = ",".join("?" for _ in user_ids)
         if action == "delete":
@@ -896,7 +960,7 @@ def admin_user_batch():
             abort(404)
         db.commit()
     flash(f"已批量删除 {len(user_ids)} 个用户")
-    return redirect(url_for("admin", token=token, tab="users"))
+    return redirect(url_for("admin", tab="users"))
 
 
 def reviewer_required(f):
@@ -1025,8 +1089,8 @@ def review_ai_comment(comment_id):
 @server.route("/admin/reviewers", methods=["GET", "POST"])
 def admin_reviewers():
     """管理审核员"""
-    token = request.args.get("token", "") or request.form.get("token", "")
-    if token != admin_token():
+    # 检查是否为 admin 用户
+    if not is_admin_user(session.get("user_id")):
         abort(403)
 
     if request.method == "POST":
@@ -1050,17 +1114,17 @@ def admin_reviewers():
                 Reviewer.remove(user_id)
                 flash("已移除审核员")
 
-        return redirect(url_for("admin_reviewers", token=token))
+        return redirect(url_for("admin_reviewers"))
 
     reviewers = Reviewer.list_all()
-    return render_template("admin_reviewers.html", reviewers=reviewers, token=token)
+    return render_template("admin_reviewers.html", reviewers=reviewers)
 
 
 @server.route("/admin/ai-config", methods=["GET", "POST"])
 def admin_ai_config():
     """AI审核配置"""
-    token = request.args.get("token", "") or request.form.get("token", "")
-    if token != admin_token():
+    # 检查是否为 admin 用户
+    if not is_admin_user(session.get("user_id")):
         abort(403)
 
     if request.method == "POST":
@@ -1071,10 +1135,10 @@ def admin_ai_config():
 
         AIReviewConfig.update(api_key, api_url, model, enabled)
         flash("AI审核配置已更新")
-        return redirect(url_for("admin_ai_config", token=token))
+        return redirect(url_for("admin_ai_config"))
 
     config = AIReviewConfig.get()
-    return render_template("admin_ai_config.html", config=config, token=token)
+    return render_template("admin_ai_config.html", config=config)
 
 
 @server.context_processor
@@ -1082,9 +1146,11 @@ def inject_globals():
     from models import Reviewer
     user = get_current_user()
     is_reviewer = False
+    is_admin = False
     if user:
         is_reviewer = Reviewer.is_reviewer(user["id"])
-    return {"admin_token": admin_token, "current_user": user, "is_reviewer": is_reviewer}
+        is_admin = is_admin_user(user["id"])
+    return {"admin_token": admin_token, "current_user": user, "is_reviewer": is_reviewer, "is_admin": is_admin}
 
 
 if __name__ == "__main__":

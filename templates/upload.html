@@ -8,6 +8,7 @@
 </section>
 
 <form class="editor-form" method="post" enctype="multipart/form-data">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <section class="form-band upload-mode-band">
         <div>
             <p class="eyebrow">方式一</p>

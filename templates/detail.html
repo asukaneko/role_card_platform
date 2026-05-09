@@ -5,7 +5,7 @@
     <aside class="detail-aside">
         <div class="portrait">
             {% if card.avatar_path %}
-                <img src="{{ url_for('asset_file', filename=card.avatar_path) }}" alt="{{ card.name }}">
+                <img src="{{ url_for('avatar_file', filename=card.avatar_path.split('/')[-1]) }}" alt="{{ card.name }}">
             {% else %}
                 <span>{{ card.name[:1] }}</span>
             {% endif %}
@@ -36,12 +36,14 @@
         <div class="owner-actions">
             <a class="owner-btn edit-btn" href="{{ url_for('edit_card', card_id=card.id) }}">编辑角色卡</a>
             <form method="post" action="{{ url_for('toggle_visibility', card_id=card.id) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <input type="hidden" name="source" value="detail">
                 <button type="submit" class="owner-btn visibility-btn">
                     {% if card.visibility == 'public' %}设为私有{% else %}设为公开{% endif %}
                 </button>
             </form>
             <form method="post" action="{{ url_for('delete_card', card_id=card.id) }}" data-confirm="确定删除这张角色卡吗？此操作不可撤销。">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <button type="submit" class="owner-btn danger-btn">删除角色卡</button>
             </form>
         </div>
@@ -169,6 +171,7 @@
 
             {% if current_user %}
             <form class="comment-form" method="post" action="/card/{{ card.slug }}/comment">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <label>
                     <textarea name="content" rows="3" placeholder="写下你的想法..." maxlength="1000"></textarea>
                 </label>
@@ -193,6 +196,7 @@
                         <p class="comment-text">{{ c.content }}</p>
                         {% if c.can_delete %}
                         <form method="post" action="{{ url_for('delete_comment', comment_id=c.id) }}" style="display:inline">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                             <button type="submit" class="comment-delete">删除</button>
                         </form>
                         {% endif %}

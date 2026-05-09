@@ -8,6 +8,7 @@
 </section>
 
 <form class="editor-form" method="post" enctype="multipart/form-data">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <section class="form-band">
         <h2>基本信息</h2>
         <div class="form-grid two">

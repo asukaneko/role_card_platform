@@ -1,11 +1,69 @@
 """
 AI 审核模块 - 使用 AI 进行内容审核
 """
+import ipaddress
 import json
 import re
+import urllib.parse
 from typing import Optional
 
 from models import AIReviewConfig
+
+
+# 允许的API域名白名单
+ALLOWED_API_HOSTS = {
+    "api.openai.com",
+    "api.groq.com",
+    "api.anthropic.com",
+    "api.cohere.com",
+    "api.mistral.ai",
+    "generativelanguage.googleapis.com",
+    "api.deepseek.com",
+    "api.moonshot.cn",
+    "api.qwen.aliyun.com",
+}
+
+
+def _is_safe_api_url(url: str) -> bool:
+    """检查API URL是否安全（防止SSRF攻击）"""
+    if not url:
+        return False
+    
+    parsed = urllib.parse.urlparse(url)
+    
+    # 只允许HTTPS协议
+    if parsed.scheme != "https":
+        return False
+    
+    # 获取主机名
+    host = parsed.hostname
+    if not host:
+        return False
+    
+    # 检查是否在白名单中
+    if host in ALLOWED_API_HOSTS:
+        return True
+    
+    # 检查是否是IP地址
+    try:
+        ip = ipaddress.ip_address(host)
+        # 禁止内网IP、回环地址、链路本地地址
+        if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved or ip.is_multicast:
+            return False
+        return True
+    except ValueError:
+        # 不是IP地址，是域名
+        # 检查是否包含可疑的域名模式
+        host_lower = host.lower()
+        blocked_suffixes = [
+            ".local", ".internal", ".localhost",
+            "127.", "0.0.0.0", "::1", "::",
+        ]
+        for suffix in blocked_suffixes:
+            if host_lower.startswith(suffix) or host_lower.endswith(suffix):
+                return False
+        
+        return True
 
 
 class AIReviewer:
@@ -60,6 +118,11 @@ PASS 表示内容通过审核，REJECT 表示内容违规需要拒绝。
         if not AIReviewer.is_enabled():
             return True, "AI审核未启用，自动通过"
 
+        # 检查API URL安全性
+        api_url = config.get("api_url", "")
+        if not _is_safe_api_url(api_url):
+            return False, "AI审核配置错误：不安全的API地址"
+
         try:
             prompt = AIReviewer.CARD_REVIEW_PROMPT.format(
                 name=card_data.get("name", ""),
@@ -75,7 +138,8 @@ PASS 表示内容通过审核，REJECT 表示内容违规需要拒绝。
             return AIReviewer._parse_response(response)
 
         except Exception as e:
-            return True, f"AI审核出错: {str(e)}，自动通过"
+            # AI审核失败时不自动通过，返回错误状态
+            return False, f"AI审核出错: {str(e)}"
 
     @staticmethod
     def review_comment(content: str) -> tuple:
@@ -89,13 +153,19 @@ PASS 表示内容通过审核，REJECT 表示内容违规需要拒绝。
         if not AIReviewer.is_enabled():
             return True, "AI审核未启用，自动通过"
 
+        # 检查API URL安全性
+        api_url = config.get("api_url", "")
+        if not _is_safe_api_url(api_url):
+            return False, "AI审核配置错误：不安全的API地址"
+
         try:
             prompt = AIReviewer.COMMENT_REVIEW_PROMPT.format(content=content)
             response = AIReviewer._call_api(prompt, config)
             return AIReviewer._parse_response(response)
 
         except Exception as e:
-            return True, f"AI审核出错: {str(e)}，自动通过"
+            # AI审核失败时不自动通过，返回错误状态
+            return False, f"AI审核出错: {str(e)}"
 
     @staticmethod
     def _call_api(prompt: str, config: dict) -> str:

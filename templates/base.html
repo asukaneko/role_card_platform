@@ -11,7 +11,7 @@
             document.documentElement.dataset.theme = saved || (prefersDark ? "dark" : "light");
         })();
     </script>
-    <link rel="stylesheet" href="{{ url_for('asset_file', filename='static/css/style.css') }}?v=20260509-favorite">
+    <link rel="stylesheet" href="{{ url_for('static_css', filename='style.css') }}?v=20260509-favorite">
 </head>
 <body>
     <header class="site-header">
@@ -26,15 +26,19 @@
             <a href="{{ url_for('index') }}">广场</a>
             {% if current_user %}
                 <a href="{{ url_for('upload') }}">上传</a>
+               
+                {% if is_reviewer %}
+                    <a href="{{ url_for('review_queue') }}" class="nav-review-link">审核</a>
+                {% endif %}
             {% endif %}
             <div class="nav-divider"></div>
             {% if current_user %}
                 <a class="nav-username" href="{{ url_for('user_profile', username=current_user.username) }}">{{ current_user.display_name or current_user.username }}</a>
-                {% if is_reviewer %}
-                    <a href="{{ url_for('review_queue') }}" class="nav-review-link">审核</a>
-                    <a href="{{ url_for('admin') }}" class="nav-admin-link">管理</a>
-                {% endif %}
+                 {% if is_admin %}
+                    <a href="{{ url_for('admin') }}" class="nav-admin-link">Admin界面</a>
+                 {% endif %}
                 <form method="post" action="{{ url_for('logout') }}" class="nav-form">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <button type="submit" class="nav-btn">退出</button>
                 </form>
             {% else %}
@@ -42,7 +46,7 @@
                 <a href="{{ url_for('register') }}">注册</a>
             {% endif %}
             <button class="theme-toggle" type="button" data-theme-toggle aria-label="切换深色模式">
-                <span data-theme-icon>◐</span>
+                <span data-theme-icon">◐</span>
             </button>
         </nav>
     </header>
@@ -69,6 +73,32 @@
         </div>
     </footer>
 
-    <script src="{{ url_for('asset_file', filename='static/js/main.js') }}?v=20260509-favorite"></script>
+    <script src="{{ url_for('static_js', filename='main.js') }}?v=20260509-favorite"></script>
+    
+    <!-- CSRF Token for AJAX requests -->
+    <script>
+        // 从meta标签获取CSRF token
+        window.csrfToken = "{{ csrf_token() }}";
+        
+        // 为所有AJAX请求自动添加CSRF token
+        document.addEventListener('DOMContentLoaded', function() {
+            // 为fetch请求添加CSRF token
+            const originalFetch = window.fetch;
+            window.fetch = function(url, options) {
+                options = options || {};
+                options.headers = options.headers || {};
+                
+                // 如果是POST/PUT/PATCH/DELETE请求，添加CSRF token
+                if (options.method && ['POST', 'PUT', 'PATCH', 'DELETE'].includes(options.method.toUpperCase())) {
+                    // 检查是否已经有X-CSRFToken header
+                    if (!options.headers['X-CSRFToken']) {
+                        options.headers['X-CSRFToken'] = window.csrfToken;
+                    }
+                }
+                
+                return originalFetch(url, options);
+            };
+        });
+    </script>
 </body>
 </html>

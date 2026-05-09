@@ -9,10 +9,10 @@
 
 <!-- 标签切换 -->
 <div class="admin-tabs">
-    <a href="{{ url_for('admin', token=token, tab='cards') }}" class="admin-tab {% if tab != 'users' and tab != 'review' %}active{% endif %}">角色卡</a>
+    <a href="{{ url_for('admin', tab='cards') }}" class="admin-tab {% if tab != 'users' and tab != 'review' %}active{% endif %}">角色卡</a>
     {% if is_admin %}
-    <a href="{{ url_for('admin', token=token, tab='users') }}" class="admin-tab {% if tab == 'users' %}active{% endif %}">用户管理</a>
-    <a href="{{ url_for('admin', token=token, tab='review') }}" class="admin-tab {% if tab == 'review' %}active{% endif %}">审核管理</a>
+    <a href="{{ url_for('admin', tab='users') }}" class="admin-tab {% if tab == 'users' %}active{% endif %}">用户管理</a>
+    <a href="{{ url_for('admin', tab='review') }}" class="admin-tab {% if tab == 'review' %}active{% endif %}">审核管理</a>
     {% endif %}
 </div>
 
@@ -25,7 +25,7 @@
             <span>添加或移除审核员账号</span>
         </div>
         <div class="admin-actions">
-            <a href="{{ url_for('admin_reviewers', token=token) }}">进入</a>
+            <a href="{{ url_for('admin_reviewers') }}">进入</a>
         </div>
     </div>
     <div class="admin-row">
@@ -34,7 +34,7 @@
             <span>配置AI审核API接口</span>
         </div>
         <div class="admin-actions">
-            <a href="{{ url_for('admin_ai_config', token=token) }}">进入</a>
+            <a href="{{ url_for('admin_ai_config') }}">进入</a>
         </div>
     </div>
 </section>
@@ -46,8 +46,7 @@
         <input type="checkbox" id="select-all-users"> 全选
     </label>
     <span class="batch-count">已选 <strong id="selected-user-count">0</strong> 项</span>
-    <form method="post" action="{{ url_for('admin_user_batch') }}" class="batch-form" data-batch-confirm="delete">
-        <input type="hidden" name="token" value="{{ token }}">
+    <form method="post" action="{{ url_for('admin_user_batch') }}" class="batch-form" data-batch-confirm="delete" id="user-batch-form">
         <input type="hidden" name="ids" id="batch-user-ids">
         <input type="hidden" name="action" id="batch-user-action">
         <button type="button" class="batch-btn danger" data-action="delete">批量删除</button>
@@ -62,7 +61,7 @@
             </label>
             <div class="admin-avatar">
                 {% if user.avatar_path %}
-                    <img src="{{ url_for('asset_file', filename=user.avatar_path) }}" alt="{{ user.display_name or user.username }}">
+                    <img src="{{ url_for('avatar_file', filename=user.avatar_path.split('/')[-1]) }}" alt="{{ user.display_name or user.username }}">
                 {% else %}
                     <span>{{ (user.display_name or user.username)[:1] }}</span>
                 {% endif %}
@@ -73,8 +72,7 @@
             </div>
             <div class="admin-actions">
                 <a href="{{ url_for('user_profile', username=user.username) }}">查看主页</a>
-                <form method="post" action="{{ url_for('admin_delete_user', user_id=user.id) }}" data-confirm="确定删除用户「{{ user.username }}」吗？该用户的所有角色卡和评论也将被删除。">
-                    <input type="hidden" name="token" value="{{ token }}">
+                <form method="post" action="{{ url_for('admin_delete_user', user_id=user.id) }}" data-confirm="确定删除用户「{{ user.username }}」吗？该用户的所有角色卡和评论也将被删除。" class="admin-delete-user-form">
                     <button class="danger">删除</button>
                 </form>
             </div>
@@ -93,8 +91,7 @@
         <input type="checkbox" id="select-all"> 全选
     </label>
     <span class="batch-count">已选 <strong id="selected-count">0</strong> 项</span>
-    <form method="post" action="{{ url_for('admin_batch') }}" class="batch-form" data-batch-confirm="delete">
-        <input type="hidden" name="token" value="{{ token }}">
+    <form method="post" action="{{ url_for('admin_batch') }}" class="batch-form" data-batch-confirm="delete" id="card-batch-form">
         <input type="hidden" name="ids" id="batch-ids">
         <input type="hidden" name="action" id="batch-action">
         <button type="button" class="batch-btn" data-action="hide">批量隐藏</button>
@@ -111,21 +108,19 @@
             </label>
             <div class="admin-info">
                 <div class="card-title-line">
-                    <a href="{{ url_for('card_detail', identifier=card.slug, admin=token) }}" class="card-name-link">{{ card.name }}</a>
+                    <a href="{{ url_for('card_detail', identifier=card.slug) }}" class="card-name-link">{{ card.name }}</a>
                     <span class="status-badge status-{{ card.status or 'approved' }}">{{ card.status or 'approved' }}</span>
                 </div>
                 <span class="card-meta">{{ card.creator or "匿名" }} · {{ card.visibility }} · {{ card.created_at }}</span>
             </div>
             <div class="admin-actions">
-                <a href="{{ url_for('card_detail', identifier=card.slug, admin=token) }}" class="action-btn">查看</a>
+                <a href="{{ url_for('card_detail', identifier=card.slug) }}" class="action-btn">查看</a>
                 {% if card.visibility == 'public' %}
                 <form method="post" action="{{ url_for('admin_action', card_id=card.id, action='hide') }}" class="inline-form ajax-form">
-                    <input type="hidden" name="token" value="{{ token }}">
                     <button class="action-btn toggle-btn" type="submit">隐藏</button>
                 </form>
                 {% else %}
                 <form method="post" action="{{ url_for('admin_action', card_id=card.id, action='publish') }}" class="inline-form ajax-form">
-                    <input type="hidden" name="token" value="{{ token }}">
                     <button class="action-btn toggle-btn" type="submit">公开</button>
                 </form>
                 {% endif %}
@@ -146,7 +141,6 @@
                 </form>
                 {% endif %}
                 <form method="post" action="{{ url_for('admin_action', card_id=card.id, action='delete') }}" data-confirm="确定删除这张角色卡吗？" class="inline-form ajax-form">
-                    <input type="hidden" name="token" value="{{ token }}">
                     <button class="action-btn danger-btn" type="submit">删除</button>
                 </form>
             </div>
@@ -283,7 +277,7 @@
 // AJAX 表单提交
 document.addEventListener("submit", function(event) {
     const form = event.target;
-    if (!form.classList.contains("ajax-form")) return;
+    if (!form.classList.contains("ajax-form") && !form.classList.contains("admin-delete-user-form") && form.id !== "user-batch-form" && form.id !== "card-batch-form") return;
 
     // 检查确认对话框
     const confirmMsg = form.dataset.confirm;
@@ -294,13 +288,16 @@ document.addEventListener("submit", function(event) {
 
     event.preventDefault();
     const formData = new FormData(form);
+    
+    const headers = {
+        "X-Requested-With": "XMLHttpRequest",
+        "X-CSRFToken": window.csrfToken || "{{ csrf_token() }}"
+    };
 
     fetch(form.action, {
         method: "POST",
         body: formData,
-        headers: {
-            "X-Requested-With": "XMLHttpRequest"
-        }
+        headers: headers
     }).then(() => {
         // 操作成功后刷新当前页面，保持滚动位置
         window.location.reload();
@@ -363,8 +360,25 @@ document.addEventListener("click", (event) => {
     if (idsInput) idsInput.value = ids;
     if (actionInput) actionInput.value = action;
 
-    const form = document.querySelector("#user-batch-bar .batch-form");
-    if (form) form.submit();
+    // 使用AJAX提交
+    const form = document.getElementById("user-batch-form");
+    if (form) {
+        const formData = new FormData(form);
+        const headers = {
+            "X-CSRFToken": window.csrfToken || "{{ csrf_token() }}"
+        };
+        
+        fetch(form.action, {
+            method: "POST",
+            body: formData,
+            headers: headers
+        }).then(() => {
+            window.location.reload();
+        }).catch(err => {
+            console.error("操作失败:", err);
+            alert("操作失败，请重试");
+        });
+    }
 });
 </script>
 {% endblock %}

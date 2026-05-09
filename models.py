@@ -724,8 +724,17 @@ class Reviewer:
 
     @staticmethod
     def is_reviewer(user_id: int) -> bool:
-        """检查用户是否为审核员"""
+        """检查用户是否为审核员（admin 用户默认是审核员）"""
+        # 先检查是否是 admin 用户
         with get_db() as db:
+            user_row = db.execute(
+                "SELECT username FROM users WHERE id = ?",
+                (user_id,)
+            ).fetchone()
+            if user_row and user_row["username"] == "admin":
+                return True
+            
+            # 再检查是否在审核员表中
             row = db.execute(
                 "SELECT id FROM reviewers WHERE user_id = ?",
                 (user_id,)

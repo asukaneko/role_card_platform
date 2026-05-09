@@ -5,7 +5,7 @@
     <div class="user-profile-header">
         <div class="user-avatar-large">
             {% if profile_user.avatar_path %}
-                <img src="{{ url_for('asset_file', filename=profile_user.avatar_path) }}" alt="{{ profile_user.display_name or profile_user.username }}">
+                <img src="{{ url_for('avatar_file', filename=profile_user.avatar_path.split('/')[-1]) }}" alt="{{ profile_user.display_name or profile_user.username }}">
             {% else %}
                 <span>{{ (profile_user.display_name or profile_user.username)[:1] }}</span>
             {% endif %}
@@ -32,6 +32,7 @@
             <button type="button" class="api-token-copy" onclick="copyApiToken()">复制</button>
         </div>
         <form method="post" action="{{ url_for('regen_api_token', username=profile_user.username) }}" data-confirm="重新生成 Token 后旧 Token 将立即失效，确定继续吗？">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <button type="submit" class="api-token-regen">重新生成 Token</button>
         </form>
     </div>
@@ -59,7 +60,7 @@
         <article class="role-card" data-card-url="{{ url_for('card_detail', identifier=card.slug) }}">
             <a class="card-media" href="{{ url_for('card_detail', identifier=card.slug) }}">
                 {% if card.avatar_path %}
-                    <img src="{{ url_for('asset_file', filename=card.avatar_path) }}" alt="{{ card.name }}">
+                    <img src="{{ url_for('avatar_file', filename=card.avatar_path.split('/')[-1]) }}" alt="{{ card.name }}">
                 {% else %}
                     <span>{{ card.name[:1] }}</span>
                 {% endif %}
@@ -104,7 +105,7 @@
         <article class="role-card" data-card-url="{{ url_for('card_detail', identifier=card.slug) }}">
             <a class="card-media" href="{{ url_for('card_detail', identifier=card.slug) }}">
                 {% if card.avatar_path %}
-                    <img src="{{ url_for('asset_file', filename=card.avatar_path) }}" alt="{{ card.name }}">
+                    <img src="{{ url_for('avatar_file', filename=card.avatar_path.split('/')[-1]) }}" alt="{{ card.name }}">
                 {% else %}
                     <span>{{ card.name[:1] }}</span>
                 {% endif %}
@@ -131,10 +132,12 @@
                 <div class="card-owner-actions">
                     <a class="card-action-btn" href="{{ url_for('edit_card', card_id=card.id) }}">编辑</a>
                     <form method="post" action="{{ url_for('toggle_visibility', card_id=card.id) }}" style="display:inline">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <input type="hidden" name="source" value="profile">
                         <button type="submit" class="card-action-btn">{% if card.visibility == 'public' %}设为私有{% else %}设为公开{% endif %}</button>
                     </form>
                     <form method="post" action="{{ url_for('delete_card', card_id=card.id) }}" style="display:inline" data-confirm="确定删除「{{ card.name }}」吗？此操作不可撤销。">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <button type="submit" class="card-action-btn danger">删除</button>
                     </form>
                 </div>
@@ -145,10 +148,12 @@
                     <span class="admin-status">状态: {{ card.status or 'approved' }}</span>
                     {% if card.status == 'pending' %}
                     <form method="post" action="{{ url_for('review_approve_card', card_id=card.id) }}" style="display:inline">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <input type="hidden" name="result" value="管理员快速通过">
                         <button type="submit" class="admin-btn admin-approve">✓ 通过</button>
                     </form>
                     <form method="post" action="{{ url_for('review_reject_card', card_id=card.id) }}" style="display:inline">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <input type="hidden" name="result" value="管理员快速拒绝">
                         <button type="submit" class="admin-btn admin-reject">✗ 拒绝</button>
                     </form>

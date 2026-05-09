@@ -8,8 +8,7 @@
 </section>
 
 <section class="form-section glass">
-    <form method="post" action="{{ url_for('admin_ai_config') }}" class="ai-config-form">
-        <input type="hidden" name="token" value="{{ token }}">
+    <form method="post" action="{{ url_for('admin_ai_config') }}" class="ai-config-form" id="ai-config-form">
 
         <div class="form-group">
             <label class="toggle-label">
@@ -40,7 +39,7 @@
 
         <div class="form-actions">
             <button type="submit" class="btn-save">保存配置</button>
-            <a href="{{ url_for('admin', token=token) }}" class="btn-back">返回</a>
+            <a href="{{ url_for('admin') }}" class="btn-back">返回</a>
         </div>
     </form>
 </section>

@@ -24,40 +24,50 @@ def generate_user_api_token() -> str:
 
 
 def resolve_api_user() -> int | None:
-    """验证 API Token，返回对应的 user_id（None 表示无效）"""
-    provided = (
-        request.headers.get("X-Role-Card-Token", "")
-        or request.args.get("token", "")
-        or request.form.get("token", "")
-    ).strip()
+    """验证 API Token，返回对应的 user_id（None 表示无效）
+    
+    只接受Header中的token：
+    - X-Role-Card-Token: <token>
+    - Authorization: Bearer <token>
+    """
+    provided = request.headers.get("X-Role-Card-Token", "").strip()
+    
     auth = request.headers.get("Authorization", "")
     if auth.lower().startswith("bearer "):
         provided = auth.split(" ", 1)[1].strip()
+    
     if not provided:
         return None
+    
     # 优先匹配用户级 Token（精确匹配，防时序攻击）
     with get_db() as db:
         urow = db.execute("SELECT id FROM users WHERE api_token = ?", (provided,)).fetchone()
     if urow:
         return urow["id"]
+    
     # 兼容全局管理员 Token
     configured = os.getenv("ROLE_CARD_API_TOKEN", "").strip()
     if configured and secrets.compare_digest(provided, configured):
         return 0  # 特殊值：管理员 Token，无具体用户
+    
     return None
 
 
 def api_token_valid() -> bool:
-    """验证 API Token 是否有效"""
+    """验证 API Token 是否有效
+    
+    只接受Header中的token：
+    - X-Role-Card-Token: <token>
+    - Authorization: Bearer <token>
+    """
     configured = os.getenv("ROLE_CARD_API_TOKEN", "").strip()
-    provided = (
-        request.headers.get("X-Role-Card-Token", "")
-        or request.args.get("token", "")
-        or request.form.get("token", "")
-    ).strip()
+    
+    # 只从Header获取token
+    provided = request.headers.get("X-Role-Card-Token", "").strip()
     auth = request.headers.get("Authorization", "")
     if auth.lower().startswith("bearer "):
         provided = auth.split(" ", 1)[1].strip()
+    
     required = configured or os.getenv("ROLE_CARD_REQUIRE_TOKEN", "").lower() in {"1", "true", "yes", "on"}
     if not required:
         return not bool(provided)
@@ -65,19 +75,46 @@ def api_token_valid() -> bool:
 
 
 def admin_token() -> str:
-    """获取管理员 Token（从环境变量或文件）"""
+    """获取管理员密码（从环境变量或文件）"""
+    # 优先从环境变量获取
     token = os.getenv("ROLE_CARD_ADMIN_TOKEN", "").strip()
     if token:
         return token
+    # 从文件读取
     token_path = DATA_DIR / "admin_token.txt"
     if token_path.exists():
         return token_path.read_text(encoding="utf-8").strip()
-    # 生成新 Token
+    # 生成新密码并保存
     from config import ensure_dirs
     ensure_dirs()
     generated = secrets.token_urlsafe(18)
     token_path.write_text(generated, encoding="utf-8")
     return generated
+
+
+def get_or_create_admin_user() -> dict:
+    """获取或创建 admin 用户"""
+    admin_user = User.get_by_username("admin")
+    if not admin_user:
+        # 创建 admin 用户
+        password = admin_token()
+        password_hash = generate_password_hash(password)
+        api_token = generate_user_api_token()
+        admin_user = User.create(
+            username="admin",
+            password_hash=password_hash,
+            display_name="管理员",
+            api_token=api_token
+        )
+    return admin_user
+
+
+def is_admin_user(user_id: int) -> bool:
+    """检查用户是否为 admin 账号"""
+    if not user_id:
+        return False
+    user = User.get_by_id(user_id)
+    return user and user["username"] == "admin"
 
 
 def get_current_user():

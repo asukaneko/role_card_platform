@@ -10,8 +10,7 @@
 <!-- 添加审核员表单 -->
 <section class="form-section glass">
     <h2>添加审核员</h2>
-    <form method="post" action="{{ url_for('admin_reviewers') }}" class="reviewer-form">
-        <input type="hidden" name="token" value="{{ token }}">
+    <form method="post" action="{{ url_for('admin_reviewers') }}" class="reviewer-form" id="reviewer-form">
         <input type="hidden" name="action" value="add">
         <div class="form-group">
             <label for="username">用户名</label>
@@ -30,7 +29,7 @@
                 <div class="reviewer-card glass">
                     <div class="reviewer-avatar">
                         {% if reviewer.avatar_path %}
-                            <img src="{{ url_for('asset_file', filename=reviewer.avatar_path) }}" alt="{{ reviewer.display_name or reviewer.username }}">
+                            <img src="{{ url_for('avatar_file', filename=reviewer.avatar_path.split('/')[-1]) }}" alt="{{ reviewer.display_name or reviewer.username }}">
                         {% else %}
                             <span>{{ (reviewer.display_name or reviewer.username)[:1] }}</span>
                         {% endif %}
@@ -41,8 +40,7 @@
                         <span class="reviewer-meta">由 {{ reviewer.creator_username }} 添加于 {{ reviewer.created_at[:10] }}</span>
                     </div>
                     <div class="reviewer-actions">
-                        <form method="post" action="{{ url_for('admin_reviewers') }}" data-confirm="确定移除审核员「{{ reviewer.username }}」吗？">
-                            <input type="hidden" name="token" value="{{ token }}">
+                        <form method="post" action="{{ url_for('admin_reviewers') }}" data-confirm="确定移除审核员「{{ reviewer.username }}」吗？" class="reviewer-remove-form">
                             <input type="hidden" name="action" value="remove">
                             <input type="hidden" name="user_id" value="{{ reviewer.user_id }}">
                             <button class="btn-remove">移除</button>
@@ -59,7 +57,7 @@
 </section>
 
 <div class="back-link">
-    <a href="{{ url_for('admin', token=token) }}">返回管理面板</a>
+    <a href="{{ url_for('admin') }}">返回管理面板</a>
 </div>
 
 <style>
