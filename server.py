@@ -2,12 +2,14 @@
 角色卡平台 - 主入口文件
 采用渐进式模块化重构，使用新模块替代原有功能
 """
+import io
 import json
 import os
 import re
 import secrets
 import sqlite3
 import time
+import zipfile
 from datetime import datetime
 from functools import wraps
 from pathlib import Path
