@@ -168,7 +168,7 @@
             <h2>评论 · {{ comments|length }}</h2>
 
             {% if current_user %}
-            <form class="comment-form" method="post" action="{{ url_for('post_comment', card_id=card.id) }}">
+            <form class="comment-form" method="post" action="/card/{{ card.slug }}/comment">
                 <label>
                     <textarea name="content" rows="3" placeholder="写下你的想法..." maxlength="1000"></textarea>
                 </label>

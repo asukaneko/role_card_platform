@@ -164,13 +164,15 @@ def user_profile(username):
             abort(404)
         is_self = session.get("user_id") == user["id"]
         if is_self:
+            # 自己查看：显示所有角色卡（包括待审核和已拒绝的）
             rows = db.execute(
                 "SELECT * FROM role_cards WHERE user_id = ? ORDER BY created_at DESC",
                 (user["id"],),
             ).fetchall()
         else:
+            # 其他人查看：只显示已审核通过且公开的角色卡
             rows = db.execute(
-                "SELECT * FROM role_cards WHERE user_id = ? AND visibility = 'public' ORDER BY created_at DESC",
+                "SELECT * FROM role_cards WHERE user_id = ? AND visibility = 'public' AND status = 'approved' ORDER BY created_at DESC",
                 (user["id"],),
             ).fetchall()
     cards = [RoleCard.row_to_card(row) for row in rows]
@@ -388,24 +390,40 @@ def card_detail(identifier):
 @server.route("/card/<int:card_id>/comment", methods=["POST"])
 @login_required
 def post_comment(card_id):
-    RoleCard.get_or_404(card_id)
+    """通过 card_id 提交评论（兼容旧链接）"""
+    card = RoleCard.get_or_404(card_id, include_pending=True)
+    return _process_comment(card)
+
+
+@server.route("/card/<slug>/comment", methods=["POST"])
+@login_required
+def post_comment_by_slug(slug):
+    """通过 slug 提交评论"""
+    card = RoleCard.get_by_slug(slug, include_pending=True)
+    if not card:
+        abort(404)
+    return _process_comment(card)
+
+
+def _process_comment(card):
+    """处理评论提交的通用逻辑"""
     content = (request.form.get("content") or "").strip()
     if not content:
         flash("评论内容不能为空", "error")
-        return redirect(url_for("card_detail", identifier=card_id))
+        return redirect(url_for("card_detail", identifier=card["slug"]))
     if len(content) > 1000:
         flash("评论内容不能超过 1000 字", "error")
-        return redirect(url_for("card_detail", identifier=card_id))
+        return redirect(url_for("card_detail", identifier=card["slug"]))
     now = datetime.now().isoformat(timespec="seconds")
     user_id = session.get("user_id")
     with get_db() as db:
         db.execute(
-            "INSERT INTO comments (card_id, user_id, content, created_at) VALUES (?, ?, ?, ?)",
-            (card_id, user_id, content, now),
+            "INSERT INTO comments (card_id, user_id, content, created_at, status) VALUES (?, ?, ?, ?, 'pending')",
+            (card["id"], user_id, content, now),
         )
         db.commit()
     flash("评论已提交审核，审核通过后将显示")
-    return redirect(url_for("card_detail", identifier=card_id))
+    return redirect(url_for("card_detail", identifier=card["slug"]))
 
 
 @server.route("/comment/<int:comment_id>/delete", methods=["POST"])

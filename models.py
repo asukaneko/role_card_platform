@@ -131,7 +131,7 @@ def init_db() -> None:
         # 评论表迁移：添加审核相关字段
         comment_columns = {row["name"] for row in db.execute("PRAGMA table_info(comments)").fetchall()}
         comment_migrations = [
-            ("status", "ALTER TABLE comments ADD COLUMN status TEXT DEFAULT 'approved'"),
+            ("status", "ALTER TABLE comments ADD COLUMN status TEXT DEFAULT 'pending'"),
             ("reviewed_by", "ALTER TABLE comments ADD COLUMN reviewed_by INTEGER DEFAULT NULL"),
             ("reviewed_at", "ALTER TABLE comments ADD COLUMN reviewed_at TEXT DEFAULT NULL"),
             ("review_result", "ALTER TABLE comments ADD COLUMN review_result TEXT DEFAULT NULL"),
@@ -139,6 +139,9 @@ def init_db() -> None:
         for col, sql in comment_migrations:
             if col not in comment_columns:
                 db.execute(sql)
+        # 更新已存在的评论状态为 approved（兼容旧数据）
+        if "status" in comment_columns:
+            db.execute("UPDATE comments SET status = 'approved' WHERE status IS NULL")
 
         # 审核员表
         db.execute(
