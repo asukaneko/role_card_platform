@@ -110,6 +110,13 @@ document.addEventListener("click", async (event) => {
             event.preventDefault();
         }
     }
+
+    // 整张角色卡点击跳转详情页（排除内部链接和按钮）
+    const roleCard = event.target.closest(".role-card[data-card-url]");
+    if (roleCard) {
+        if (event.target.closest("a, button, form, .card-owner-actions")) return;
+        window.location.href = roleCard.dataset.cardUrl;
+    }
 });
 
 document.addEventListener("change", (event) => {

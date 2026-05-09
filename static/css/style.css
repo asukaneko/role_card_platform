@@ -374,6 +374,7 @@ textarea:focus {
     background: #11100e;
     box-shadow: var(--card-shadow);
     transition: transform 180ms ease, box-shadow 180ms ease;
+    cursor: pointer;
 }
 
 .role-card:hover {

@@ -51,7 +51,7 @@
 {% if cards %}
 <section class="card-grid">
     {% for card in cards %}
-        <article class="role-card">
+        <article class="role-card" data-card-url="{{ url_for('card_detail', identifier=card.slug) }}">
             <a class="card-media" href="{{ url_for('card_detail', identifier=card.slug) }}">
                 {% if card.avatar_path %}
                     <img src="{{ url_for('asset_file', filename=card.avatar_path) }}" alt="{{ card.name }}">
