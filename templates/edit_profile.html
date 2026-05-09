@@ -8,7 +8,7 @@
             头像
             <div class="avatar-upload">
                 {% if user.avatar_path %}
-                    <img src="{{ url_for('asset_file', filename=user.avatar_path, _external=True) }}" alt="头像" class="avatar-preview">
+                    <img src="{{ url_for('asset_file', filename=user.avatar_path) }}" alt="头像" class="avatar-preview">
                 {% else %}
                     <div class="avatar-preview avatar-placeholder">
                         <span>{{ (user.display_name or user.username)[:1] }}</span>

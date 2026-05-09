@@ -47,7 +47,6 @@ document.addEventListener("click", async (event) => {
             const data = await response.json();
             
             if (!response.ok) {
-                // 显示错误信息
                 alert(data.error || "操作失败");
                 likeButton.disabled = false;
                 return;
@@ -61,6 +60,45 @@ document.addEventListener("click", async (event) => {
         } catch (error) {
             likeButton.textContent = "操作失败";
             likeButton.disabled = false;
+        }
+        return;
+    }
+
+    const favoriteButton = event.target.closest(".favorite-button, .unfavorite-btn");
+    if (favoriteButton) {
+        event.preventDefault();
+        const url = favoriteButton.dataset.favoriteUrl;
+        if (!url) return;
+        favoriteButton.disabled = true;
+        try {
+            const response = await fetch(url, { method: "POST" });
+            const data = await response.json();
+
+            if (!response.ok) {
+                alert(data.error || "操作失败");
+                favoriteButton.disabled = false;
+                return;
+            }
+
+            if (favoriteButton.classList.contains("unfavorite-btn")) {
+                const card = favoriteButton.closest(".role-card");
+                if (card) card.remove();
+                const toolbar = document.querySelector(".toolbar strong");
+                if (toolbar) {
+                    const count = parseInt(toolbar.textContent) - 1;
+                    toolbar.textContent = count;
+                }
+            } else if (data.favorited) {
+                favoriteButton.textContent = "★ 已收藏";
+                favoriteButton.classList.add("favorited");
+            } else {
+                favoriteButton.textContent = "☆ 收藏";
+                favoriteButton.classList.remove("favorited");
+            }
+            favoriteButton.disabled = false;
+        } catch (error) {
+            favoriteButton.textContent = "操作失败";
+            favoriteButton.disabled = false;
         }
         return;
     }

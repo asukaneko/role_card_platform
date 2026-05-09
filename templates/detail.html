@@ -5,7 +5,7 @@
     <aside class="detail-aside">
         <div class="portrait">
             {% if card.avatar_path %}
-                <img src="{{ url_for('asset_file', filename=card.avatar_path, _external=True) }}" alt="{{ card.name }}">
+                <img src="{{ url_for('asset_file', filename=card.avatar_path) }}" alt="{{ card.name }}">
             {% else %}
                 <span>{{ card.name[:1] }}</span>
             {% endif %}
@@ -21,8 +21,14 @@
             {% else %}
                 <button class="like-button" data-like-url="{{ url_for('like_card', card_id=card.id) }}">喜欢这个角色</button>
             {% endif %}
+            {% if user_favorited %}
+                <button class="favorite-button favorited" data-favorite-url="{{ url_for('toggle_favorite', card_id=card.id) }}">★ 已收藏</button>
+            {% else %}
+                <button class="favorite-button" data-favorite-url="{{ url_for('toggle_favorite', card_id=card.id) }}">☆ 收藏</button>
+            {% endif %}
         {% else %}
             <button class="like-button" disabled title="请登录后喜欢">喜欢这个角色（请登录）</button>
+            <button class="favorite-button" disabled title="请登录后收藏">☆ 收藏（请登录）</button>
         {% endif %}
         <a class="download-button" href="{{ url_for('download_card', card_id=card.id) }}">下载 JSON</a>
         <a class="download-button" href="{{ url_for('download_nekozip', card_id=card.id) }}">下载 NekoBot ZIP</a>

@@ -54,7 +54,7 @@
         <article class="role-card">
             <a class="card-media" href="{{ url_for('card_detail', identifier=card.slug) }}">
                 {% if card.avatar_path %}
-                    <img src="{{ url_for('asset_file', filename=card.avatar_path, _external=True) }}" alt="{{ card.name }}">
+                    <img src="{{ url_for('asset_file', filename=card.avatar_path) }}" alt="{{ card.name }}">
                 {% else %}
                     <span>{{ card.name[:1] }}</span>
                 {% endif %}

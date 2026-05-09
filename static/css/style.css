@@ -138,6 +138,7 @@ textarea {
 .primary-link,
 .download-button,
 .like-button,
+.favorite-button,
 .form-actions button,
 .search-panel button {
     border: 1px solid var(--line);
@@ -663,6 +664,7 @@ textarea:focus {
 }
 
 .like-button,
+.favorite-button,
 .download-button {
     width: 100%;
     display: block;
@@ -673,6 +675,57 @@ textarea:focus {
 .like-button {
     background: var(--field-bg);
     color: var(--accent);
+}
+
+.favorite-button {
+    background: var(--field-bg);
+    color: var(--accent);
+    border: 1px solid var(--line);
+    border-radius: 7px;
+    padding: 10px 14px;
+    cursor: pointer;
+}
+
+.favorite-button.favorited {
+    background: var(--accent);
+    color: white;
+    border-color: var(--accent);
+}
+
+.favorite-button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.profile-tabs {
+    display: flex;
+    gap: 0;
+    border-bottom: 2px solid var(--line);
+    margin-bottom: 20px;
+}
+
+.profile-tab {
+    padding: 10px 24px;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--muted);
+    text-decoration: none;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -2px;
+    transition: color 0.2s, border-color 0.2s;
+}
+
+.profile-tab:hover {
+    color: var(--ink);
+}
+
+.profile-tab.active {
+    color: var(--accent);
+    border-bottom-color: var(--accent);
+}
+
+.unfavorite-btn {
+    color: var(--accent) !important;
 }
 
 .detail-main {

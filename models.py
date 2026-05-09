@@ -128,6 +128,21 @@ def init_db() -> None:
             )
             """
         )
+
+        # 用户收藏记录表
+        db.execute(
+            """
+            CREATE TABLE IF NOT EXISTS user_favorites (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                card_id INTEGER NOT NULL,
+                created_at TEXT NOT NULL,
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+                FOREIGN KEY (card_id) REFERENCES role_cards(id) ON DELETE CASCADE,
+                UNIQUE(user_id, card_id)
+            )
+            """
+        )
         db.commit()
 
 
@@ -530,3 +545,67 @@ class UserLike:
         with get_db() as db:
             db.execute("DELETE FROM user_likes WHERE card_id = ?", (card_id,))
             db.commit()
+
+
+class UserFavorite:
+    """用户收藏模型"""
+
+    @staticmethod
+    def exists(user_id: int, card_id: int) -> bool:
+        """检查用户是否已收藏"""
+        with get_db() as db:
+            row = db.execute(
+                "SELECT id FROM user_favorites WHERE user_id = ? AND card_id = ?",
+                (user_id, card_id)
+            ).fetchone()
+        return row is not None
+
+    @staticmethod
+    def add(user_id: int, card_id: int) -> None:
+        """添加收藏"""
+        now = datetime.now().isoformat()
+        with get_db() as db:
+            db.execute(
+                "INSERT INTO user_favorites (user_id, card_id, created_at) VALUES (?, ?, ?)",
+                (user_id, card_id, now)
+            )
+            db.commit()
+
+    @staticmethod
+    def remove(user_id: int, card_id: int) -> None:
+        """取消收藏"""
+        with get_db() as db:
+            db.execute(
+                "DELETE FROM user_favorites WHERE user_id = ? AND card_id = ?",
+                (user_id, card_id)
+            )
+            db.commit()
+
+    @staticmethod
+    def get_by_user(user_id: int) -> list:
+        """获取用户收藏的角色卡列表"""
+        with get_db() as db:
+            rows = db.execute(
+                """
+                SELECT rc.* FROM role_cards rc
+                JOIN user_favorites uf ON rc.id = uf.card_id
+                WHERE uf.user_id = ? AND rc.visibility = 'public'
+                ORDER BY uf.created_at DESC
+                """,
+                (user_id,)
+            ).fetchall()
+        return [RoleCard.row_to_card(row) for row in rows]
+
+    @staticmethod
+    def count_by_user(user_id: int) -> int:
+        """获取用户收藏的角色卡数量"""
+        with get_db() as db:
+            row = db.execute(
+                """
+                SELECT COUNT(*) as cnt FROM user_favorites uf
+                JOIN role_cards rc ON rc.id = uf.card_id
+                WHERE uf.user_id = ? AND rc.visibility = 'public'
+                """,
+                (user_id,)
+            ).fetchone()
+        return row["cnt"] if row else 0

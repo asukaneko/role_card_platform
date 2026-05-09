@@ -30,6 +30,7 @@ from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from werkzeug.security import check_password_hash, generate_password_hash
 from werkzeug.utils import secure_filename
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 # 导入新模块
 from config import (
@@ -37,7 +38,7 @@ from config import (
     MAX_CARD_BYTES, MAX_AVATAR_BYTES, MAX_ZIP_BYTES,
     ALLOWED_AVATAR_EXTENSIONS, IMAGE_SIGNATURES, Config
 )
-from models import init_db, get_db, User, RoleCard, Comment, UserLike
+from models import init_db, get_db, User, RoleCard, Comment, UserLike, UserFavorite
 from auth import (
     generate_user_api_token, resolve_api_user, api_token_valid,
     admin_token, get_current_user, login_required, AuthService
@@ -52,6 +53,7 @@ from card_utils import normalize_role_card_data, card_from_form, validate_card
 # 创建 Flask 应用
 server = Flask(__name__)
 server.config.from_object(Config)
+server.wsgi_app = ProxyFix(server.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
 
 # 初始化速率限制器
 limiter = Limiter(
@@ -154,11 +156,11 @@ def logout():
 
 @server.route("/user/<username>")
 def user_profile(username):
+    tab = request.args.get("tab", "cards")
     with get_db() as db:
         user = db.execute("SELECT * FROM users WHERE username = ?", (username,)).fetchone()
         if not user:
             abort(404)
-        # 自己的主页显示所有角色卡，别人的主页只显示公开的
         is_self = session.get("user_id") == user["id"]
         if is_self:
             rows = db.execute(
@@ -171,7 +173,8 @@ def user_profile(username):
                 (user["id"],),
             ).fetchall()
     cards = [RoleCard.row_to_card(row) for row in rows]
-    return render_template("user_profile.html", profile_user=dict(user), cards=cards, is_self=is_self)
+    favorite_cards = UserFavorite.get_by_user(user["id"]) if is_self else []
+    return render_template("user_profile.html", profile_user=dict(user), cards=cards, favorite_cards=favorite_cards, is_self=is_self, tab=tab)
 
 
 @server.route("/user/<username>/regen-token", methods=["POST"])
@@ -249,7 +252,7 @@ def asset_file(filename):
 
     if not target.exists() or not target.is_file():
         abort(404)
-    return send_file(target, max_age=0)
+    return send_file(target, max_age=3600)
 
 
 @server.route("/")
@@ -313,6 +316,7 @@ def card_detail(identifier):
             abort(404)
     
     user_liked = False
+    user_favorited = False
     
     with get_db() as db:
         rows = db.execute(
@@ -329,6 +333,12 @@ def card_detail(identifier):
                 (user_id, card["id"])
             ).fetchone()
             user_liked = like_row is not None
+
+            fav_row = db.execute(
+                "SELECT id FROM user_favorites WHERE user_id = ? AND card_id = ?",
+                (user_id, card["id"])
+            ).fetchone()
+            user_favorited = fav_row is not None
     
     comments = []
     for row in rows:
@@ -336,7 +346,7 @@ def card_detail(identifier):
         item["can_delete"] = user_id == row["user_id"]
         comments.append(item)
     
-    return render_template("detail.html", card=card, comments=comments, user_liked=user_liked, current_user_id=user_id)
+    return render_template("detail.html", card=card, comments=comments, user_liked=user_liked, user_favorited=user_favorited, current_user_id=user_id)
 
 
 @server.route("/card/<int:card_id>/comment", methods=["POST"])
@@ -686,6 +696,23 @@ def like_card(card_id):
     return jsonify({"likes": row["likes"], "liked": True})
 
 
+@server.route("/card/<int:card_id>/favorite", methods=["POST"])
+@limiter.limit("30 per minute")
+def toggle_favorite(card_id):
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify({"error": "请先登录"}), 401
+
+    card = RoleCard.get_or_404(card_id)
+
+    if UserFavorite.exists(user_id, card_id):
+        UserFavorite.remove(user_id, card_id)
+        return jsonify({"favorited": False})
+    else:
+        UserFavorite.add(user_id, card_id)
+        return jsonify({"favorited": True})
+
+
 @server.route("/admin")
 def admin():
     token = request.args.get("token", "")
@@ -814,4 +841,4 @@ if __name__ == "__main__":
     init_db()
     port = int(os.getenv("ROLE_CARD_PORT", "7861"))
     debug = os.getenv("ROLE_CARD_DEBUG", "").lower() in {"1", "true", "yes", "on"}
-    server.run(host="0.0.0.0", port=port, debug=debug, use_reloader=False)
+    server.run(host="0.0.0.0", port=port, debug=debug, use_reloader=False, threaded=True)

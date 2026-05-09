@@ -5,7 +5,7 @@
     <div class="user-profile-header">
         <div class="user-avatar-large">
             {% if profile_user.avatar_path %}
-                <img src="{{ url_for('asset_file', filename=profile_user.avatar_path, _external=True) }}" alt="{{ profile_user.display_name or profile_user.username }}">
+                <img src="{{ url_for('asset_file', filename=profile_user.avatar_path) }}" alt="{{ profile_user.display_name or profile_user.username }}">
             {% else %}
                 <span>{{ (profile_user.display_name or profile_user.username)[:1] }}</span>
             {% endif %}
@@ -16,7 +16,7 @@
             {% if profile_user.bio %}
                 <p class="user-bio">{{ profile_user.bio }}</p>
             {% endif %}
-            <p class="user-meta">注册于 {{ profile_user.created_at[:10] }} · {{ cards|length }} 张角色卡</p>
+            <p class="user-meta">注册于 {{ profile_user.created_at[:10] }} · {{ cards|length }} 张角色卡{% if is_self %} · {{ favorite_cards|length }} 个收藏{% endif %}</p>
             {% if is_self %}
                 <a href="{{ url_for('edit_profile', username=profile_user.username) }}" class="edit-profile-btn">编辑资料</a>
             {% endif %}
@@ -38,6 +38,60 @@
     {% endif %}
 </section>
 
+{# 标签页切换 #}
+<div class="profile-tabs">
+    <a href="{{ url_for('user_profile', username=profile_user.username, tab='cards') }}" class="profile-tab{% if tab == 'cards' %} active{% endif %}">我的角色卡</a>
+    {% if is_self %}
+    <a href="{{ url_for('user_profile', username=profile_user.username, tab='favorites') }}" class="profile-tab{% if tab == 'favorites' %} active{% endif %}">我的收藏</a>
+    {% endif %}
+</div>
+
+{% if tab == 'favorites' and is_self %}
+{% if favorite_cards %}
+<section class="toolbar">
+    <div>
+        <strong>{{ favorite_cards|length }}</strong>
+        <span>个收藏</span>
+    </div>
+</section>
+<section class="card-grid">
+    {% for card in favorite_cards %}
+        <article class="role-card">
+            <a class="card-media" href="{{ url_for('card_detail', identifier=card.slug) }}">
+                {% if card.avatar_path %}
+                    <img src="{{ url_for('asset_file', filename=card.avatar_path) }}" alt="{{ card.name }}">
+                {% else %}
+                    <span>{{ card.name[:1] }}</span>
+                {% endif %}
+            </a>
+            <div class="card-body">
+                <div class="card-title-row">
+                    <h2><a href="{{ url_for('card_detail', identifier=card.slug) }}">{{ card.name }}</a></h2>
+                </div>
+                <p>{{ card.description or card.personality }}</p>
+                <div class="tags">
+                    {% for item in card.tags %}
+                        <a href="{{ url_for('index', tag=item) }}">#{{ item }}</a>
+                    {% endfor %}
+                </div>
+                <div class="card-meta">
+                    <span>{{ card.creator or "匿名作者" }}</span>
+                    <span>{{ card.downloads }} 下载 · {{ card.likes }} 喜欢</span>
+                </div>
+                <div class="card-owner-actions">
+                    <button class="card-action-btn unfavorite-btn" data-favorite-url="{{ url_for('toggle_favorite', card_id=card.id) }}">取消收藏</button>
+                </div>
+            </div>
+        </article>
+    {% endfor %}
+</section>
+{% else %}
+<section class="empty-state">
+    <h2>还没有收藏</h2>
+    <p>浏览角色卡并收藏你喜欢的角色吧。</p>
+</section>
+{% endif %}
+{% else %}
 {% if cards %}
 <section class="toolbar">
     <div>
@@ -50,7 +104,7 @@
         <article class="role-card">
             <a class="card-media" href="{{ url_for('card_detail', identifier=card.slug) }}">
                 {% if card.avatar_path %}
-                    <img src="{{ url_for('asset_file', filename=card.avatar_path, _external=True) }}" alt="{{ card.name }}">
+                    <img src="{{ url_for('asset_file', filename=card.avatar_path) }}" alt="{{ card.name }}">
                 {% else %}
                     <span>{{ card.name[:1] }}</span>
                 {% endif %}
@@ -91,6 +145,7 @@
     <h2>还没有角色卡</h2>
     <p>{% if is_self %}上传你的第一张角色卡吧。{% else %}该用户还没有公开的角色卡。{% endif %}</p>
 </section>
+{% endif %}
 {% endif %}
 
 <script>
