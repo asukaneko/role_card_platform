@@ -79,7 +79,7 @@
     <script>
         // 从meta标签获取CSRF token
         window.csrfToken = "{{ csrf_token() }}";
-        
+
         // 为所有AJAX请求自动添加CSRF token
         document.addEventListener('DOMContentLoaded', function() {
             // 为fetch请求添加CSRF token
@@ -87,7 +87,7 @@
             window.fetch = function(url, options) {
                 options = options || {};
                 options.headers = options.headers || {};
-                
+
                 // 如果是POST/PUT/PATCH/DELETE请求，添加CSRF token
                 if (options.method && ['POST', 'PUT', 'PATCH', 'DELETE'].includes(options.method.toUpperCase())) {
                     // 检查是否已经有X-CSRFToken header
@@ -95,9 +95,25 @@
                         options.headers['X-CSRFToken'] = window.csrfToken;
                     }
                 }
-                
+
                 return originalFetch(url, options);
             };
+
+            // 通知自动消失
+            const toasts = document.querySelectorAll('.toast');
+            toasts.forEach(function(toast) {
+                // 3秒后开始淡出
+                setTimeout(function() {
+                    toast.style.transition = 'opacity 0.5s ease, transform 0.5s ease';
+                    toast.style.opacity = '0';
+                    toast.style.transform = 'translateX(100%)';
+
+                    // 淡出后从DOM移除
+                    setTimeout(function() {
+                        toast.remove();
+                    }, 500);
+                }, 3000);
+            });
         });
     </script>
 </body>

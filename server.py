@@ -89,7 +89,6 @@ def init_admin_user():
 
 @server.route("/register", methods=["GET", "POST"])
 @limiter.limit("5 per minute")
-@csrf.exempt  # 登录前页面豁免CSRF
 def register():
     if request.method == "GET":
         return render_template("register.html")
@@ -141,7 +140,6 @@ def register():
 
 @server.route("/login", methods=["GET", "POST"])
 @limiter.limit("10 per minute")
-@csrf.exempt  # 登录前页面豁免CSRF
 def login():
     if request.method == "GET":
         return render_template("login.html")
@@ -624,8 +622,8 @@ def upload():
 
         # 登录用户上传时，自动填充作者为用户名
         user_id = session.get("user_id")
+        current = get_current_user()
         if not card.get("creator"):
-            current = get_current_user()
             if current:
                 card["creator"] = current["display_name"] or current["username"]
 
@@ -666,7 +664,9 @@ def upload():
             )
             db.commit()
         flash("角色卡已提交审核，审核通过后将自动发布")
-        return redirect(url_for("user_profile", username=current["username"]))
+        if current:
+            return redirect(url_for("user_profile", username=current["username"]))
+        return redirect(url_for("index"))
     except ValueError as exc:
         flash(str(exc), "error")
         return redirect(url_for("upload"))
@@ -676,13 +676,11 @@ def upload():
 @limiter.limit("10 per minute")
 @csrf.exempt  # API接口使用Token认证，豁免CSRF
 def api_create_card():
-    # 优先通过 API Token 获取用户身份
-    user_id = session.get("user_id")
-    if not user_id:
-        user_id = resolve_api_user()
+    # API接口只接受API Token认证，不使用session（防止CSRF攻击）
+    user_id = resolve_api_user()
     # 管理员 Token 返回 0，转为 None 表示无归属用户
     if not user_id or user_id == 0:
-        return jsonify({"success": False, "error": "需要登录或提供有效的 API Token"}), 403
+        return jsonify({"success": False, "error": "需要提供有效的 API Token"}), 403
 
     try:
         avatar_path = save_avatar(request.files.get("avatar"))
@@ -819,7 +817,6 @@ def admin_or_reviewer_required():
 
 
 @server.route("/admin/login", methods=["POST"])
-@csrf.exempt  # 登录前页面豁免CSRF
 def admin_login():
     """管理员登录处理"""
     username = request.form.get("username", "").strip()
@@ -983,14 +980,49 @@ def reviewer_required(f):
 def review_queue():
     """审核队列页面"""
     tab = request.args.get("tab", "cards")
+    page = request.args.get("page", 1, type=int)
+    per_page = 10  # 每页显示数量
+    
     stats = ReviewQueue.get_stats()
 
     if tab == "comments":
-        items = ReviewQueue.get_pending_comments()
+        items, total = ReviewQueue.get_pending_comments_paginated(page, per_page)
     else:
-        items = ReviewQueue.get_pending_cards()
+        items, total = ReviewQueue.get_pending_cards_paginated(page, per_page)
+    
+    # 计算分页信息
+    total_pages = (total + per_page - 1) // per_page
+    has_prev = page > 1
+    has_next = page < total_pages
+    
+    # 生成目录（用于快速跳转）
+    toc = []
+    for i, item in enumerate(items):
+        if tab == "comments":
+            toc.append({
+                "id": f"comment-{item['id']}",
+                "title": item.get("card_name", "评论")[:20],
+                "author": item.get("username", "匿名")
+            })
+        else:
+            toc.append({
+                "id": f"card-{item['id']}",
+                "title": item.get('name', '角色卡')[:20],
+                "author": item.get('creator') or "匿名"
+            })
 
-    return render_template("review_queue.html", items=items, tab=tab, stats=stats)
+    return render_template(
+        "review_queue.html", 
+        items=items, 
+        tab=tab, 
+        stats=stats,
+        page=page,
+        total_pages=total_pages,
+        has_prev=has_prev,
+        has_next=has_next,
+        total=total,
+        toc=toc
+    )
 
 
 @server.route("/review/card/<int:card_id>/approve", methods=["POST"])

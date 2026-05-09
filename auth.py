@@ -1,6 +1,8 @@
 """
 认证模块 - 包含用户认证、API Token 验证等
 """
+import hashlib
+import hmac
 import os
 import secrets
 from functools import wraps
@@ -13,14 +15,42 @@ from config import DATA_DIR
 from models import User, get_db
 
 
+# API Token 加密用的 pepper（环境变量配置）
+def get_token_pepper() -> str:
+    """获取 API Token 加密用的 pepper"""
+    pepper = os.getenv("ROLE_CARD_TOKEN_PEPPER", "").strip()
+    if not pepper:
+        # 如果没有配置，使用 SECRET_KEY 作为 fallback
+        from flask import current_app
+        return current_app.config.get("SECRET_KEY", "default-pepper")
+    return pepper
+
+
+def hash_api_token(token: str) -> str:
+    """对 API Token 进行 hash"""
+    pepper = get_token_pepper()
+    return hmac.new(
+        pepper.encode(),
+        token.encode(),
+        hashlib.sha256
+    ).hexdigest()
+
+
 def generate_user_api_token() -> str:
-    """生成唯一的用户 API Token"""
-    token = secrets.token_urlsafe(32)
+    """生成唯一的用户 API Token，返回原始 token（仅显示一次）"""
+    # 生成原始 token
+    raw_token = secrets.token_urlsafe(32)
+    # 计算 hash
+    token_hash = hash_api_token(raw_token)
+    
     with get_db() as db:
-        # 确保全局唯一
-        while db.execute("SELECT 1 FROM users WHERE api_token = ?", (token,)).fetchone():
-            token = secrets.token_urlsafe(32)
-    return token
+        # 确保 hash 全局唯一
+        while db.execute("SELECT 1 FROM users WHERE api_token_hash = ?", (token_hash,)).fetchone():
+            raw_token = secrets.token_urlsafe(32)
+            token_hash = hash_api_token(raw_token)
+    
+    # 返回原始 token（只显示这一次）
+    return raw_token
 
 
 def resolve_api_user() -> int | None:
@@ -39,13 +69,16 @@ def resolve_api_user() -> int | None:
     if not provided:
         return None
     
-    # 优先匹配用户级 Token（精确匹配，防时序攻击）
+    # 计算提供的 token 的 hash
+    provided_hash = hash_api_token(provided)
+    
+    # 优先匹配用户级 Token（使用 hash 比较，防时序攻击）
     with get_db() as db:
-        urow = db.execute("SELECT id FROM users WHERE api_token = ?", (provided,)).fetchone()
+        urow = db.execute("SELECT id FROM users WHERE api_token_hash = ?", (provided_hash,)).fetchone()
     if urow:
         return urow["id"]
     
-    # 兼容全局管理员 Token
+    # 兼容全局管理员 Token（仍然使用明文比较，因为管理员token是配置在环境变量中的）
     configured = os.getenv("ROLE_CARD_API_TOKEN", "").strip()
     if configured and secrets.compare_digest(provided, configured):
         return 0  # 特殊值：管理员 Token，无具体用户
@@ -94,6 +127,8 @@ def admin_token() -> str:
 
 def get_or_create_admin_user() -> dict:
     """获取或创建 admin 用户"""
+    from models import get_db
+    
     admin_user = User.get_by_username("admin")
     if not admin_user:
         # 创建 admin 用户
@@ -106,15 +141,25 @@ def get_or_create_admin_user() -> dict:
             display_name="管理员",
             api_token=api_token
         )
+        # 设置 is_admin = 1
+        with get_db() as db:
+            db.execute("UPDATE users SET is_admin = 1 WHERE username = 'admin'")
+            db.commit()
+    else:
+        # 确保 is_admin = 1
+        with get_db() as db:
+            db.execute("UPDATE users SET is_admin = 1 WHERE username = 'admin'")
+            db.commit()
+    
     return admin_user
 
 
 def is_admin_user(user_id: int) -> bool:
-    """检查用户是否为 admin 账号"""
+    """检查用户是否为 admin 账号（使用 is_admin 字段）"""
     if not user_id:
         return False
     user = User.get_by_id(user_id)
-    return user and user["username"] == "admin"
+    return user and user.get("is_admin", 0) == 1
 
 
 def get_current_user():

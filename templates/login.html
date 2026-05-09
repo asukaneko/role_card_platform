@@ -7,6 +7,7 @@
         <h1>登录</h1>
         <p>登录后即可上传和管理你的角色卡。</p>
         <form class="auth-form" method="post" action="{{ url_for('login') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <label>
                 <span>用户名</span>
                 <input name="username" type="text" placeholder="输入你的用户名" autocomplete="username" required autofocus>

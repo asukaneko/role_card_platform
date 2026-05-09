@@ -40,15 +40,62 @@
 
 <!-- 标签切换 -->
 <div class="review-tabs">
-    <a href="{{ url_for('review_queue', tab='cards') }}" class="review-tab {% if tab != 'comments' %}active{% endif %}">角色卡审核</a>
-    <a href="{{ url_for('review_queue', tab='comments') }}" class="review-tab {% if tab == 'comments' %}active{% endif %}">评论审核</a>
+    <a href="{{ url_for('review_queue', tab='cards') }}" class="review-tab {% if tab != 'comments' %}active{% endif %}">角色卡审核 ({{ stats.pending_cards }})</a>
+    <a href="{{ url_for('review_queue', tab='comments') }}" class="review-tab {% if tab == 'comments' %}active{% endif %}">评论审核 ({{ stats.pending_comments }})</a>
 </div>
+
+<!-- 分页信息 -->
+<div class="pagination-info">
+    <span>共 {{ total }} 条，第 {{ page }} / {{ total_pages }} 页</span>
+</div>
+
+<!-- 分页导航（顶部） -->
+{% if total_pages > 1 %}
+<div class="pagination pagination-top">
+    {% if has_prev %}
+    <a href="{{ url_for('review_queue', tab=tab, page=page-1) }}" class="pagination-btn">← 上一页</a>
+    {% else %}
+    <span class="pagination-btn disabled">← 上一页</span>
+    {% endif %}
+    
+    <div class="pagination-pages">
+        {% for p in range(1, total_pages + 1) %}
+            {% if p == page %}
+            <span class="pagination-page active">{{ p }}</span>
+            {% else %}
+            <a href="{{ url_for('review_queue', tab=tab, page=p) }}" class="pagination-page">{{ p }}</a>
+            {% endif %}
+        {% endfor %}
+    </div>
+    
+    {% if has_next %}
+    <a href="{{ url_for('review_queue', tab=tab, page=page+1) }}" class="pagination-btn">下一页 →</a>
+    {% else %}
+    <span class="pagination-btn disabled">下一页 →</span>
+    {% endif %}
+</div>
+{% endif %}
+
+<!-- 目录导航 -->
+{% if toc %}
+<div class="toc-section glass">
+    <h3>📋 快速导航</h3>
+    <div class="toc-list">
+        {% for item in toc %}
+        <a href="#{{ item.id }}" class="toc-item">
+            <span class="toc-title">{{ item.title }}</span>
+            <span class="toc-author">@{{ item.author }}</span>
+        </a>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
 
 {% if tab == 'comments' %}
 <!-- 评论审核队列 -->
 <section class="review-list">
     {% for comment in items %}
-        <div class="review-item glass">
+        <div id="comment-{{ comment.id }}" class="review-item glass">
             <div class="review-header">
                 <div class="review-meta">
                     <strong>{{ comment.display_name or comment.username }}</strong>
@@ -63,16 +110,16 @@
                 {{ comment.content }}
             </div>
             <div class="review-actions">
-                <form method="post" action="{{ url_for('review_ai_comment', comment_id=comment.id) }}" class="inline-form">
+                <form method="post" action="{{ url_for('review_ai_comment', comment_id=comment.id) }}" class="inline-form ajax-form" data-ajax="true">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <button type="submit" class="btn-ai">AI审核</button>
                 </form>
-                <form method="post" action="{{ url_for('review_approve_comment', comment_id=comment.id) }}" class="inline-form">
+                <form method="post" action="{{ url_for('review_approve_comment', comment_id=comment.id) }}" class="inline-form ajax-form" data-ajax="true">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <input type="hidden" name="result" value="人工审核通过">
                     <button type="submit" class="btn-approve">通过</button>
                 </form>
-                <form method="post" action="{{ url_for('review_reject_comment', comment_id=comment.id) }}" class="inline-form reject-form">
+                <form method="post" action="{{ url_for('review_reject_comment', comment_id=comment.id) }}" class="inline-form reject-form ajax-form" data-ajax="true">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <input type="text" name="result" placeholder="拒绝原因" class="reject-reason" required>
                     <button type="submit" class="btn-reject">拒绝</button>
@@ -91,63 +138,76 @@
 <!-- 角色卡审核队列 -->
 <section class="review-list">
     {% for card in items %}
-        <div class="review-item glass">
-            <div class="review-header">
-                <div class="review-avatar">
-                    {% if card.avatar_path %}
-                        <img src="{{ url_for('avatar_file', filename=card.avatar_path.split('/')[-1]) }}" alt="{{ card.name }}">
-                    {% else %}
-                        <span>{{ card.name[:1] }}</span>
-                    {% endif %}
-                </div>
-                <div class="review-meta">
-                    <strong>{{ card.name }}</strong>
-                    <span class="meta-line">作者: {{ card.creator or "匿名" }} | 上传者: {{ card.owner_username or "匿名" }}</span>
-                    <span class="review-time">{{ card.created_at }}</span>
+        <div id="card-{{ card.id }}" class="review-item glass review-item-horizontal">
+            <!-- 左侧：立绘展示 -->
+            {% if card.avatar_path %}
+            <div class="review-left">
+                <div class="review-avatar-full-horizontal">
+                    <img src="{{ url_for('avatar_file', filename=card.avatar_path.split('/')[-1]) }}" alt="{{ card.name }} 立绘" onclick="window.open(this.src, '_blank')">
                 </div>
             </div>
-            <div class="review-content glass-inner">
-                <div class="content-field">
-                    <span class="field-label">描述</span>
-                    <p class="field-value">{{ card.description or "无描述" }}</p>
+            {% endif %}
+            
+            <!-- 右侧：内容和操作 -->
+            <div class="review-right">
+                <div class="review-header">
+                    <div class="review-avatar">
+                        {% if card.avatar_path %}
+                            <img src="{{ url_for('avatar_file', filename=card.avatar_path.split('/')[-1]) }}" alt="{{ card.name }}">
+                        {% else %}
+                            <span>{{ card.name[:1] }}</span>
+                        {% endif %}
+                    </div>
+                    <div class="review-meta">
+                        <strong>{{ card.name }}</strong>
+                        <span class="meta-line">作者: {{ card.creator or "匿名" }} | 上传者: {{ card.owner_username or "匿名" }}</span>
+                        <span class="review-time">{{ card.created_at }}</span>
+                    </div>
                 </div>
-                <div class="content-field">
-                    <span class="field-label">性格</span>
-                    <p class="field-value">{{ card.personality or "无性格设定" }}</p>
+                
+                <div class="review-content glass-inner">
+                    <div class="content-field">
+                        <span class="field-label">描述</span>
+                        <p class="field-value">{{ card.description or "无描述" }}</p>
+                    </div>
+                    <div class="content-field">
+                        <span class="field-label">性格</span>
+                        <p class="field-value">{{ card.personality or "无性格设定" }}</p>
+                    </div>
+                    <div class="content-field">
+                        <span class="field-label">场景</span>
+                        <p class="field-value">{{ card.scenario or "无场景设定" }}</p>
+                    </div>
+                    <div class="content-field">
+                        <span class="field-label">系统提示词</span>
+                        <p class="field-value">{{ card.system_prompt or "无系统提示词" }}</p>
+                    </div>
+                    <div class="content-field">
+                        <span class="field-label">第一条消息</span>
+                        <p class="field-value">{{ card.first_message or "无" }}</p>
+                    </div>
+                    <div class="content-field">
+                        <span class="field-label">标签</span>
+                        <p class="field-value">{{ ", ".join(card.tags) or "无标签" }}</p>
+                    </div>
                 </div>
-                <div class="content-field">
-                    <span class="field-label">场景</span>
-                    <p class="field-value">{{ card.scenario or "无场景设定" }}</p>
+                <div class="review-actions">
+                    <a href="{{ url_for('card_detail', identifier=card.slug) }}" target="_blank" class="btn-view">查看详情</a>
+                    <form method="post" action="{{ url_for('review_ai_card', card_id=card.id) }}" class="inline-form ajax-form" data-ajax="true">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button type="submit" class="btn-ai">AI审核</button>
+                    </form>
+                    <form method="post" action="{{ url_for('review_approve_card', card_id=card.id) }}" class="inline-form ajax-form" data-ajax="true">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <input type="hidden" name="result" value="人工审核通过">
+                        <button type="submit" class="btn-approve">通过</button>
+                    </form>
+                    <form method="post" action="{{ url_for('review_reject_card', card_id=card.id) }}" class="inline-form reject-form ajax-form" data-ajax="true">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <input type="text" name="result" placeholder="拒绝原因" class="reject-reason" required>
+                        <button type="submit" class="btn-reject">拒绝</button>
+                    </form>
                 </div>
-                <div class="content-field">
-                    <span class="field-label">系统提示词</span>
-                    <p class="field-value">{{ card.system_prompt or "无系统提示词" }}</p>
-                </div>
-                <div class="content-field">
-                    <span class="field-label">第一条消息</span>
-                    <p class="field-value">{{ card.first_message or "无" }}</p>
-                </div>
-                <div class="content-field">
-                    <span class="field-label">标签</span>
-                    <p class="field-value">{{ ", ".join(card.tags) or "无标签" }}</p>
-                </div>
-            </div>
-            <div class="review-actions">
-                <a href="{{ url_for('card_detail', identifier=card.slug) }}" target="_blank" class="btn-view">查看详情</a>
-                <form method="post" action="{{ url_for('review_ai_card', card_id=card.id) }}" class="inline-form">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                    <button type="submit" class="btn-ai">AI审核</button>
-                </form>
-                <form method="post" action="{{ url_for('review_approve_card', card_id=card.id) }}" class="inline-form">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                    <input type="hidden" name="result" value="人工审核通过">
-                    <button type="submit" class="btn-approve">通过</button>
-                </form>
-                <form method="post" action="{{ url_for('review_reject_card', card_id=card.id) }}" class="inline-form reject-form">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                    <input type="text" name="result" placeholder="拒绝原因" class="reject-reason" required>
-                    <button type="submit" class="btn-reject">拒绝</button>
-                </form>
             </div>
         </div>
     {% else %}
@@ -159,7 +219,165 @@
 </section>
 {% endif %}
 
+<!-- 分页导航 -->
+{% if total_pages > 1 %}
+<div class="pagination">
+    {% if has_prev %}
+    <a href="{{ url_for('review_queue', tab=tab, page=page-1) }}" class="pagination-btn">← 上一页</a>
+    {% else %}
+    <span class="pagination-btn disabled">← 上一页</span>
+    {% endif %}
+    
+    <div class="pagination-pages">
+        {% for p in range(1, total_pages + 1) %}
+            {% if p == page %}
+            <span class="pagination-page active">{{ p }}</span>
+            {% else %}
+            <a href="{{ url_for('review_queue', tab=tab, page=p) }}" class="pagination-page">{{ p }}</a>
+            {% endif %}
+        {% endfor %}
+    </div>
+    
+    {% if has_next %}
+    <a href="{{ url_for('review_queue', tab=tab, page=page+1) }}" class="pagination-btn">下一页 →</a>
+    {% else %}
+    <span class="pagination-btn disabled">下一页 →</span>
+    {% endif %}
+</div>
+{% endif %}
+
 <style>
+/* 分页信息 */
+.pagination-info {
+    text-align: center;
+    margin-bottom: 1rem;
+    color: var(--muted);
+    font-size: 0.875rem;
+}
+
+/* 目录导航 */
+.toc-section {
+    border-radius: 16px;
+    padding: 1.25rem;
+    margin-bottom: 1.5rem;
+}
+
+.toc-section h3 {
+    margin: 0 0 0.75rem 0;
+    font-size: 1rem;
+    color: var(--ink);
+}
+
+.toc-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.toc-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.375rem 0.75rem;
+    background: rgba(47, 111, 115, 0.1);
+    border: 1px solid rgba(47, 111, 115, 0.2);
+    border-radius: 8px;
+    text-decoration: none;
+    color: var(--ink);
+    font-size: 0.8125rem;
+    transition: all 0.2s;
+}
+
+.toc-item:hover {
+    background: rgba(47, 111, 115, 0.2);
+    border-color: rgba(47, 111, 115, 0.4);
+    transform: translateY(-1px);
+}
+
+.toc-title {
+    font-weight: 600;
+    max-width: 120px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.toc-author {
+    color: var(--muted);
+    font-size: 0.75rem;
+}
+
+/* 分页导航 */
+.pagination {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 1rem;
+    margin-top: 2rem;
+    padding: 1rem;
+}
+
+.pagination-top {
+    margin-top: 0.5rem;
+    margin-bottom: 1rem;
+    padding: 0.5rem;
+}
+
+.pagination-btn {
+    padding: 0.5rem 1rem;
+    background: rgba(47, 111, 115, 0.1);
+    border: 1px solid rgba(47, 111, 115, 0.3);
+    border-radius: 8px;
+    color: var(--accent);
+    text-decoration: none;
+    font-size: 0.875rem;
+    font-weight: 500;
+    transition: all 0.2s;
+}
+
+.pagination-btn:hover {
+    background: rgba(47, 111, 115, 0.2);
+    border-color: rgba(47, 111, 115, 0.5);
+}
+
+.pagination-btn.disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    color: var(--muted);
+}
+
+.pagination-pages {
+    display: flex;
+    gap: 0.375rem;
+}
+
+.pagination-page {
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    text-decoration: none;
+    color: var(--ink);
+    font-size: 0.875rem;
+    font-weight: 500;
+    transition: all 0.2s;
+}
+
+.pagination-page:hover {
+    background: rgba(47, 111, 115, 0.1);
+    border-color: rgba(47, 111, 115, 0.3);
+}
+
+.pagination-page.active {
+    background: var(--accent);
+    color: white;
+    border-color: var(--accent);
+}
+
 /* 玻璃拟态基础样式 */
 .glass {
     background: rgba(255, 255, 255, 0.08);
@@ -296,6 +514,84 @@
     color: white;
     font-weight: 700;
     font-size: 1.25rem;
+}
+
+/* 完整立绘展示 */
+.review-avatar-full {
+    margin: 1rem 0;
+    text-align: center;
+    background: rgba(0, 0, 0, 0.05);
+    border-radius: 16px;
+    padding: 1rem;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.review-avatar-full img {
+    max-width: 100%;
+    max-height: 400px;
+    width: auto;
+    height: auto;
+    border-radius: 12px;
+    cursor: zoom-in;
+    transition: transform 0.2s, box-shadow 0.2s;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+}
+
+.review-avatar-full img:hover {
+    transform: scale(1.02);
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.2);
+}
+
+/* 横向布局 - 图片在左，内容在右 */
+.review-item-horizontal {
+    display: flex;
+    gap: 1.5rem;
+    align-items: flex-start;
+}
+
+.review-left {
+    flex-shrink: 0;
+    width: 300px;
+}
+
+.review-avatar-full-horizontal {
+    background: rgba(0, 0, 0, 0.05);
+    border-radius: 16px;
+    padding: 1rem;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    text-align: center;
+}
+
+.review-avatar-full-horizontal img {
+    max-width: 100%;
+    max-height: 400px;
+    width: auto;
+    height: auto;
+    border-radius: 12px;
+    cursor: zoom-in;
+    transition: transform 0.2s, box-shadow 0.2s;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+}
+
+.review-avatar-full-horizontal img:hover {
+    transform: scale(1.02);
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.2);
+}
+
+.review-right {
+    flex: 1;
+    min-width: 0;
+}
+
+/* 响应式：小屏幕时恢复垂直布局 */
+@media (max-width: 768px) {
+    .review-item-horizontal {
+        flex-direction: column;
+    }
+    
+    .review-left {
+        width: 100%;
+    }
 }
 
 .review-meta {
@@ -555,5 +851,81 @@
 :root[data-theme="dark"] .reject-reason:focus {
     background: rgba(0, 0, 0, 0.3);
 }
+
+:root[data-theme="dark"] .toc-item {
+    background: rgba(98, 185, 191, 0.15);
+    border-color: rgba(98, 185, 191, 0.25);
+}
+
+:root[data-theme="dark"] .toc-item:hover {
+    background: rgba(98, 185, 191, 0.25);
+    border-color: rgba(98, 185, 191, 0.4);
+}
+
+:root[data-theme="dark"] .pagination-page {
+    background: rgba(0, 0, 0, 0.2);
+    border-color: rgba(255, 255, 255, 0.1);
+}
+
+:root[data-theme="dark"] .pagination-page:hover {
+    background: rgba(98, 185, 191, 0.15);
+}
 </style>
+
+<script>
+// AJAX 表单提交，不刷新页面
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('form[data-ajax="true"]').forEach(function(form) {
+        form.addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            var formData = new FormData(form);
+            var action = form.getAttribute('action');
+            var reviewItem = form.closest('.review-item');
+            
+            // 显示处理中状态
+            var submitBtn = form.querySelector('button[type="submit"]');
+            var originalText = submitBtn.textContent;
+            submitBtn.textContent = '处理中...';
+            submitBtn.disabled = true;
+            
+            fetch(action, {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            })
+            .then(function(response) {
+                if (response.ok) {
+                    // 审核成功，移除该审核项
+                    if (reviewItem) {
+                        reviewItem.style.transition = 'opacity 0.3s, transform 0.3s';
+                        reviewItem.style.opacity = '0';
+                        reviewItem.style.transform = 'translateX(100px)';
+                        setTimeout(function() {
+                            reviewItem.remove();
+                            
+                            // 检查是否还有审核项
+                            var remainingItems = document.querySelectorAll('.review-item');
+                            if (remainingItems.length === 0) {
+                                // 没有审核项了，显示空状态
+                                location.reload();
+                            }
+                        }, 300);
+                    }
+                } else {
+                    throw new Error('审核失败');
+                }
+            })
+            .catch(function(error) {
+                console.error('审核出错:', error);
+                submitBtn.textContent = originalText;
+                submitBtn.disabled = false;
+                alert('审核失败，请重试');
+            });
+        });
+    });
+});
+</script>
 {% endblock %}

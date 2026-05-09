@@ -7,6 +7,7 @@
         <h1>注册</h1>
         <p>创建账号后即可上传和分享你的角色卡。</p>
         <form class="auth-form" method="post" action="{{ url_for('register') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <label>
                 <span>用户名</span>
                 <input name="username" type="text" placeholder="3-24 位字母、数字、下划线或中文" autocomplete="username" required autofocus>

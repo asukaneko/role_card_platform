@@ -92,7 +92,7 @@ def init_db() -> None:
             ("response_format", "ALTER TABLE role_cards ADD COLUMN response_format TEXT DEFAULT ''"),
             ("rules_json", "ALTER TABLE role_cards ADD COLUMN rules_json TEXT DEFAULT '[]'"),
             ("state_json", "ALTER TABLE role_cards ADD COLUMN state_json TEXT DEFAULT '{}'"),
-            ("status", "ALTER TABLE role_cards ADD COLUMN status TEXT DEFAULT 'approved'"),
+            ("status", "ALTER TABLE role_cards ADD COLUMN status TEXT DEFAULT 'pending'"),
             ("reviewed_by", "ALTER TABLE role_cards ADD COLUMN reviewed_by INTEGER DEFAULT NULL"),
             ("reviewed_at", "ALTER TABLE role_cards ADD COLUMN reviewed_at TEXT DEFAULT NULL"),
             ("review_result", "ALTER TABLE role_cards ADD COLUMN review_result TEXT DEFAULT NULL"),
@@ -103,10 +103,16 @@ def init_db() -> None:
 
         # 用户表迁移
         user_columns = {row["name"] for row in db.execute("PRAGMA table_info(users)").fetchall()}
+        # api_token_hash 用于存储 API Token 的 hash 值（安全存储）
+        if "api_token_hash" not in user_columns:
+            db.execute("ALTER TABLE users ADD COLUMN api_token_hash TEXT DEFAULT ''")
+        # 保留 api_token 字段用于向后兼容，新用户不再使用
         if "api_token" not in user_columns:
             db.execute("ALTER TABLE users ADD COLUMN api_token TEXT NOT NULL DEFAULT ''")
         if "avatar_path" not in user_columns:
             db.execute("ALTER TABLE users ADD COLUMN avatar_path TEXT DEFAULT ''")
+        if "is_admin" not in user_columns:
+            db.execute("ALTER TABLE users ADD COLUMN is_admin INTEGER DEFAULT 0")
 
         # 评论表
         db.execute(
@@ -231,10 +237,14 @@ class User:
     def create(username: str, password_hash: str, display_name: str = "", api_token: str = "") -> dict:
         """创建新用户"""
         now = datetime.now().isoformat(timespec="seconds")
+        # 计算 api_token 的 hash
+        from auth import hash_api_token
+        api_token_hash = hash_api_token(api_token) if api_token else ""
+        
         with get_db() as db:
             db.execute(
-                "INSERT INTO users (username, password_hash, display_name, bio, api_token, created_at) VALUES (?, ?, ?, '', ?, ?)",
-                (username, password_hash, display_name or username, api_token, now),
+                "INSERT INTO users (username, password_hash, display_name, bio, api_token, api_token_hash, created_at) VALUES (?, ?, ?, '', ?, ?, ?)",
+                (username, password_hash, display_name or username, api_token, api_token_hash, now),
             )
             db.commit()
             row = db.execute("SELECT * FROM users WHERE username = ?", (username,)).fetchone()
@@ -242,9 +252,14 @@ class User:
 
     @staticmethod
     def update_api_token(user_id: int, token: str) -> None:
-        """更新用户 API Token"""
+        """更新用户 API Token（存储 hash）"""
+        from auth import hash_api_token
+        token_hash = hash_api_token(token) if token else ""
         with get_db() as db:
-            db.execute("UPDATE users SET api_token = ? WHERE id = ?", (token, user_id))
+            db.execute(
+                "UPDATE users SET api_token = ?, api_token_hash = ? WHERE id = ?",
+                (token, token_hash, user_id)
+            )
             db.commit()
 
     @staticmethod
@@ -490,7 +505,13 @@ class RoleCard:
         params = []
 
         if visibility:
-            where.append(f"visibility = '{visibility}'")
+            # 参数化查询，防止 SQL 注入
+            if visibility in {"public", "private"}:
+                where.append("visibility = ?")
+                params.append(visibility)
+            else:
+                # 无效的 visibility 值，默认使用 public
+                where.append("visibility = 'public'")
         else:
             where.append("visibility = 'public'")
 
@@ -728,10 +749,10 @@ class Reviewer:
         # 先检查是否是 admin 用户
         with get_db() as db:
             user_row = db.execute(
-                "SELECT username FROM users WHERE id = ?",
+                "SELECT is_admin FROM users WHERE id = ?",
                 (user_id,)
             ).fetchone()
-            if user_row and user_row["username"] == "admin":
+            if user_row and user_row["is_admin"]:
                 return True
             
             # 再检查是否在审核员表中
@@ -795,6 +816,65 @@ class ReviewQueue:
                 (limit,)
             ).fetchall()
         return [RoleCard.row_to_card(row) for row in rows]
+
+    @staticmethod
+    def get_pending_cards_paginated(page: int = 1, per_page: int = 10) -> tuple:
+        """获取待审核的角色卡列表（分页）
+        
+        Returns:
+            (items, total_count)
+        """
+        offset = (page - 1) * per_page
+        with get_db() as db:
+            # 获取总数
+            total_row = db.execute(
+                "SELECT COUNT(*) as count FROM role_cards WHERE status = 'pending'"
+            ).fetchone()
+            total = total_row["count"]
+            
+            # 获取分页数据
+            rows = db.execute(
+                """
+                SELECT rc.*, u.username as owner_username
+                FROM role_cards rc
+                LEFT JOIN users u ON rc.user_id = u.id
+                WHERE rc.status = 'pending'
+                ORDER BY rc.created_at ASC
+                LIMIT ? OFFSET ?
+                """,
+                (per_page, offset)
+            ).fetchall()
+        return [RoleCard.row_to_card(row) for row in rows], total
+
+    @staticmethod
+    def get_pending_comments_paginated(page: int = 1, per_page: int = 10) -> tuple:
+        """获取待审核的评论列表（分页）
+        
+        Returns:
+            (items, total_count)
+        """
+        offset = (page - 1) * per_page
+        with get_db() as db:
+            # 获取总数
+            total_row = db.execute(
+                "SELECT COUNT(*) as count FROM comments WHERE status = 'pending'"
+            ).fetchone()
+            total = total_row["count"]
+            
+            # 获取分页数据
+            rows = db.execute(
+                """
+                SELECT c.*, u.username, u.display_name, rc.name as card_name, rc.slug as card_slug
+                FROM comments c
+                JOIN users u ON c.user_id = u.id
+                JOIN role_cards rc ON c.card_id = rc.id
+                WHERE c.status = 'pending'
+                ORDER BY c.created_at ASC
+                LIMIT ? OFFSET ?
+                """,
+                (per_page, offset)
+            ).fetchall()
+        return [dict(row) for row in rows], total
 
     @staticmethod
     def get_pending_comments(limit: int = 50) -> list:

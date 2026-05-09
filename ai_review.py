@@ -25,7 +25,12 @@ ALLOWED_API_HOSTS = {
 
 
 def _is_safe_api_url(url: str) -> bool:
-    """检查API URL是否安全（防止SSRF攻击）"""
+    """检查API URL是否安全（防止SSRF攻击）
+    
+    只允许白名单中的域名，防止管理员配置恶意URL导致SSRF攻击
+    """
+    import os
+    
     if not url:
         return False
     
@@ -44,26 +49,47 @@ def _is_safe_api_url(url: str) -> bool:
     if host in ALLOWED_API_HOSTS:
         return True
     
-    # 检查是否是IP地址
-    try:
-        ip = ipaddress.ip_address(host)
-        # 禁止内网IP、回环地址、链路本地地址
-        if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved or ip.is_multicast:
-            return False
-        return True
-    except ValueError:
-        # 不是IP地址，是域名
-        # 检查是否包含可疑的域名模式
-        host_lower = host.lower()
-        blocked_suffixes = [
-            ".local", ".internal", ".localhost",
-            "127.", "0.0.0.0", "::1", "::",
-        ]
-        for suffix in blocked_suffixes:
-            if host_lower.startswith(suffix) or host_lower.endswith(suffix):
+    # 如果配置了允许自定义端点，进行额外的安全检查
+    allow_custom = os.getenv("ROLE_CARD_ALLOW_CUSTOM_AI_ENDPOINT", "").lower() in {"1", "true", "yes", "on"}
+    if allow_custom:
+        # 检查是否是IP地址
+        try:
+            ip = ipaddress.ip_address(host)
+            # 禁止内网IP、回环地址、链路本地地址
+            if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved or ip.is_multicast:
                 return False
+        except ValueError:
+            # 不是IP地址，是域名
+            # 解析DNS并检查IP
+            try:
+                import socket
+                resolved_ips = socket.getaddrinfo(host, None)
+                for _, _, _, _, sockaddr in resolved_ips:
+                    ip_str = sockaddr[0]
+                    try:
+                        ip = ipaddress.ip_address(ip_str)
+                        if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved or ip.is_multicast:
+                            return False
+                    except ValueError:
+                        continue
+            except socket.gaierror:
+                # DNS解析失败
+                return False
+            
+            # 检查是否包含可疑的域名模式
+            host_lower = host.lower()
+            blocked_suffixes = [
+                ".local", ".internal", ".localhost",
+                "127.", "0.0.0.0", "::1", "::",
+            ]
+            for suffix in blocked_suffixes:
+                if host_lower.startswith(suffix) or host_lower.endswith(suffix):
+                    return False
         
         return True
+    
+    # 不在白名单中且不允许自定义端点
+    return False
 
 
 class AIReviewer:
@@ -205,7 +231,10 @@ PASS 表示内容通过审核，REJECT 表示内容违规需要拒绝。
 
     @staticmethod
     def _parse_response(response: str) -> tuple:
-        """解析 AI 审核响应"""
+        """解析 AI 审核响应
+        
+        注意：解析失败时返回 False（拒绝），需要人工审核，不自动通过
+        """
         response = response.strip()
 
         # 提取 RESULT
@@ -216,7 +245,8 @@ PASS 表示内容通过审核，REJECT 表示内容违规需要拒绝。
                 return True, response
             elif "拒绝" in response or "REJECT" in response.upper() or "违规" in response:
                 return False, response
-            return True, f"无法解析审核结果，默认通过。原始响应: {response[:200]}"
+            # 无法解析时返回 False（拒绝），需要人工审核
+            return False, f"AI审核结果无法解析，进入人工审核。原始响应: {response[:200]}"
 
         result = result_match.group(1).upper()
 
@@ -229,4 +259,5 @@ PASS 表示内容通过审核，REJECT 表示内容违规需要拒绝。
         elif result == "REJECT":
             return False, reason
         else:
-            return True, f"未知的审核结果: {result}，默认通过。原始响应: {response[:200]}"
+            # 未知的审核结果，返回 False（拒绝），需要人工审核
+            return False, f"AI审核返回未知结果: {result}，进入人工审核。原始响应: {response[:200]}"
