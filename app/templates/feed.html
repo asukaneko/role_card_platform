@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}动态 - 角色卡平台{% endblock %}
+{% block content %}
+<section class="page-head">
+    <h1>动态</h1>
+    <p>你关注的人发布的最新角色卡</p>
+</section>
+
+{% if cards %}
+<section class="feed-list">
+    {% for card in cards %}
+    <article class="feed-card">
+        <div class="feed-card-header">
+            <a href="{{ url_for('user_profile', username=card.owner_username) }}" class="feed-author">
+                {% if card.owner_avatar %}
+                    <img src="{{ url_for('avatar_file', filename=card.owner_avatar.split('/')[-1]) }}" alt="{{ card.owner_username }}">
+                {% else %}
+                    <span>{{ card.owner_username[:1] if card.owner_username else '?' }}</span>
+                {% endif %}
+                <span class="feed-author-name">{{ card.owner_username or card.creator or '匿名作者' }}</span>
+            </a>
+            <time class="feed-time">{{ card.created_at[:16].replace('T', ' ') }}</time>
+        </div>
+        <a href="{{ url_for('card_detail', identifier=card.slug) }}" class="feed-card-body">
+            <div class="feed-card-media">
+                {% if card.avatar_path %}
+                    <img src="{{ url_for('avatar_file', filename=card.avatar_path.split('/')[-1]) }}" alt="{{ card.name }}">
+                {% else %}
+                    <span>{{ card.name[:1] }}</span>
+                {% endif %}
+            </div>
+            <div class="feed-card-info">
+                <h2>{{ card.name }}</h2>
+                <p>{{ card.description or card.personality or '暂无描述' }}</p>
+                <div class="feed-card-meta">
+                    <span>{{ card.downloads }} 下载</span>
+                    <span>{{ card.likes }} 喜欢</span>
+                </div>
+            </div>
+        </a>
+    </article>
+    {% endfor %}
+</section>
+{% else %}
+<section class="empty-state">
+    <h2>暂无动态</h2>
+    <p>关注更多作者，在这里查看他们的最新角色卡。</p>
+    <a href="{{ url_for('index') }}" class="primary-link" style="margin-top: 16px; display: inline-block;">去浏览角色卡</a>
+</section>
+{% endif %}
+{% endblock %}

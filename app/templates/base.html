@@ -11,7 +11,7 @@
             document.documentElement.dataset.theme = saved || (prefersDark ? "dark" : "light");
         })();
     </script>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=20260509-favorite">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=20260510-improvements">
 </head>
 <body>
     <header class="site-header">
@@ -26,7 +26,7 @@
             <a href="{{ url_for('index') }}">广场</a>
             {% if current_user %}
                 <a href="{{ url_for('upload') }}">上传</a>
-               
+                <a href="{{ url_for('feed') }}">动态</a>
                 {% if is_reviewer %}
                     <a href="{{ url_for('review_queue') }}" class="nav-review-link">审核</a>
                 {% endif %}
@@ -73,7 +73,7 @@
         </div>
     </footer>
 
-    <script src="{{ url_for('static', filename='js/main.js') }}?v=20260509-favorite"></script>
+    <script src="{{ url_for('static', filename='js/main.js') }}?v=20260510-improvements"></script>
     
     <!-- CSRF Token for AJAX requests -->
     <script>

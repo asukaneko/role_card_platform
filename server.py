@@ -40,7 +40,7 @@ from app.config import (
     MAX_CARD_BYTES, MAX_AVATAR_BYTES, MAX_ZIP_BYTES,
     ALLOWED_AVATAR_EXTENSIONS, IMAGE_SIGNATURES, Config
 )
-from app.models import init_db, get_db, User, RoleCard, Comment, UserLike, UserFavorite, Reviewer, ReviewQueue, AIReviewConfig, EmailConfig
+from app.models import init_db, get_db, User, RoleCard, Comment, UserLike, UserFavorite, Reviewer, ReviewQueue, AIReviewConfig, EmailConfig, CardRelation, UserFollow
 from app.auth import (
     generate_user_api_token, resolve_api_user, api_token_valid,
     admin_token, get_current_user, login_required, AuthService,
@@ -277,7 +277,82 @@ def user_profile(username):
             ).fetchall()
     cards = [RoleCard.row_to_card(row) for row in rows]
     favorite_cards = UserFavorite.get_by_user(user["id"]) if is_self else []
-    return render_template("user_profile.html", profile_user=dict(user), cards=cards, favorite_cards=favorite_cards, is_self=is_self, tab=tab, is_admin=is_admin)
+
+    # 关注相关数据
+    follower_count = UserFollow.get_follower_count(user["id"])
+    following_count = UserFollow.get_following_count(user["id"])
+    is_following = False
+    current_user_id = session.get("user_id")
+    if current_user_id and not is_self:
+        is_following = UserFollow.is_following(current_user_id, user["id"])
+
+    # 关注列表
+    following_list = []
+    if is_self and tab == "following":
+        following_list = UserFollow.get_following(user["id"])
+
+    return render_template("user_profile.html", profile_user=dict(user), cards=cards, favorite_cards=favorite_cards, is_self=is_self, tab=tab, is_admin=is_admin, follower_count=follower_count, following_count=following_count, is_following=is_following, following_list=following_list)
+
+
+@server.route("/feed")
+@login_required
+def feed():
+    """动态页面 - 展示关注者的角色卡"""
+    current = get_current_user()
+    if not current:
+        flash("请先登录", "error")
+        return redirect(url_for("login"))
+
+    following_ids = []
+    with get_db() as db:
+        rows = db.execute(
+            "SELECT following_id FROM user_follows WHERE follower_id = ?",
+            (current["id"],)
+        ).fetchall()
+        following_ids = [r["following_id"] for r in rows]
+
+    cards = []
+    if following_ids:
+        placeholders = ",".join("?" for _ in following_ids)
+        with get_db() as db:
+            rows = db.execute(
+                f"""
+                SELECT rc.*, u.username as owner_username
+                FROM role_cards rc
+                LEFT JOIN users u ON rc.user_id = u.id
+                WHERE rc.user_id IN ({placeholders})
+                AND rc.visibility = 'public' AND rc.status = 'approved'
+                ORDER BY rc.created_at DESC
+                """,
+                following_ids
+            ).fetchall()
+        cards = [RoleCard.row_to_card(row) for row in rows]
+
+    return render_template("feed.html", cards=cards, current_user=current)
+
+
+@server.route("/user/<int:user_id>/follow", methods=["POST"])
+@login_required
+def follow_user(user_id):
+    """关注用户"""
+    current = get_current_user()
+    if not current:
+        return jsonify({"error": "请先登录"}), 401
+    if current["id"] == user_id:
+        return jsonify({"error": "不能关注自己"}), 400
+    UserFollow.follow(current["id"], user_id)
+    return jsonify({"following": True})
+
+
+@server.route("/user/<int:user_id>/unfollow", methods=["POST"])
+@login_required
+def unfollow_user(user_id):
+    """取消关注用户"""
+    current = get_current_user()
+    if not current:
+        return jsonify({"error": "请先登录"}), 401
+    UserFollow.unfollow(current["id"], user_id)
+    return jsonify({"following": False})
 
 
 @server.route("/user/<username>/regen-token", methods=["POST"])
@@ -489,7 +564,89 @@ def card_detail(identifier):
         item["can_delete"] = user_id == row["user_id"]
         comments.append(item)
 
-    return render_template("detail.html", card=card, comments=comments, user_liked=user_liked, user_favorited=user_favorited, current_user_id=user_id)
+    # 获取关联的角色卡
+    related_cards = CardRelation.get_related_cards(card["id"])
+    linked_by_cards = CardRelation.get_linked_by_cards(card["id"])
+
+    # 检查是否关注了作者
+    is_following_author = False
+    if user_id and card.get("user_id"):
+        is_following_author = UserFollow.is_following(user_id, card["user_id"])
+
+    return render_template("detail.html", card=card, comments=comments, user_liked=user_liked, user_favorited=user_favorited, current_user_id=user_id, related_cards=related_cards, linked_by_cards=linked_by_cards, is_following_author=is_following_author)
+
+
+@server.route("/card/<int:card_id>/relate", methods=["POST"])
+@login_required
+def add_card_relation(card_id):
+    """关联其他角色卡"""
+    card = owner_required(card_id)
+    related_card_id = request.form.get("related_card_id", type=int)
+    if not related_card_id:
+        return jsonify({"error": "请指定要关联的角色卡"}), 400
+    related_card = RoleCard.get_or_404(related_card_id)
+    CardRelation.add(card_id, related_card_id)
+    return jsonify({"success": True})
+
+
+@server.route("/card/<int:card_id>/unrelate/<int:related_card_id>", methods=["POST"])
+@login_required
+def remove_card_relation(card_id, related_card_id):
+    """取消关联角色卡"""
+    card = owner_required(card_id)
+    CardRelation.remove(card_id, related_card_id)
+    return jsonify({"success": True})
+
+
+@server.route("/card/<int:card_id>/related")
+def get_related_cards(card_id):
+    """获取关联的角色卡列表"""
+    cards = CardRelation.get_related_cards(card_id)
+    result = []
+    for c in cards:
+        result.append({
+            "id": c["id"],
+            "name": c["name"],
+            "slug": c["slug"],
+            "avatar_path": c.get("avatar_path", ""),
+            "description": c.get("description", ""),
+        })
+    return jsonify({"cards": result})
+
+
+@server.route("/api/cards/search")
+def api_search_cards():
+    """搜索角色卡（用于关联时的名称搜索）"""
+    query = request.args.get("q", "").strip()
+    exclude_id = request.args.get("exclude_id", type=int)
+    if not query or len(query) < 1:
+        return jsonify({"cards": []})
+
+    term = f"%{query}%"
+    with get_db() as db:
+        sql = """
+            SELECT id, name, slug, avatar_path, description
+            FROM role_cards
+            WHERE visibility = 'public' AND status = 'approved'
+            AND (name LIKE ? OR description LIKE ?)
+        """
+        params = [term, term]
+        if exclude_id:
+            sql += " AND id != ?"
+            params.append(exclude_id)
+        sql += " ORDER BY name LIMIT 10"
+        rows = db.execute(sql, params).fetchall()
+
+    result = []
+    for row in rows:
+        result.append({
+            "id": row["id"],
+            "name": row["name"],
+            "slug": row["slug"],
+            "avatar_path": row["avatar_path"] or "",
+            "description": (row["description"] or "")[:50],
+        })
+    return jsonify({"cards": result})
 
 
 @server.route("/card/<int:card_id>/comment", methods=["POST"])
@@ -860,6 +1017,190 @@ def download_nekozip(card_id):
         as_attachment=True,
         download_name=f"{card['slug']}_nekobot.zip",
     )
+
+
+def _generate_qr_svg(data: str, module_size: int = 4) -> str:
+    """Generate a scannable local QR code as SVG."""
+    try:
+        import qrcode
+
+        qr = qrcode.QRCode(
+            version=None,
+            error_correction=qrcode.constants.ERROR_CORRECT_M,
+            box_size=module_size,
+            border=0,
+        )
+        qr.add_data(data)
+        qr.make(fit=True)
+        matrix = qr.get_matrix()
+        size = len(matrix) * module_size
+        rects = []
+        for y, row in enumerate(matrix):
+            for x, dark in enumerate(row):
+                if dark:
+                    rects.append(
+                        f'<rect x="{x * module_size}" y="{y * module_size}" '
+                        f'width="{module_size}" height="{module_size}" fill="#1a1a2e"/>'
+                    )
+        return (
+            f'<svg xmlns="http://www.w3.org/2000/svg" width="{size}" height="{size}" '
+            f'viewBox="0 0 {size} {size}">'
+            f'<rect width="{size}" height="{size}" fill="white"/>'
+            f'{"".join(rects)}</svg>'
+        )
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).error(f"qrcode QR generation failed: {e}")
+        try:
+            import segno
+
+            qr = segno.make(data, error='m')
+            out = io.StringIO()
+            qr.save(out, kind='svg', scale=module_size, dark='#1a1a2e', light='white')
+            svg_content = out.getvalue()
+            out.close()
+            if svg_content.startswith('<?xml'):
+                svg_content = svg_content[svg_content.find('<svg'):]
+            if 'xmlns=' not in svg_content:
+                svg_content = svg_content.replace('<svg', '<svg xmlns="http://www.w3.org/2000/svg"')
+            return svg_content
+        except Exception as fallback_error:
+            logging.getLogger(__name__).error(f"segno QR generation failed: {fallback_error}")
+            return '<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100"><rect width="100" height="100" fill="white"/></svg>'
+
+
+@server.route("/card/<int:card_id>/share-image")
+def share_card_image(card_id):
+    """生成角色卡分享图片"""
+    from io import BytesIO as _BytesIO
+    from html import escape
+
+    card = RoleCard.get_or_404(card_id)
+
+    card_url = url_for("card_detail", identifier=card["slug"], _external=True)
+    creator = escape((card.get("creator") or card.get("owner_username") or "匿名作者")[:48])
+    description = escape((card.get("description") or "")[:120])
+    name = escape(card["name"][:32])
+    tags = escape(" ".join(f"#{t}" for t in (card.get("tags") or [])[:5]))
+    card_url_text = escape(card_url)
+
+    # 生成二维码SVG
+    qr_svg = _generate_qr_svg(card_url, module_size=4)
+    # 提取segno生成的SVG中的path元素，直接内联到分享图片中
+    import re
+    # segno使用<path>元素绘制二维码，提取所有path
+    qr_paths = re.findall(r'<path[^>]+/>', qr_svg)
+    # 也尝试提取viewBox以确定尺寸
+    qr_vb_match = re.search(r'viewBox="0 0 (\d+) (\d+)"', qr_svg)
+    qr_width_match = re.search(r'width="(\d+)"', qr_svg)
+    qr_height_match = re.search(r'height="(\d+)"', qr_svg)
+    if qr_vb_match:
+        qr_w = int(qr_vb_match.group(1))
+        qr_h = int(qr_vb_match.group(2))
+    elif qr_width_match and qr_height_match:
+        qr_w = int(qr_width_match.group(1))
+        qr_h = int(qr_height_match.group(1))
+    else:
+        qr_w = qr_h = 100
+    qr_content = "\n".join(qr_paths)
+    # 如果没有path，尝试提取rect
+    if not qr_content:
+        qr_rects = re.findall(r'<rect[^>]+/>', qr_svg)
+        qr_content = "\n".join(qr_rects)
+
+    # 角色立绘背景
+    avatar_bg = ""
+    if card.get("avatar_path"):
+        try:
+            import base64
+            import mimetypes
+
+            avatar_path = PROJECT_ROOT / card["avatar_path"]
+            resolved_avatar = avatar_path.resolve()
+            if resolved_avatar.exists() and resolved_avatar.is_relative_to(PROJECT_ROOT):
+                mime_type = mimetypes.guess_type(resolved_avatar.name)[0] or "image/png"
+                avatar_b64 = base64.b64encode(resolved_avatar.read_bytes()).decode("ascii")
+                avatar_href = f"data:{mime_type};base64,{avatar_b64}"
+            else:
+                avatar_href = ""
+        except Exception:
+            avatar_href = ""
+
+        # 立绘直接嵌入 SVG，避免 <img> 预览时浏览器阻止加载外部图片。
+        avatar_bg = f'''<image x="0" y="0" width="640" height="360" preserveAspectRatio="xMidYMid slice" href="{avatar_href}" xlink:href="{avatar_href}" opacity="0.55"/>
+  <rect x="0" y="0" width="640" height="360" fill="url(#bgGrad)" opacity="0.65" rx="20"/>'''
+    else:
+        avatar_bg = '<rect width="640" height="360" fill="url(#bgGrad)" rx="20"/>'
+
+    # 美化后的分享卡片SVG
+    svg_content = f'''<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="640" height="360" viewBox="0 0 640 360">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0a0a18;stop-opacity:1" />
+      <stop offset="40%" style="stop-color:#0f0f22;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#151530;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="accentGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#e94560;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#ff6b6b;stop-opacity:1" />
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="4" stdDeviation="8" flood-color="rgba(0,0,0,0.3)"/>
+    </filter>
+    <clipPath id="cardClip">
+      <rect width="640" height="360" rx="20"/>
+    </clipPath>
+  </defs>
+
+  <g clip-path="url(#cardClip)">
+    <!-- 角色立绘背景 -->
+    {avatar_bg}
+
+    <!-- 装饰圆 -->
+    <circle cx="580" cy="60" r="120" fill="rgba(233,69,96,0.06)"/>
+    <circle cx="60" cy="300" r="80" fill="rgba(255,107,107,0.04)"/>
+  </g>
+
+  <!-- 顶部装饰条 -->
+  <rect x="40" y="30" width="4" height="40" fill="url(#accentGrad)" rx="2"/>
+
+  <!-- 角色卡名称 -->
+  <text x="56" y="58" font-family="system-ui, -apple-system, sans-serif" font-size="28" font-weight="800" fill="#ffffff">{name}</text>
+
+  <!-- 作者 -->
+  <text x="56" y="88" font-family="system-ui, -apple-system, sans-serif" font-size="14" fill="rgba(255,255,255,0.7)">by {creator}</text>
+
+  <!-- 描述 -->
+  <text x="56" y="125" font-family="system-ui, -apple-system, sans-serif" font-size="13" fill="rgba(255,255,255,0.6)">{description}</text>
+
+  <!-- 标签 -->
+  <text x="56" y="158" font-family="system-ui, -apple-system, sans-serif" font-size="12" fill="rgba(233,69,96,0.9)">{tags}</text>
+
+  <!-- 分隔线 -->
+  <line x1="56" y1="185" x2="400" y2="185" stroke="rgba(255,255,255,0.15)" stroke-width="1"/>
+
+  <!-- 底部信息 -->
+  <text x="56" y="220" font-family="system-ui, -apple-system, sans-serif" font-size="13" font-weight="600" fill="rgba(255,255,255,0.9)">角色卡平台 · Role Card Library</text>
+  <text x="56" y="245" font-family="monospace, sans-serif" font-size="11" fill="rgba(255,255,255,0.5)">{card_url_text}</text>
+
+  <!-- 二维码区域 -->
+  <g transform="translate(480, 200)">
+    <rect x="-12" y="-12" width="124" height="124" fill="white" rx="12" filter="url(#shadow)"/>
+    <g transform="translate(-6, -6) scale({112/qr_w:.4f})">
+      {qr_content}
+    </g>
+  </g>
+
+  <!-- 扫码提示 -->
+  <text x="524" y="330" font-family="system-ui, -apple-system, sans-serif" font-size="11" fill="rgba(255,255,255,0.6)" text-anchor="middle">扫码查看角色卡</text>
+</svg>'''
+
+    response = send_file(
+        _BytesIO(svg_content.encode("utf-8")),
+        mimetype="image/svg+xml",
+        max_age=3600
+    )
+    return response
 
 
 @server.route("/card/<int:card_id>/like", methods=["POST"])

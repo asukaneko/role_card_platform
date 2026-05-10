@@ -16,9 +16,19 @@
             {% if profile_user.bio %}
                 <p class="user-bio">{{ profile_user.bio }}</p>
             {% endif %}
-            <p class="user-meta">注册于 {{ profile_user.created_at[:10] }} · {{ cards|length }} 张角色卡{% if is_self %} · {{ favorite_cards|length }} 个收藏{% endif %}</p>
+            <p class="user-meta">
+                注册于 {{ profile_user.created_at[:10] }} · {{ cards|length }} 张角色卡
+                {% if is_self %} · {{ favorite_cards|length }} 个收藏{% endif %}
+                · <span>{{ follower_count }} 粉丝</span> · <span>{{ following_count }} 关注</span>
+            </p>
             {% if is_self %}
                 <a href="{{ url_for('edit_profile', username=profile_user.username) }}" class="edit-profile-btn">编辑资料</a>
+            {% else %}
+                {% if is_following %}
+                    <button class="follow-profile-btn following" data-follow-url="{{ url_for('unfollow_user', user_id=profile_user.id) }}">已关注</button>
+                {% else %}
+                    <button class="follow-profile-btn" data-follow-url="{{ url_for('follow_user', user_id=profile_user.id) }}">关注</button>
+                {% endif %}
             {% endif %}
         </div>
     </div>
@@ -44,10 +54,43 @@
     <a href="{{ url_for('user_profile', username=profile_user.username, tab='cards') }}" class="profile-tab{% if tab == 'cards' %} active{% endif %}">我的角色卡</a>
     {% if is_self %}
     <a href="{{ url_for('user_profile', username=profile_user.username, tab='favorites') }}" class="profile-tab{% if tab == 'favorites' %} active{% endif %}">我的收藏</a>
+    <a href="{{ url_for('user_profile', username=profile_user.username, tab='following') }}" class="profile-tab{% if tab == 'following' %} active{% endif %}">我的关注</a>
     {% endif %}
 </div>
 
-{% if tab == 'favorites' and is_self %}
+{% if tab == 'following' and is_self %}
+{% if following_list %}
+<section class="toolbar">
+    <div>
+        <strong>{{ following_list|length }}</strong>
+        <span>个关注</span>
+    </div>
+</section>
+<section class="following-list">
+    {% for u in following_list %}
+    <div class="following-item">
+        <a href="{{ url_for('user_profile', username=u.username) }}" class="following-avatar">
+            {% if u.avatar_path %}
+                <img src="{{ url_for('avatar_file', filename=u.avatar_path.split('/')[-1]) }}" alt="{{ u.display_name or u.username }}">
+            {% else %}
+                <span>{{ (u.display_name or u.username)[:1] }}</span>
+            {% endif %}
+        </a>
+        <div class="following-info">
+            <a href="{{ url_for('user_profile', username=u.username) }}"><strong>{{ u.display_name or u.username }}</strong></a>
+            <span>@{{ u.username }}</span>
+        </div>
+        <button class="follow-profile-btn following" data-follow-url="{{ url_for('unfollow_user', user_id=u.id) }}">已关注</button>
+    </div>
+    {% endfor %}
+</section>
+{% else %}
+<section class="empty-state">
+    <h2>还没有关注任何人</h2>
+    <p>去发现有趣的角色卡作者并关注他们吧。</p>
+</section>
+{% endif %}
+{% elif tab == 'favorites' and is_self %}
 {% if favorite_cards %}
 <section class="toolbar">
     <div>

@@ -243,6 +243,33 @@ def init_db() -> None:
             )
             """
         )
+        db.execute(
+            """
+            CREATE TABLE IF NOT EXISTS card_relations (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                card_id INTEGER NOT NULL,
+                related_card_id INTEGER NOT NULL,
+                relation_type TEXT DEFAULT 'related',
+                created_at TEXT NOT NULL,
+                FOREIGN KEY (card_id) REFERENCES role_cards(id) ON DELETE CASCADE,
+                FOREIGN KEY (related_card_id) REFERENCES role_cards(id) ON DELETE CASCADE,
+                UNIQUE(card_id, related_card_id)
+            )
+            """
+        )
+        db.execute(
+            """
+            CREATE TABLE IF NOT EXISTS user_follows (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                follower_id INTEGER NOT NULL,
+                following_id INTEGER NOT NULL,
+                created_at TEXT NOT NULL,
+                FOREIGN KEY (follower_id) REFERENCES users(id) ON DELETE CASCADE,
+                FOREIGN KEY (following_id) REFERENCES users(id) ON DELETE CASCADE,
+                UNIQUE(follower_id, following_id)
+            )
+            """
+        )
         db.commit()
 
 
@@ -1205,3 +1232,157 @@ class VerificationCode:
                 db.commit()
         except sqlite3.OperationalError:
             pass
+
+
+class CardRelation:
+    """角色卡关联模型"""
+
+    @staticmethod
+    def add(card_id: int, related_card_id: int, relation_type: str = "related") -> None:
+        """添加角色卡关联"""
+        if card_id == related_card_id:
+            return
+        now = datetime.now().isoformat(timespec="seconds")
+        with get_db() as db:
+            db.execute(
+                "INSERT OR IGNORE INTO card_relations (card_id, related_card_id, relation_type, created_at) VALUES (?, ?, ?, ?)",
+                (card_id, related_card_id, relation_type, now)
+            )
+            db.commit()
+
+    @staticmethod
+    def remove(card_id: int, related_card_id: int) -> None:
+        """移除角色卡关联"""
+        with get_db() as db:
+            db.execute(
+                "DELETE FROM card_relations WHERE card_id = ? AND related_card_id = ?",
+                (card_id, related_card_id)
+            )
+            db.commit()
+
+    @staticmethod
+    def get_related_cards(card_id: int) -> list:
+        """获取角色卡关联的其他角色卡"""
+        with get_db() as db:
+            rows = db.execute(
+                """
+                SELECT rc.* FROM role_cards rc
+                JOIN card_relations cr ON rc.id = cr.related_card_id
+                WHERE cr.card_id = ? AND rc.visibility = 'public' AND rc.status = 'approved'
+                ORDER BY cr.created_at DESC
+                """,
+                (card_id,)
+            ).fetchall()
+        return [RoleCard.row_to_card(row) for row in rows]
+
+    @staticmethod
+    def is_related(card_id: int, related_card_id: int) -> bool:
+        """检查两个角色卡是否已关联"""
+        with get_db() as db:
+            row = db.execute(
+                "SELECT id FROM card_relations WHERE card_id = ? AND related_card_id = ?",
+                (card_id, related_card_id)
+            ).fetchone()
+        return row is not None
+
+    @staticmethod
+    def get_linked_by_cards(card_id: int) -> list:
+        """获取关联了当前角色卡的其他角色卡（反向关联）"""
+        with get_db() as db:
+            rows = db.execute(
+                """
+                SELECT rc.* FROM role_cards rc
+                JOIN card_relations cr ON rc.id = cr.card_id
+                WHERE cr.related_card_id = ? AND rc.visibility = 'public' AND rc.status = 'approved'
+                ORDER BY cr.created_at DESC
+                """,
+                (card_id,)
+            ).fetchall()
+        return [RoleCard.row_to_card(row) for row in rows]
+
+
+class UserFollow:
+    """用户关注模型"""
+
+    @staticmethod
+    def follow(follower_id: int, following_id: int) -> None:
+        """关注用户"""
+        if follower_id == following_id:
+            return
+        now = datetime.now().isoformat(timespec="seconds")
+        with get_db() as db:
+            db.execute(
+                "INSERT OR IGNORE INTO user_follows (follower_id, following_id, created_at) VALUES (?, ?, ?)",
+                (follower_id, following_id, now)
+            )
+            db.commit()
+
+    @staticmethod
+    def unfollow(follower_id: int, following_id: int) -> None:
+        """取消关注"""
+        with get_db() as db:
+            db.execute(
+                "DELETE FROM user_follows WHERE follower_id = ? AND following_id = ?",
+                (follower_id, following_id)
+            )
+            db.commit()
+
+    @staticmethod
+    def is_following(follower_id: int, following_id: int) -> bool:
+        """检查是否已关注"""
+        with get_db() as db:
+            row = db.execute(
+                "SELECT id FROM user_follows WHERE follower_id = ? AND following_id = ?",
+                (follower_id, following_id)
+            ).fetchone()
+        return row is not None
+
+    @staticmethod
+    def get_followers(user_id: int) -> list:
+        """获取粉丝列表"""
+        with get_db() as db:
+            rows = db.execute(
+                """
+                SELECT u.* FROM users u
+                JOIN user_follows uf ON u.id = uf.follower_id
+                WHERE uf.following_id = ?
+                ORDER BY uf.created_at DESC
+                """,
+                (user_id,)
+            ).fetchall()
+        return [dict(row) for row in rows]
+
+    @staticmethod
+    def get_following(user_id: int) -> list:
+        """获取关注列表"""
+        with get_db() as db:
+            rows = db.execute(
+                """
+                SELECT u.* FROM users u
+                JOIN user_follows uf ON u.id = uf.following_id
+                WHERE uf.follower_id = ?
+                ORDER BY uf.created_at DESC
+                """,
+                (user_id,)
+            ).fetchall()
+        return [dict(row) for row in rows]
+
+    @staticmethod
+    def get_follower_count(user_id: int) -> int:
+        """获取粉丝数"""
+        with get_db() as db:
+            row = db.execute(
+                "SELECT COUNT(*) as cnt FROM user_follows WHERE following_id = ?",
+                (user_id,)
+            ).fetchone()
+        return row["cnt"] if row else 0
+
+    @staticmethod
+    def get_following_count(user_id: int) -> int:
+        """获取关注数"""
+        with get_db() as db:
+            row = db.execute(
+                "SELECT COUNT(*) as cnt FROM user_follows WHERE follower_id = ?",
+                (user_id,)
+            ).fetchone()
+        return row["cnt"] if row else 0
