@@ -15,7 +15,7 @@ from html import escape
 
 from flask import request
 
-from models import EmailConfig, VerificationCode
+from .models import EmailConfig, VerificationCode
 
 # 验证码hash密钥（优先从环境变量读取，否则使用应用secret_key的派生值）
 _CODE_HMAC_KEY = os.getenv("ROLE_CARD_CODE_HMAC_KEY", "role_card_platform_code_hmac_key_v1")
@@ -165,7 +165,7 @@ def send_code(to_email: str) -> tuple[bool, str]:
     code = generate_verification_code()
 
     # 将邮件加入队列（异步发送）
-    from email_queue import queue_verification_email
+    from .email_queue import queue_verification_email
     queued = queue_verification_email(to_email, code)
 
     if not queued:

@@ -3,8 +3,8 @@
 """
 from flask import Blueprint, abort, render_template, request, send_file
 
-from config import BASE_DIR
-from models import RoleCard
+from ..config import PROJECT_ROOT
+from ..models import RoleCard
 
 bp = Blueprint('main', __name__)
 
@@ -23,11 +23,11 @@ def asset_file(filename):
         abort(404)
 
     # 构建目标路径（不使用 resolve() 避免符号链接问题）
-    target = BASE_DIR / safe_filename
+    target = PROJECT_ROOT / safe_filename
     target = target.absolute()
 
-    # 确保解析后的路径仍在 BASE_DIR 内
-    base_resolved = BASE_DIR.absolute()
+    # 确保解析后的路径仍在 PROJECT_ROOT 内
+    base_resolved = PROJECT_ROOT.absolute()
     try:
         # 检查目标路径是否以基础路径开头
         if not str(target).startswith(str(base_resolved)):

@@ -3,8 +3,8 @@
 """
 from flask import Blueprint, abort, flash, redirect, render_template, request, session, url_for
 
-from auth import AuthService, get_current_user, login_required
-from models import RoleCard, User
+from ..auth import AuthService, get_current_user, login_required
+from ..models import RoleCard, User
 
 bp = Blueprint('users', __name__)
 
@@ -112,7 +112,7 @@ def edit_profile(username):
         avatar_file = request.files.get("avatar")
         if avatar_file and avatar_file.filename:
             try:
-                from utils import save_avatar
+                from ..utils import save_avatar
                 avatar_path = save_avatar(avatar_file)
             except ValueError as e:
                 flash(str(e), "error")

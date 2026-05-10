@@ -11,7 +11,7 @@ from datetime import datetime, timedelta
 from enum import Enum
 from html import escape
 
-from models import get_db
+from .models import get_db
 
 
 class EmailType(str, Enum):
@@ -204,7 +204,7 @@ class EmailQueue:
     @classmethod
     def _worker_loop(cls) -> None:
         """工作线程主循环"""
-        from email_service import _send_email_raw
+        from .email_service import _send_email_raw
 
         while cls._running:
             try:

@@ -14,15 +14,15 @@ from typing import List, Tuple
 from flask import abort
 from werkzeug.utils import secure_filename
 
-from config import (
-    AVATAR_DIR, BASE_DIR, CARD_DIR, MAX_AVATAR_BYTES, MAX_CARD_BYTES,
+from .config import (
+    AVATAR_DIR, CARD_DIR, MAX_AVATAR_BYTES, MAX_CARD_BYTES,
     MAX_ZIP_BYTES, ALLOWED_AVATAR_EXTENSIONS, IMAGE_SIGNATURES
 )
 
 
 def ensure_dirs() -> None:
     """确保必要的目录存在"""
-    from config import DATA_DIR, UPLOAD_DIR, AVATAR_DIR, CARD_DIR
+    from .config import DATA_DIR, UPLOAD_DIR, AVATAR_DIR, CARD_DIR
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     AVATAR_DIR.mkdir(parents=True, exist_ok=True)
     CARD_DIR.mkdir(parents=True, exist_ok=True)
@@ -193,7 +193,7 @@ def extract_zip_cards(file_storage) -> List[Tuple[dict, str]]:
                     safe_name = Path(name).name
                     avatar_path = save_avatar_bytes(safe_name, zf.read(name))
                     break
-            from card_utils import normalize_role_card_data
+            from .card_utils import normalize_role_card_data
             imported.append((normalize_role_card_data(data), avatar_path))
     return imported
 
@@ -211,7 +211,7 @@ def card_from_json_upload(file_storage) -> dict:
     if not isinstance(data, dict):
         raise ValueError("角色卡 JSON 顶层必须是对象")
 
-    from card_utils import normalize_role_card_data
+    from .card_utils import normalize_role_card_data
     return normalize_role_card_data(data)
 
 

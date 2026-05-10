@@ -11,7 +11,7 @@
             document.documentElement.dataset.theme = saved || (prefersDark ? "dark" : "light");
         })();
     </script>
-    <link rel="stylesheet" href="{{ url_for('static_css', filename='style.css') }}?v=20260509-favorite">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=20260509-favorite">
 </head>
 <body>
     <header class="site-header">
@@ -73,7 +73,7 @@
         </div>
     </footer>
 
-    <script src="{{ url_for('static_js', filename='main.js') }}?v=20260509-favorite"></script>
+    <script src="{{ url_for('static', filename='js/main.js') }}?v=20260509-favorite"></script>
     
     <!-- CSRF Token for AJAX requests -->
     <script>

@@ -11,8 +11,8 @@ from pathlib import Path
 from flask import flash, redirect, request, session, url_for
 from werkzeug.security import check_password_hash, generate_password_hash
 
-from config import DATA_DIR
-from models import User, get_db
+from .config import DATA_DIR
+from .models import User, get_db
 
 
 # API Token 加密用的 pepper（环境变量配置）
@@ -130,7 +130,7 @@ def admin_token() -> str:
     if token_path.exists():
         return token_path.read_text(encoding="utf-8").strip()
     # 生成新密码并保存
-    from config import ensure_dirs
+    from .config import ensure_dirs
     ensure_dirs()
     generated = secrets.token_urlsafe(18)
     token_path.write_text(generated, encoding="utf-8")
@@ -139,7 +139,7 @@ def admin_token() -> str:
 
 def get_or_create_admin_user() -> dict:
     """获取或创建 admin 用户"""
-    from models import get_db
+    from .models import get_db
     
     admin_user = User.get_by_username("admin")
     if not admin_user:
@@ -199,7 +199,7 @@ def login_required(f):
 
 def owner_required(card_id: int) -> dict:
     """验证当前用户是卡片所有者，返回卡片数据，否则 403"""
-    from models import RoleCard
+    from .models import RoleCard
     card = RoleCard.get_by_id(card_id)
     if not card:
         from flask import abort

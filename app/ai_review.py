@@ -7,7 +7,7 @@ import re
 import urllib.parse
 from typing import Optional
 
-from models import AIReviewConfig
+from .models import AIReviewConfig
 
 
 # 允许的API域名白名单

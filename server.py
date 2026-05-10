@@ -35,29 +35,29 @@ from werkzeug.utils import secure_filename
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 # 导入新模块
-from config import (
-    BASE_DIR, DATA_DIR, UPLOAD_DIR, AVATAR_DIR, CARD_DIR, DB_PATH,
+from app.config import (
+    PROJECT_ROOT, DATA_DIR, UPLOAD_DIR, AVATAR_DIR, CARD_DIR, DB_PATH,
     MAX_CARD_BYTES, MAX_AVATAR_BYTES, MAX_ZIP_BYTES,
     ALLOWED_AVATAR_EXTENSIONS, IMAGE_SIGNATURES, Config
 )
-from models import init_db, get_db, User, RoleCard, Comment, UserLike, UserFavorite, Reviewer, ReviewQueue, AIReviewConfig, EmailConfig
-from auth import (
+from app.models import init_db, get_db, User, RoleCard, Comment, UserLike, UserFavorite, Reviewer, ReviewQueue, AIReviewConfig, EmailConfig
+from app.auth import (
     generate_user_api_token, resolve_api_user, api_token_valid,
     admin_token, get_current_user, login_required, AuthService,
     get_or_create_admin_user, is_admin_user
 )
-from utils import (
+from app.utils import (
     ensure_dirs, slugify, unique_slug, normalize_tags, limit_text,
     validate_image_content, save_avatar, save_avatar_bytes,
     extract_zip_cards, card_from_json_upload, to_export_json
 )
-from card_utils import normalize_role_card_data, card_from_form, validate_card
-from ai_review import AIReviewer
-from email_service import send_code, verify_code, is_valid_email
-from email_queue import EmailQueue, queue_register_success_email, queue_login_alert_email
+from app.card_utils import normalize_role_card_data, card_from_form, validate_card
+from app.ai_review import AIReviewer
+from app.email_service import send_code, verify_code, is_valid_email
+from app.email_queue import EmailQueue, queue_register_success_email, queue_login_alert_email
 
 # 创建 Flask 应用
-server = Flask(__name__)
+server = Flask(__name__, template_folder="app/templates", static_folder="app/static")
 server.config.from_object(Config)
 
 # 初始化邮件队列表并启动工作线程
@@ -232,7 +232,7 @@ def login():
     # 异步发送登录提醒邮件
     try:
         if user.get("email"):
-            from email_service import get_client_ip
+            from app.email_service import get_client_ip
             login_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             queue_login_alert_email(
                 user["email"],
@@ -350,23 +350,6 @@ def card_asset_file(filename):
     # 只允许访问 CARD_DIR 目录
     return send_from_directory(CARD_DIR, safe_name, max_age=3600)
 
-
-@server.route("/static/css/<path:filename>")
-def static_css(filename):
-    """提供 CSS 静态文件"""
-    safe_name = secure_filename(filename)
-    if not safe_name or not safe_name.endswith(".css"):
-        abort(404)
-    return send_from_directory(BASE_DIR / "static" / "css", safe_name, max_age=3600)
-
-
-@server.route("/static/js/<path:filename>")
-def static_js(filename):
-    """提供 JS 静态文件"""
-    safe_name = secure_filename(filename)
-    if not safe_name or not safe_name.endswith(".js"):
-        abort(404)
-    return send_from_directory(BASE_DIR / "static" / "js", safe_name, max_age=3600)
 
 
 @server.route("/")
@@ -867,8 +850,8 @@ def download_nekozip(card_id):
     with zipfile.ZipFile(memory_file, "w", zipfile.ZIP_DEFLATED) as zf:
         zf.writestr("character.json", json.dumps(to_export_json(card), ensure_ascii=False, indent=2))
         if card.get("avatar_path"):
-            avatar_path = BASE_DIR / card["avatar_path"]
-            if avatar_path.exists() and avatar_path.resolve().is_relative_to(BASE_DIR):
+            avatar_path = PROJECT_ROOT / card["avatar_path"]
+            if avatar_path.exists() and avatar_path.resolve().is_relative_to(PROJECT_ROOT):
                 zf.write(avatar_path, f"portrait{avatar_path.suffix}")
     memory_file.seek(0)
     return send_file(
@@ -1339,7 +1322,7 @@ def admin_email_config():
 
 @server.context_processor
 def inject_globals():
-    from models import Reviewer
+    from app.models import Reviewer
     user = get_current_user()
     is_reviewer = False
     is_admin = False

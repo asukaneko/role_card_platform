@@ -6,8 +6,9 @@ from pathlib import Path
 
 # 基础路径
 BASE_DIR = Path(__file__).resolve().parent
-DATA_DIR = BASE_DIR / "data"
-UPLOAD_DIR = BASE_DIR / "uploads"
+PROJECT_ROOT = BASE_DIR.parent
+DATA_DIR = PROJECT_ROOT / "data"
+UPLOAD_DIR = PROJECT_ROOT / "uploads"
 AVATAR_DIR = UPLOAD_DIR / "avatars"
 CARD_DIR = UPLOAD_DIR / "cards"
 DB_PATH = DATA_DIR / "role_cards.db"
@@ -32,7 +33,7 @@ IMAGE_SIGNATURES = {
 
 def load_dotenv() -> None:
     """加载 .env 文件中的环境变量"""
-    env_path = BASE_DIR / ".env"
+    env_path = PROJECT_ROOT / ".env"
     if not env_path.exists():
         return
     for raw_line in env_path.read_text(encoding="utf-8").splitlines():

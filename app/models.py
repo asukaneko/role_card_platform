@@ -8,7 +8,7 @@ from typing import Optional
 
 from flask import abort, session
 
-from config import DATA_DIR, DB_PATH
+from .config import DATA_DIR, DB_PATH
 
 
 def ensure_dirs() -> None:
@@ -275,7 +275,7 @@ class User:
         """创建新用户"""
         now = datetime.now().isoformat(timespec="seconds")
         # 计算 api_token 的 hash
-        from auth import hash_api_token
+        from .auth import hash_api_token
         api_token_hash = hash_api_token(api_token) if api_token else ""
         
         with get_db() as db:
@@ -290,7 +290,7 @@ class User:
     @staticmethod
     def update_api_token(user_id: int, token: str) -> None:
         """更新用户 API Token（存储 hash）"""
-        from auth import hash_api_token
+        from .auth import hash_api_token
         token_hash = hash_api_token(token) if token else ""
         with get_db() as db:
             db.execute(
@@ -431,7 +431,7 @@ class RoleCard:
         """
         now = datetime.now().isoformat(timespec="seconds")
         with get_db() as db:
-            from utils import unique_slug
+            from .utils import unique_slug
             slug = unique_slug(db, card_data["name"])
             db.execute(
                 """
@@ -612,7 +612,7 @@ class RoleCard:
     @staticmethod
     def get_all_tags() -> list:
         """获取所有标签"""
-        from utils import normalize_tags
+        from .utils import normalize_tags
         with get_db() as db:
             rows = db.execute(
                 "SELECT tags_json FROM role_cards WHERE visibility = 'public' AND status = 'approved'"

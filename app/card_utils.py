@@ -1,7 +1,7 @@
 """
 角色卡工具函数 - 处理角色卡数据的解析和验证
 """
-from utils import limit_text, normalize_tags
+from .utils import limit_text, normalize_tags
 
 
 def normalize_role_card_data(data: dict, visibility: str = "public") -> dict:
