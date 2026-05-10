@@ -24,6 +24,13 @@
         </a>
         <nav class="nav">
             <a href="{{ url_for('index') }}">广场</a>
+            <a href="{{ url_for('leaderboard') }}">
+                <svg style="width:16px;height:16px;vertical-align:middle;margin-right:4px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M8 21h8M12 17v4M7 4h10l2 6H5L7 4z"/>
+                    <path d="M12 17l-3-6h6l-3 6z"/>
+                </svg>
+                排行榜
+            </a>
             {% if current_user %}
                 <a href="{{ url_for('upload') }}">上传</a>
                 <a href="{{ url_for('feed') }}">动态</a>

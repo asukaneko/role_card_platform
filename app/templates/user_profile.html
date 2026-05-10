@@ -47,6 +47,70 @@
         </form>
     </div>
     {% endif %}
+    
+    <!-- 用户数据卡板 -->
+    {% if user_stats %}
+    <div class="user-stats-dashboard">
+        <h3>📊 创作者数据</h3>
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-icon">🏆</div>
+                <div class="stat-value">#{{ user_stats.rank }}</div>
+                <div class="stat-label">全站排名</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">⭐</div>
+                <div class="stat-value">Lv{{ profile_user.level or 1 }}</div>
+                <div class="stat-label">{{ level_title }}</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">✨</div>
+                <div class="stat-value">{{ profile_user.exp or 0 }}</div>
+                <div class="stat-label">经验值</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">📝</div>
+                <div class="stat-value">{{ user_stats.cards.total }}</div>
+                <div class="stat-label">角色卡</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">👍</div>
+                <div class="stat-value">{{ user_stats.cards.likes }}</div>
+                <div class="stat-label">获得点赞</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">👁️</div>
+                <div class="stat-value">{{ user_stats.cards.views }}</div>
+                <div class="stat-label">总浏览量</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">⬇️</div>
+                <div class="stat-value">{{ user_stats.cards.downloads }}</div>
+                <div class="stat-label">被下载</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">💬</div>
+                <div class="stat-value">{{ user_stats.comments }}</div>
+                <div class="stat-label">评论数</div>
+            </div>
+        </div>
+        
+        <!-- 经验值进度条 -->
+        <div class="exp-progress-section">
+            <div class="exp-info">
+                <span>当前经验: {{ profile_user.exp or 0 }}</span>
+                <span>下一级需要: {{ user_stats.next_level_exp }} EXP</span>
+            </div>
+            <div class="exp-progress-bar">
+                {% set current_level_exp = user_stats.next_level_exp - (500 if profile_user.level > 5 else [100, 200, 300, 400, 500][(profile_user.level or 1) - 1]) %}
+                {% set exp_in_level = (profile_user.exp or 0) - current_level_exp %}
+                {% set exp_needed = user_stats.next_level_exp - current_level_exp %}
+                {% set progress = (exp_in_level / exp_needed * 100) if exp_needed > 0 else 100 %}
+                <div class="exp-progress-fill" style="width: {{ progress }}%"></div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
 </section>
 
 {# 标签页切换 #}
@@ -225,4 +289,110 @@ function copyApiToken() {
     });
 }
 </script>
+
+<style>
+/* 用户数据卡板样式 */
+.user-stats-dashboard {
+    margin-top: 1.5rem;
+    padding: 1.5rem;
+    background: rgba(47, 111, 115, 0.08);
+    border: 1px solid rgba(47, 111, 115, 0.15);
+    border-radius: 16px;
+}
+
+.user-stats-dashboard h3 {
+    margin: 0 0 1rem 0;
+    color: var(--ink);
+    font-size: 1.1rem;
+}
+
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 1rem;
+}
+
+.stat-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 1rem;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    text-align: center;
+    transition: all 0.2s;
+}
+
+.stat-card:hover {
+    background: rgba(47, 111, 115, 0.1);
+    border-color: rgba(47, 111, 115, 0.3);
+    transform: translateY(-2px);
+}
+
+.stat-icon {
+    font-size: 1.5rem;
+    margin-bottom: 0.5rem;
+}
+
+.stat-value {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--accent);
+    margin-bottom: 0.25rem;
+}
+
+.stat-label {
+    font-size: 0.75rem;
+    color: var(--muted);
+}
+
+/* 经验值进度条 */
+.exp-progress-section {
+    margin-top: 1.5rem;
+    padding-top: 1rem;
+    border-top: 1px solid rgba(47, 111, 115, 0.1);
+}
+
+.exp-info {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 0.5rem;
+    font-size: 0.8125rem;
+    color: var(--muted);
+}
+
+.exp-progress-bar {
+    height: 8px;
+    background: rgba(0, 0, 0, 0.1);
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.exp-progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent), var(--accent-light));
+    border-radius: 4px;
+    transition: width 0.5s ease;
+}
+
+/* 深色模式适配 */
+:root[data-theme="dark"] .user-stats-dashboard {
+    background: rgba(0, 0, 0, 0.2);
+    border-color: rgba(255, 255, 255, 0.1);
+}
+
+:root[data-theme="dark"] .stat-card {
+    background: rgba(0, 0, 0, 0.25);
+    border-color: rgba(255, 255, 255, 0.1);
+}
+
+:root[data-theme="dark"] .stat-card:hover {
+    background: rgba(98, 185, 191, 0.15);
+}
+
+:root[data-theme="dark"] .exp-progress-bar {
+    background: rgba(255, 255, 255, 0.1);
+}
+</style>
 {% endblock %}

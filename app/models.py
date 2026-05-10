@@ -61,6 +61,7 @@ def init_db() -> None:
                 visibility TEXT DEFAULT 'public',
                 downloads INTEGER DEFAULT 0,
                 likes INTEGER DEFAULT 0,
+                views INTEGER DEFAULT 0,
                 source_format TEXT DEFAULT 'platform',
                 raw_json TEXT DEFAULT '{}',
                 user_id INTEGER DEFAULT NULL,
@@ -96,6 +97,7 @@ def init_db() -> None:
             ("reviewed_by", "ALTER TABLE role_cards ADD COLUMN reviewed_by INTEGER DEFAULT NULL"),
             ("reviewed_at", "ALTER TABLE role_cards ADD COLUMN reviewed_at TEXT DEFAULT NULL"),
             ("review_result", "ALTER TABLE role_cards ADD COLUMN review_result TEXT DEFAULT NULL"),
+            ("views", "ALTER TABLE role_cards ADD COLUMN views INTEGER DEFAULT 0"),
         ]
         for col, sql in migrations:
             if col not in columns:
@@ -117,6 +119,10 @@ def init_db() -> None:
             db.execute("ALTER TABLE users ADD COLUMN email TEXT DEFAULT ''")
         if "email_verified" not in user_columns:
             db.execute("ALTER TABLE users ADD COLUMN email_verified INTEGER DEFAULT 0")
+        if "level" not in user_columns:
+            db.execute("ALTER TABLE users ADD COLUMN level INTEGER DEFAULT 1")
+        if "exp" not in user_columns:
+            db.execute("ALTER TABLE users ADD COLUMN exp INTEGER DEFAULT 0")
 
         # 评论表
         db.execute(
@@ -367,6 +373,171 @@ class User:
             ).fetchall()
         return [dict(row) for row in rows]
 
+    @staticmethod
+    def add_exp(user_id: int, exp: int) -> dict:
+        """增加用户经验值，并自动升级
+        
+        等级规则：
+        - Lv1: 0-99 EXP
+        - Lv2: 100-299 EXP  
+        - Lv3: 300-599 EXP
+        - Lv4: 600-999 EXP
+        - Lv5: 1000-1499 EXP
+        - Lv6+: 每500 EXP升一级
+        
+        Returns:
+            包含升级信息的字典
+        """
+        user = User.get_by_id(user_id)
+        if not user:
+            return None
+            
+        old_level = user.get("level", 1)
+        new_exp = user.get("exp", 0) + exp
+        
+        # 计算新等级
+        if new_exp < 100:
+            new_level = 1
+        elif new_exp < 300:
+            new_level = 2
+        elif new_exp < 600:
+            new_level = 3
+        elif new_exp < 1000:
+            new_level = 4
+        elif new_exp < 1500:
+            new_level = 5
+        else:
+            new_level = 5 + (new_exp - 1500) // 500 + 1
+        
+        with get_db() as db:
+            db.execute(
+                "UPDATE users SET exp = ?, level = ? WHERE id = ?",
+                (new_exp, new_level, user_id)
+            )
+            db.commit()
+        
+        return {
+            "old_level": old_level,
+            "new_level": new_level,
+            "exp_gained": exp,
+            "total_exp": new_exp,
+            "level_up": new_level > old_level
+        }
+
+    @staticmethod
+    def get_level_title(level: int) -> str:
+        """获取等级称号"""
+        titles = {
+            1: "新手",
+            2: "学徒",
+            3: "创作者",
+            4: "资深创作者",
+            5: "大师",
+            6: "传说",
+            7: "神话",
+            8: "半神",
+            9: "神明",
+            10: "创世神"
+        }
+        return titles.get(level, f"Lv{level}")
+
+    @staticmethod
+    def get_user_stats(user_id: int) -> dict:
+        """获取用户详细统计数据"""
+        with get_db() as db:
+            # 基础信息
+            user = User.get_by_id(user_id)
+            if not user:
+                return None
+            
+            # 统计角色卡数据
+            card_stats = db.execute(
+                """
+                SELECT 
+                    COUNT(*) as total_cards,
+                    SUM(likes) as total_likes,
+                    SUM(views) as total_views,
+                    SUM(downloads) as total_downloads
+                FROM role_cards
+                WHERE user_id = ? AND status = 'approved'
+                """,
+                (user_id,)
+            ).fetchone()
+            
+            # 统计评论数
+            comment_count = db.execute(
+                "SELECT COUNT(*) FROM comments WHERE user_id = ?",
+                (user_id,)
+            ).fetchone()[0]
+            
+            # 获得的总点赞数（角色卡点赞）
+            total_likes = card_stats["total_likes"] or 0
+            
+            # 计算排名
+            rank = db.execute(
+                """
+                SELECT COUNT(*) + 1 FROM users
+                WHERE exp > ?
+                """,
+                (user.get("exp", 0),)
+            ).fetchone()[0]
+            
+        return {
+            "user": user,
+            "level_title": User.get_level_title(user.get("level", 1)),
+            "cards": {
+                "total": card_stats["total_cards"] or 0,
+                "likes": total_likes,
+                "views": card_stats["total_views"] or 0,
+                "downloads": card_stats["total_downloads"] or 0,
+            },
+            "comments": comment_count,
+            "rank": rank,
+            "next_level_exp": User.get_next_level_exp(user.get("level", 1))
+        }
+
+    @staticmethod
+    def get_next_level_exp(level: int) -> int:
+        """获取下一级所需经验值"""
+        if level == 1:
+            return 100
+        elif level == 2:
+            return 300
+        elif level == 3:
+            return 600
+        elif level == 4:
+            return 1000
+        elif level == 5:
+            return 1500
+        else:
+            return 1500 + (level - 5) * 500
+
+    @staticmethod
+    def get_leaderboard(limit: int = 10) -> list:
+        """获取用户排行榜（按经验值），排除管理员"""
+        with get_db() as db:
+            rows = db.execute(
+                """
+                SELECT u.*,
+                       COUNT(DISTINCT rc.id) as card_count
+                FROM users u
+                LEFT JOIN role_cards rc ON u.id = rc.user_id AND rc.status = 'approved'
+                WHERE u.is_admin = 0 OR u.is_admin IS NULL
+                GROUP BY u.id
+                ORDER BY u.exp DESC, u.level DESC
+                LIMIT ?
+                """,
+                (limit,)
+            ).fetchall()
+        
+        result = []
+        for i, row in enumerate(rows, 1):
+            user = dict(row)
+            user["rank"] = i
+            user["level_title"] = User.get_level_title(user.get("level", 1))
+            result.append(user)
+        return result
+
 
 class RoleCard:
     """角色卡模型"""
@@ -568,6 +739,42 @@ class RoleCard:
         with get_db() as db:
             db.execute("UPDATE role_cards SET likes = likes + 1 WHERE id = ?", (card_id,))
             db.commit()
+
+    @staticmethod
+    def increment_views(card_id: int) -> None:
+        """增加浏览计数"""
+        with get_db() as db:
+            db.execute("UPDATE role_cards SET views = views + 1 WHERE id = ?", (card_id,))
+            db.commit()
+
+    @staticmethod
+    def get_leaderboard(sort_by: str = "likes", limit: int = 10) -> list:
+        """获取排行榜
+        
+        Args:
+            sort_by: 排序方式 - likes(点赞), views(浏览), downloads(下载), newest(最新)
+            limit: 返回数量
+        """
+        order_by = {
+            "likes": "likes DESC, views DESC",
+            "views": "views DESC, likes DESC",
+            "downloads": "downloads DESC, likes DESC",
+            "newest": "created_at DESC",
+        }.get(sort_by, "likes DESC")
+        
+        with get_db() as db:
+            rows = db.execute(
+                f"""
+                SELECT rc.*, u.username as owner_username
+                FROM role_cards rc
+                LEFT JOIN users u ON rc.user_id = u.id
+                WHERE rc.status = 'approved' AND rc.visibility = 'public'
+                ORDER BY {order_by}
+                LIMIT ?
+                """,
+                (limit,)
+            ).fetchall()
+        return [RoleCard.row_to_card(row) for row in rows]
 
     @staticmethod
     def search(query: str = "", tag: str = "", sort: str = "latest", visibility: str = None, include_pending: bool = False) -> list:

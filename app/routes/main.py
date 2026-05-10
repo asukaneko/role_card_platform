@@ -4,7 +4,7 @@
 from flask import Blueprint, abort, render_template, request, send_file
 
 from ..config import PROJECT_ROOT
-from ..models import RoleCard
+from ..models import RoleCard, User
 
 bp = Blueprint('main', __name__)
 
@@ -57,4 +57,23 @@ def index():
         tag=tag,
         sort=sort,
         all_tags=all_tags,
+    )
+
+
+@bp.route("/leaderboard")
+def leaderboard():
+    """排行榜页面"""
+    sort_by = request.args.get("sort", "likes")  # likes, views, downloads, newest
+    
+    # 获取角色卡排行榜
+    card_leaderboard = RoleCard.get_leaderboard(sort_by=sort_by, limit=20)
+    
+    # 获取用户排行榜
+    user_leaderboard = User.get_leaderboard(limit=20)
+    
+    return render_template(
+        "leaderboard.html",
+        card_leaderboard=card_leaderboard,
+        user_leaderboard=user_leaderboard,
+        sort_by=sort_by,
     )

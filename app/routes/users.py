@@ -78,8 +78,18 @@ def user_profile(username):
     # 自己的主页显示所有角色卡，别人的主页只显示公开的
     is_self = session.get("user_id") == user["id"]
     cards = RoleCard.get_by_user(user["id"], include_private=is_self)
+    
+    # 获取用户详细统计数据
+    user_stats = User.get_user_stats(user["id"])
 
-    return render_template("user_profile.html", profile_user=user, cards=cards, is_self=is_self)
+    return render_template(
+        "user_profile.html", 
+        profile_user=user, 
+        cards=cards, 
+        is_self=is_self,
+        user_stats=user_stats,
+        level_title=User.get_level_title(user.get("level", 1))
+    )
 
 
 @bp.route("/user/<username>/regen-token", methods=["POST"])
