@@ -56,15 +56,21 @@ def generate_user_api_token() -> str:
 def resolve_api_user() -> int | None:
     """验证 API Token，返回对应的 user_id（None 表示无效）
 
-    只接受Header中的token：
-    - X-Role-Card-Token: <token>
-    - Authorization: Bearer <token>
+    接受以下方式的token：
+    - Header: X-Role-Card-Token: <token>
+    - Header: Authorization: Bearer <token>
+    - URL查询参数: ?api_token=<token>
     """
+    # 优先从Header获取
     provided = request.headers.get("X-Role-Card-Token", "").strip()
 
     auth = request.headers.get("Authorization", "")
     if auth.lower().startswith("bearer "):
         provided = auth.split(" ", 1)[1].strip()
+
+    # 如果Header没有，尝试从URL查询参数获取（nekobot浏览器跳转场景）
+    if not provided:
+        provided = request.args.get("api_token", "").strip()
 
     if not provided:
         return None

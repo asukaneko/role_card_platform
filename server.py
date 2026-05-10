@@ -420,14 +420,22 @@ def index():
 @server.route("/card/<identifier>")
 def card_detail(identifier):
     user_id = session.get("user_id")
-    
+
     # 检查是否为 admin 用户
     is_admin = is_admin_user(user_id)
+
+    # 尝试通过API Token获取用户身份（nekobot等API客户端）
+    api_user_id = resolve_api_user()
+    if api_user_id is not None and api_user_id != 0:
+        # API Token有效且不是管理员Token，合并身份
+        if not user_id:
+            user_id = api_user_id
+        is_admin = is_admin or is_admin_user(api_user_id)
 
     # 先尝试获取已审核的角色卡
     card = RoleCard.get_by_slug(identifier)
 
-    # 如果找不到，检查是否是所有者或审核员在查看待审核内容
+    # 如果找不到，检查是否是所有者、审核员、管理员或API上传者在查看待审核内容
     if not card:
         with get_db() as db:
             if str(identifier).isdigit():
@@ -436,11 +444,13 @@ def card_detail(identifier):
                 row = db.execute("SELECT * FROM role_cards WHERE slug = ?", (identifier,)).fetchone()
 
             if row:
-                # 检查权限：只有所有者、审核员和管理员可以查看待审核内容
+                # 检查权限：所有者、审核员、管理员、API Token持有者可以查看待审核内容
                 is_owner = user_id and row["user_id"] == user_id
                 is_reviewer = user_id and Reviewer.is_reviewer(user_id)
+                # API上传的卡片（user_id为None）允许任何有效API Token查看
+                is_api_uploader = api_user_id is not None and row["user_id"] is None
 
-                if is_owner or is_reviewer or is_admin:
+                if is_owner or is_reviewer or is_admin or is_api_uploader:
                     card = RoleCard.row_to_card(row)
                 else:
                     abort(404)
@@ -765,7 +775,12 @@ def api_create_card():
         # 检查是否上传了ZIP文件（NekoBot格式）
         card_file = request.files.get("card_file") or request.files.get("file")
         avatar_path = ""
-        
+
+        # API上传的角色卡保持pending审核状态，但上传者可通过API Token查看
+        # user_id为0表示管理员Token，转为None表示无归属用户
+        actual_user_id = user_id if user_id != 0 else None
+        status = "pending"
+
         if card_file and card_file.filename:
             if card_file.filename.lower().endswith(".zip"):
                 # 处理NekoBot ZIP格式
@@ -774,7 +789,7 @@ def api_create_card():
                     return jsonify({"success": False, "error": "ZIP文件中没有找到有效的角色卡"}), 400
                 # ZIP导入通常只包含一个角色卡
                 card_data, avatar_path = imported_cards[0]
-                saved = RoleCard.create(card_data, avatar_path, user_id=user_id if user_id != 0 else None)
+                saved = RoleCard.create(card_data, avatar_path, user_id=actual_user_id, status=status)
                 return jsonify(
                     {
                         "success": True,
@@ -787,7 +802,7 @@ def api_create_card():
                 raw_card = card_from_json_upload(card_file)
                 avatar_path = save_avatar(request.files.get("avatar"))
                 card = normalize_role_card_data(raw_card, request.form.get("visibility", "public"))
-                saved = RoleCard.create(card, avatar_path, user_id=user_id if user_id != 0 else None)
+                saved = RoleCard.create(card, avatar_path, user_id=actual_user_id, status=status)
                 return jsonify(
                     {
                         "success": True,
@@ -795,7 +810,7 @@ def api_create_card():
                         "url": url_for("card_detail", identifier=saved["slug"], _external=True),
                     }
                 )
-        
+
         # 处理直接JSON数据上传
         avatar_path = save_avatar(request.files.get("avatar"))
         if request.is_json:
@@ -809,7 +824,7 @@ def api_create_card():
             return jsonify({"success": False, "error": "Card JSON must be an object"}), 400
 
         card = normalize_role_card_data(raw_card, request.form.get("visibility", "public"))
-        saved = RoleCard.create(card, avatar_path, user_id=user_id if user_id != 0 else None)
+        saved = RoleCard.create(card, avatar_path, user_id=actual_user_id, status=status)
         return jsonify(
             {
                 "success": True,

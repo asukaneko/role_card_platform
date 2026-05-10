@@ -420,8 +420,15 @@ class RoleCard:
         return RoleCard.row_to_card(row)
 
     @staticmethod
-    def create(card_data: dict, avatar_path: str = "", user_id: int = None) -> dict:
-        """创建新角色卡（默认进入待审核状态）"""
+    def create(card_data: dict, avatar_path: str = "", user_id: int = None, status: str = "pending") -> dict:
+        """创建新角色卡
+
+        Args:
+            card_data: 角色卡数据
+            avatar_path: 头像路径
+            user_id: 上传用户ID
+            status: 初始状态，默认pending（网页上传需审核），api上传可指定approved
+        """
         now = datetime.now().isoformat(timespec="seconds")
         with get_db() as db:
             from utils import unique_slug
@@ -458,7 +465,7 @@ class RoleCard:
                     card_data.get("response_format", ""),
                     json.dumps(card_data.get("rules", []), ensure_ascii=False),
                     json.dumps(card_data.get("state", {}), ensure_ascii=False),
-                    "pending",  # 新创建的角色卡默认进入待审核状态
+                    status,
                 ),
             )
             db.commit()
