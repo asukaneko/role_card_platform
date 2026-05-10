@@ -179,16 +179,24 @@
             <h2>关联角色</h2>
             <div class="related-avatars-row">
                 {% for rc in related_cards %}
-                <a href="{{ url_for('card_detail', identifier=rc.slug) }}" class="related-avatar-link" title="{{ rc.name }}">
-                    <div class="related-avatar">
-                        {% if rc.avatar_path %}
-                            <img src="{{ url_for('avatar_file', filename=rc.avatar_path.split('/')[-1]) }}" alt="{{ rc.name }}">
-                        {% else %}
-                            <span>{{ rc.name[:1] }}</span>
-                        {% endif %}
-                    </div>
-                    <span class="related-avatar-name">{{ rc.name }}</span>
-                </a>
+                <div class="related-avatar-item">
+                    <a href="{{ url_for('card_detail', identifier=rc.slug) }}" class="related-avatar-link" title="{{ rc.name }}">
+                        <div class="related-avatar">
+                            {% if rc.avatar_path %}
+                                <img src="{{ url_for('avatar_file', filename=rc.avatar_path.split('/')[-1]) }}" alt="{{ rc.name }}">
+                            {% else %}
+                                <span>{{ rc.name[:1] }}</span>
+                            {% endif %}
+                        </div>
+                        <span class="related-avatar-name">{{ rc.name }}</span>
+                    </a>
+                    {% if is_owner %}
+                    <form method="post" action="{{ url_for('remove_card_relation', card_id=card.id, related_card_id=rc.id) }}" class="unlink-form" onsubmit="return confirm('确定要解除与 {{ rc.name }} 的关联吗？')">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button type="submit" class="unlink-btn" title="解除关联">×</button>
+                    </form>
+                    {% endif %}
+                </div>
                 {% endfor %}
             </div>
         </section>

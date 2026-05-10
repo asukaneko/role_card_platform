@@ -2278,6 +2278,48 @@ pre {
     max-width: 72px;
 }
 
+/* 关联角色项（包含删除按钮） */
+.related-avatar-item {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.unlink-form {
+    position: absolute;
+    top: -4px;
+    right: 4px;
+    margin: 0;
+}
+
+.unlink-btn {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    border: none;
+    background: rgba(220, 53, 69, 0.9);
+    color: white;
+    font-size: 14px;
+    line-height: 1;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 0.2s ease, transform 0.2s ease;
+    padding: 0;
+}
+
+.related-avatar-item:hover .unlink-btn {
+    opacity: 1;
+}
+
+.unlink-btn:hover {
+    background: #dc3545;
+    transform: scale(1.1);
+}
+
 /* 关联角色卡搜索 */
 .link-card-section {
     margin-top: 20px;

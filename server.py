@@ -598,7 +598,10 @@ def card_detail(identifier):
     if user_id and card.get("user_id"):
         is_following_author = UserFollow.is_following(user_id, card["user_id"])
 
-    return render_template("detail.html", card=card, comments=comments, user_liked=user_liked, user_favorited=user_favorited, current_user_id=user_id, related_cards=related_cards, linked_by_cards=linked_by_cards, is_following_author=is_following_author)
+    # 检查当前用户是否是卡片所有者
+    is_owner = user_id and card.get("user_id") == user_id
+
+    return render_template("detail.html", card=card, comments=comments, user_liked=user_liked, user_favorited=user_favorited, current_user_id=user_id, related_cards=related_cards, linked_by_cards=linked_by_cards, is_following_author=is_following_author, is_owner=is_owner)
 
 
 @server.route("/card/<int:card_id>/relate", methods=["POST"])
@@ -620,7 +623,8 @@ def remove_card_relation(card_id, related_card_id):
     """取消关联角色卡"""
     card = owner_required(card_id)
     CardRelation.remove(card_id, related_card_id)
-    return jsonify({"success": True})
+    flash("关联已解除")
+    return redirect(url_for("card_detail", identifier=card["slug"]))
 
 
 @server.route("/card/<int:card_id>/related")

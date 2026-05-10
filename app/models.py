@@ -1446,24 +1446,34 @@ class CardRelation:
 
     @staticmethod
     def add(card_id: int, related_card_id: int, relation_type: str = "related") -> None:
-        """添加角色卡关联"""
+        """添加角色卡关联（双向关联）"""
         if card_id == related_card_id:
             return
         now = datetime.now().isoformat(timespec="seconds")
         with get_db() as db:
+            # 建立双向关联：A->B 和 B->A
             db.execute(
                 "INSERT OR IGNORE INTO card_relations (card_id, related_card_id, relation_type, created_at) VALUES (?, ?, ?, ?)",
                 (card_id, related_card_id, relation_type, now)
+            )
+            db.execute(
+                "INSERT OR IGNORE INTO card_relations (card_id, related_card_id, relation_type, created_at) VALUES (?, ?, ?, ?)",
+                (related_card_id, card_id, relation_type, now)
             )
             db.commit()
 
     @staticmethod
     def remove(card_id: int, related_card_id: int) -> None:
-        """移除角色卡关联"""
+        """移除角色卡关联（双向删除）"""
         with get_db() as db:
+            # 删除双向关联：A->B 和 B->A
             db.execute(
                 "DELETE FROM card_relations WHERE card_id = ? AND related_card_id = ?",
                 (card_id, related_card_id)
+            )
+            db.execute(
+                "DELETE FROM card_relations WHERE card_id = ? AND related_card_id = ?",
+                (related_card_id, card_id)
             )
             db.commit()
 
