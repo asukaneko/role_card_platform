@@ -55,34 +55,40 @@ def generate_user_api_token() -> str:
 
 def resolve_api_user() -> int | None:
     """验证 API Token，返回对应的 user_id（None 表示无效）
-    
+
     只接受Header中的token：
     - X-Role-Card-Token: <token>
     - Authorization: Bearer <token>
     """
     provided = request.headers.get("X-Role-Card-Token", "").strip()
-    
+
     auth = request.headers.get("Authorization", "")
     if auth.lower().startswith("bearer "):
         provided = auth.split(" ", 1)[1].strip()
-    
+
     if not provided:
         return None
-    
+
     # 计算提供的 token 的 hash
     provided_hash = hash_api_token(provided)
-    
+
     # 优先匹配用户级 Token（使用 hash 比较，防时序攻击）
     with get_db() as db:
         urow = db.execute("SELECT id FROM users WHERE api_token_hash = ?", (provided_hash,)).fetchone()
     if urow:
         return urow["id"]
-    
+
+    # 兼容旧用户：如果 api_token_hash 为空，但 api_token 匹配（明文比较，向后兼容）
+    with get_db() as db:
+        urow = db.execute("SELECT id FROM users WHERE api_token = ? AND (api_token_hash = '' OR api_token_hash IS NULL)", (provided,)).fetchone()
+    if urow:
+        return urow["id"]
+
     # 兼容全局管理员 Token（仍然使用明文比较，因为管理员token是配置在环境变量中的）
     configured = os.getenv("ROLE_CARD_API_TOKEN", "").strip()
     if configured and secrets.compare_digest(provided, configured):
         return 0  # 特殊值：管理员 Token，无具体用户
-    
+
     return None
 
 

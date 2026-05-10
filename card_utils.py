@@ -8,19 +8,25 @@ def normalize_role_card_data(data: dict, visibility: str = "public") -> dict:
     """标准化角色卡数据，支持多种格式（平台格式、通用格式、NekoBot格式）"""
     raw = dict(data or {})
 
-    # 检测是否为 NekoBot 格式
-    is_nekobot = bool(raw.get("basicInfo") or raw.get("firstMessage") or raw.get("systemPrompt"))
+    # 检测是否为 NekoBot 格式（同时检查驼峰命名和下划线命名）
+    is_nekobot = bool(
+        raw.get("basicInfo") or raw.get("basic_info") or
+        raw.get("firstMessage") or raw.get("first_message") or
+        raw.get("systemPrompt") or raw.get("system_prompt") or
+        raw.get("exampleDialogues") or raw.get("example_dialogues") or
+        raw.get("responseFormat") or raw.get("response_format")
+    )
     source_format = "nekobot" if is_nekobot else (raw.get("source_format") or raw.get("source") or "platform")
 
-    # 基础字段映射
-    description = raw.get("description") or raw.get("summary") or raw.get("basicInfo", "")
+    # 基础字段映射（同时支持驼峰命名和下划线命名）
+    description = raw.get("description") or raw.get("summary") or raw.get("basicInfo") or raw.get("basic_info", "")
     first_message = raw.get("first_message") or raw.get("first_mes") or raw.get("firstMessage", "")
     system_prompt = raw.get("system_prompt") or raw.get("prompt") or raw.get("systemPrompt", "")
 
-    # NekoBot 特有字段
-    basic_info = raw.get("basicInfo", "")
-    example_dialogues = raw.get("exampleDialogues", "")
-    response_format = raw.get("responseFormat", "")
+    # NekoBot 特有字段（同时支持驼峰命名和下划线命名）
+    basic_info = raw.get("basicInfo") or raw.get("basic_info", "")
+    example_dialogues = raw.get("exampleDialogues") or raw.get("example_dialogues", "")
+    response_format = raw.get("responseFormat") or raw.get("response_format", "")
     rules = raw.get("rules", [])
     state = raw.get("state", {})
 

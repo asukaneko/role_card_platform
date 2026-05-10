@@ -680,11 +680,46 @@ def upload():
 def api_create_card():
     # API接口只接受API Token认证，不使用session（防止CSRF攻击）
     user_id = resolve_api_user()
-    # 管理员 Token 返回 0，转为 None 表示无归属用户
-    if not user_id or user_id == 0:
+    # user_id 为 None 表示无效Token；0 表示管理员Token（允许上传）
+    if user_id is None:
         return jsonify({"success": False, "error": "需要提供有效的 API Token"}), 403
 
     try:
+        # 检查是否上传了ZIP文件（NekoBot格式）
+        card_file = request.files.get("card_file") or request.files.get("file")
+        avatar_path = ""
+        
+        if card_file and card_file.filename:
+            if card_file.filename.lower().endswith(".zip"):
+                # 处理NekoBot ZIP格式
+                imported_cards = extract_zip_cards(card_file)
+                if not imported_cards:
+                    return jsonify({"success": False, "error": "ZIP文件中没有找到有效的角色卡"}), 400
+                # ZIP导入通常只包含一个角色卡
+                card_data, avatar_path = imported_cards[0]
+                saved = RoleCard.create(card_data, avatar_path, user_id=user_id if user_id != 0 else None)
+                return jsonify(
+                    {
+                        "success": True,
+                        "card": saved,
+                        "url": url_for("card_detail", identifier=saved["slug"], _external=True),
+                    }
+                )
+            elif card_file.filename.lower().endswith(".json"):
+                # 处理JSON文件上传
+                raw_card = card_from_json_upload(card_file)
+                avatar_path = save_avatar(request.files.get("avatar"))
+                card = normalize_role_card_data(raw_card, request.form.get("visibility", "public"))
+                saved = RoleCard.create(card, avatar_path, user_id=user_id if user_id != 0 else None)
+                return jsonify(
+                    {
+                        "success": True,
+                        "card": saved,
+                        "url": url_for("card_detail", identifier=saved["slug"], _external=True),
+                    }
+                )
+        
+        # 处理直接JSON数据上传
         avatar_path = save_avatar(request.files.get("avatar"))
         if request.is_json:
             payload = request.get_json(silent=True) or {}
@@ -697,7 +732,7 @@ def api_create_card():
             return jsonify({"success": False, "error": "Card JSON must be an object"}), 400
 
         card = normalize_role_card_data(raw_card, request.form.get("visibility", "public"))
-        saved = RoleCard.create(card, avatar_path, user_id=user_id)
+        saved = RoleCard.create(card, avatar_path, user_id=user_id if user_id != 0 else None)
         return jsonify(
             {
                 "success": True,
