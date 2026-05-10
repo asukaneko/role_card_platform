@@ -142,7 +142,8 @@ def register():
 
         existing_email = db.execute("SELECT id FROM users WHERE email = ?", (email,)).fetchone()
         if existing_email:
-            flash("该邮箱已被注册", "error")
+            # 不暴露邮箱已注册，统一提示注册信息无效
+            flash("注册信息无效或验证码错误", "error")
             return redirect(url_for("register"))
 
         now = datetime.now().isoformat(timespec="seconds")
@@ -171,8 +172,6 @@ def register():
 @limiter.limit("5 per minute")
 def send_verification_code():
     """发送邮箱验证码"""
-    import traceback
-
     email = (request.form.get("email") or "").strip().lower()
 
     if not email:
@@ -182,23 +181,23 @@ def send_verification_code():
         return jsonify({"success": False, "error": "邮箱格式不正确"}), 400
 
     try:
-        # 检查邮箱是否已被注册
+        # 检查邮箱是否已被注册（不暴露给用户，统一返回成功提示）
         with get_db() as db:
             existing = db.execute("SELECT id FROM users WHERE email = ?", (email,)).fetchone()
         if existing:
-            return jsonify({"success": False, "error": "该邮箱已被注册"}), 400
+            # 不告诉攻击者邮箱已注册，统一返回成功提示
+            return jsonify({"success": True, "message": "如果该邮箱可用，验证码将会发送"})
 
         success, message = send_code(email)
         if success:
-            return jsonify({"success": True, "message": message})
+            return jsonify({"success": True, "message": "如果该邮箱可用，验证码将会发送"})
         else:
             status_code = 429 if "频繁" in message else 400
             return jsonify({"success": False, "error": message}), status_code
     except Exception as e:
-        # 记录详细错误信息到日志
-        error_detail = traceback.format_exc()
-        print(f"[发送验证码错误] {str(e)}\n{error_detail}")
-        return jsonify({"success": False, "error": f"服务器内部错误: {str(e)}"}), 500
+        # 不暴露内部异常信息
+        print(f"[发送验证码错误] {str(e)}")
+        return jsonify({"success": False, "error": "服务暂时不可用，请稍后再试"}), 500
 
 
 @server.route("/login", methods=["GET", "POST"])
@@ -1305,13 +1304,22 @@ def admin_email_config():
         use_tls = request.form.get("use_tls") == "on"
         enabled = request.form.get("enabled") == "on"
 
+        # 密码留空则保留旧密码
+        if not smtp_password:
+            old_config = EmailConfig.get()
+            smtp_password = old_config.get("smtp_password", "")
+
         EmailConfig.update(smtp_server, smtp_port, smtp_username, smtp_password,
                            sender_email, sender_name, use_tls, enabled)
         flash("邮件配置已更新")
         return redirect(url_for("admin_email_config"))
 
     config = EmailConfig.get()
-    return render_template("admin_email_config.html", config=config)
+    # 不将密码传给模板
+    safe_config = dict(config)
+    safe_config["smtp_password"] = ""
+    safe_config["has_password"] = bool(config.get("smtp_password"))
+    return render_template("admin_email_config.html", config=safe_config)
 
 
 @server.context_processor

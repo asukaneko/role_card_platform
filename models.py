@@ -1116,11 +1116,11 @@ class EmailConfig:
 
 
 class VerificationCode:
-    """验证码模型"""
+    """验证码模型（code字段存储HMAC hash，不存明文）"""
 
     @staticmethod
-    def create(email: str, code: str, ip_address: str = "", expires_minutes: int = 10) -> None:
-        """创建验证码记录"""
+    def create(email: str, code_hash: str, ip_address: str = "", expires_minutes: int = 10) -> None:
+        """创建验证码记录（code_hash为HMAC hash值）"""
         from datetime import timedelta
         now = datetime.now()
         created_at = now.isoformat(timespec="seconds")
@@ -1132,33 +1132,44 @@ class VerificationCode:
                     INSERT INTO verification_codes (email, code, ip_address, created_at, expires_at, used)
                     VALUES (?, ?, ?, ?, ?, 0)
                     """,
-                    (email, code, ip_address, created_at, expires_at)
+                    (email, code_hash, ip_address, created_at, expires_at)
                 )
                 db.commit()
         except sqlite3.OperationalError:
-            # 表不存在时静默处理
             pass
 
     @staticmethod
-    def verify(email: str, code: str) -> bool:
-        """验证验证码是否正确且未过期未使用"""
+    def verify(email: str, code_hash: str) -> bool:
+        """验证验证码hash是否正确且未过期未使用（含尝试次数限制）"""
         now = datetime.now().isoformat(timespec="seconds")
         try:
             with get_db() as db:
+                # 检查最近10分钟内该邮箱的失败尝试次数
+                attempt_cutoff = (datetime.now() - timedelta(minutes=10)).isoformat(timespec="seconds")
+                attempt_row = db.execute(
+                    """
+                    SELECT COUNT(*) as cnt FROM verification_codes
+                    WHERE email = ? AND used = 0 AND created_at > ? AND code != ?
+                    """,
+                    (email, attempt_cutoff, code_hash)
+                ).fetchone()
+                # 最多允许5次验证尝试
+                if attempt_row and attempt_row["cnt"] >= 5:
+                    return False
+
                 row = db.execute(
                     """
                     SELECT id FROM verification_codes
                     WHERE email = ? AND code = ? AND used = 0 AND expires_at > ?
                     ORDER BY created_at DESC LIMIT 1
                     """,
-                    (email, code, now)
+                    (email, code_hash, now)
                 ).fetchone()
                 if row:
                     db.execute("UPDATE verification_codes SET used = 1 WHERE id = ?", (row["id"],))
                     db.commit()
                     return True
         except sqlite3.OperationalError:
-            # 表不存在时返回验证失败
             pass
         return False
 
@@ -1175,7 +1186,6 @@ class VerificationCode:
                 ).fetchone()
             return row["cnt"] if row else 0
         except sqlite3.OperationalError:
-            # 表不存在时返回0
             return 0
 
     @staticmethod
@@ -1187,5 +1197,4 @@ class VerificationCode:
                 db.execute("DELETE FROM verification_codes WHERE expires_at < ?", (now,))
                 db.commit()
         except sqlite3.OperationalError:
-            # 表不存在时静默处理
             pass

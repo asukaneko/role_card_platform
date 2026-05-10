@@ -35,8 +35,8 @@
                 </label>
                 <label>
                     <span>SMTP密码 / 授权码</span>
-                    <input name="smtp_password" type="password" value="{{ config.smtp_password or '' }}" placeholder="输入密码或授权码">
-                    <small class="form-hint">建议使用应用专用授权码而非登录密码</small>
+                    <input name="smtp_password" type="password" placeholder="{% if config.has_password %}留空则不修改当前密码{% else %}输入密码或授权码{% endif %}">
+                    <small class="form-hint">建议使用应用专用授权码而非登录密码{% if config.has_password %}，留空则保留当前密码{% endif %}</small>
                 </label>
             </div>
         </section>

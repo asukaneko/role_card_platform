@@ -1,16 +1,30 @@
 """
 邮件服务模块 - 处理邮件发送和验证码相关功能
 """
-import random
+import hashlib
+import hmac
+import ipaddress
+import os
 import re
+import secrets
 import smtplib
 import socket
 from email.mime.text import MIMEText
 from email.utils import formataddr
+from html import escape
 
 from flask import request
 
 from models import EmailConfig, VerificationCode
+
+# 验证码hash密钥（优先从环境变量读取，否则使用应用secret_key的派生值）
+_CODE_HMAC_KEY = os.getenv("ROLE_CARD_CODE_HMAC_KEY", "role_card_platform_code_hmac_key_v1")
+
+# 允许的SMTP端口
+ALLOWED_SMTP_PORTS = {465, 587}
+
+# 禁止连接的SMTP主机名
+_BLOCKED_HOSTNAMES = {"localhost", "127.0.0.1", "0.0.0.0", "::1"}
 
 
 def is_valid_email(email: str) -> bool:
@@ -20,18 +34,36 @@ def is_valid_email(email: str) -> bool:
 
 
 def generate_verification_code(length: int = 6) -> str:
-    """生成指定长度的数字验证码"""
-    return ''.join(random.choices('0123456789', k=length))
+    """生成指定长度的数字验证码（密码学安全随机数）"""
+    return ''.join(str(secrets.randbelow(10)) for _ in range(length))
+
+
+def hash_code(email: str, code: str) -> str:
+    """对验证码进行HMAC hash，避免明文存储"""
+    return hmac.new(
+        _CODE_HMAC_KEY.encode(),
+        f"{email}:{code}".encode(),
+        hashlib.sha256
+    ).hexdigest()
 
 
 def get_client_ip() -> str:
-    """获取客户端真实IP地址"""
-    if request.headers.get('X-Forwarded-For'):
-        return request.headers.get('X-Forwarded-For').split(',')[0].strip()
-    elif request.headers.get('X-Real-IP'):
-        return request.headers.get('X-Real-IP')
-    else:
-        return request.remote_addr or 'unknown'
+    """获取客户端IP地址（由ProxyFix统一处理，不自行读取X-Forwarded-For）"""
+    return request.remote_addr or 'unknown'
+
+
+def _is_private_smtp(host: str) -> bool:
+    """检查SMTP服务器地址是否为私网/保留地址"""
+    if host.lower() in _BLOCKED_HOSTNAMES:
+        return True
+    if host.endswith('.local') or host.endswith('.internal'):
+        return True
+    try:
+        ip = ipaddress.ip_address(host)
+        return ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved
+    except ValueError:
+        # 不是IP地址（是域名），允许通过
+        return False
 
 
 def can_send_code(ip_address: str, max_per_minute: int = 5) -> bool:
@@ -58,10 +90,18 @@ def _send_email_raw(to_email: str, subject: str, body: str) -> tuple[bool, str]:
     smtp_password = config.get("smtp_password", "").strip()
     sender_email = config.get("sender_email", "").strip()
     sender_name = config.get("sender_name", "角色卡平台").strip()
-    use_tls = bool(config.get("use_tls", 1))
 
     if not all([smtp_server, smtp_username, smtp_password, sender_email]):
         return False, "邮件服务器配置不完整"
+
+    # 安全检查：限制SMTP端口
+    if smtp_port not in ALLOWED_SMTP_PORTS:
+        return False, f"不支持的SMTP端口 {smtp_port}，仅允许 {', '.join(str(p) for p in sorted(ALLOWED_SMTP_PORTS))}"
+
+    # 安全检查：禁止连接私网地址（除非显式允许）
+    allow_private = os.getenv("ROLE_CARD_ALLOW_PRIVATE_SMTP", "").lower() == "true"
+    if not allow_private and _is_private_smtp(smtp_server):
+        return False, "不允许连接私网SMTP服务器"
 
     msg = MIMEText(body, 'html', 'utf-8')
     msg['From'] = formataddr((sender_name, sender_email))
@@ -69,22 +109,16 @@ def _send_email_raw(to_email: str, subject: str, body: str) -> tuple[bool, str]:
     msg['Subject'] = subject
 
     try:
-        # 根据端口选择连接方式
-        # 465端口通常使用SSL，587端口通常使用STARTTLS
+        # 强制加密连接：465用SSL，587用STARTTLS
         if smtp_port == 465:
-            # SSL连接（如QQ邮箱、163邮箱）
             server = smtplib.SMTP_SSL(smtp_server, smtp_port, timeout=30)
-        else:
-            # STARTTLS或明文连接
+        elif smtp_port == 587:
             server = smtplib.SMTP(smtp_server, smtp_port, timeout=30)
-
-        # 先发送EHLO/HELO（某些服务器要求必须先执行）
-        server.ehlo()
-
-        if use_tls and smtp_port != 465:
-            server.starttls()
-            # STARTTLS后需要重新EHLO
             server.ehlo()
+            server.starttls()
+            server.ehlo()
+        else:
+            return False, f"不支持的SMTP端口 {smtp_port}"
 
         if smtp_username and smtp_password:
             server.login(smtp_username, smtp_password)
@@ -93,17 +127,17 @@ def _send_email_raw(to_email: str, subject: str, body: str) -> tuple[bool, str]:
         server.quit()
         return True, ""
     except smtplib.SMTPAuthenticationError:
-        return False, "邮件服务器认证失败，请检查用户名和密码（注意使用授权码而非登录密码）"
+        return False, "邮件服务器认证失败"
     except smtplib.SMTPConnectError:
-        return False, "无法连接到邮件服务器，请检查服务器地址和端口"
+        return False, "无法连接到邮件服务器"
     except socket.timeout:
-        return False, "连接邮件服务器超时，请检查网络或更换SMTP服务器"
+        return False, "连接邮件服务器超时"
     except socket.gaierror:
-        return False, "无法解析SMTP服务器地址，请检查配置"
+        return False, "无法解析SMTP服务器地址"
     except Exception as e:
         error_msg = str(e)
         if "timed out" in error_msg.lower() or "timeout" in error_msg.lower():
-            return False, "连接邮件服务器超时，常见原因：\n1. 端口不正确（QQ/163用465，Gmail用587）\n2. 需要SSL而非TLS\n3. 防火墙阻止了连接"
+            return False, "连接邮件服务器超时"
         return False, f"邮件发送失败: {error_msg}"
 
 
@@ -123,7 +157,7 @@ def send_code(to_email: str) -> tuple[bool, str]:
 
     try:
         if not can_send_code(ip_address, max_per_minute=5):
-            return False, "发送过于频繁，请稍后再试（每IP每分钟最多5次）"
+            return False, "发送过于频繁，请稍后再试"
     except Exception as e:
         print(f"[限流检查错误] {str(e)}\n{traceback.format_exc()}")
         return False, "服务暂时不可用，请稍后再试"
@@ -144,18 +178,19 @@ def send_code(to_email: str) -> tuple[bool, str]:
         if not success:
             return False, error
 
-    # 保存验证码记录
+    # 保存验证码hash记录（不存明文）
     try:
-        VerificationCode.create(to_email, code, ip_address, expires_minutes=10)
+        code_hash = hash_code(to_email, code)
+        VerificationCode.create(to_email, code_hash, ip_address, expires_minutes=10)
     except Exception as e:
         print(f"[保存验证码错误] {str(e)}\n{traceback.format_exc()}")
-        # 即使保存记录失败，验证码已经发送，仍然返回成功
 
     return True, "验证码已发送，请查收邮件"
 
 
 def _build_verification_email_body(code: str) -> str:
     """构建验证码邮件内容"""
+    safe_code = escape(code)
     return f"""
 <!DOCTYPE html>
 <html>
@@ -178,7 +213,7 @@ def _build_verification_email_body(code: str) -> str:
         <div class="content">
             <p>您好，</p>
             <p>您正在进行账号注册，请使用以下验证码完成验证：</p>
-            <div class="code">{code}</div>
+            <div class="code">{safe_code}</div>
             <p>验证码有效期为 10 分钟，请勿泄露给他人。</p>
             <p>如非本人操作，请忽略此邮件。</p>
         </div>
@@ -192,7 +227,8 @@ def _build_verification_email_body(code: str) -> str:
 
 
 def verify_code(email: str, code: str) -> bool:
-    """验证邮箱验证码"""
+    """验证邮箱验证码（使用hash比较）"""
     if not is_valid_email(email) or not code:
         return False
-    return VerificationCode.verify(email, code)
+    code_hash = hash_code(email, code)
+    return VerificationCode.verify(email, code_hash)
