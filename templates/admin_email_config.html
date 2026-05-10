@@ -1,0 +1,180 @@
+{% extends "base.html" %}
+{% block title %}邮件服务配置 - 管理面板{% endblock %}
+{% block content %}
+<section class="page-head">
+    <p class="eyebrow">Admin</p>
+    <h1>邮件服务配置</h1>
+    <p>配置SMTP邮件服务器，用于用户注册时的邮箱验证码发送。</p>
+</section>
+
+<section class="editor-form">
+    <form method="post" action="{{ url_for('admin_email_config') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+        <section class="form-band">
+            <h2>SMTP服务器设置</h2>
+
+            <div class="form-grid two">
+                <label>
+                    <span>SMTP服务器地址</span>
+                    <input name="smtp_server" value="{{ config.smtp_server or '' }}" placeholder="例如: smtp.gmail.com">
+                    <small class="form-hint">邮件服务商的SMTP服务器地址</small>
+                </label>
+                <label>
+                    <span>SMTP端口</span>
+                    <input name="smtp_port" type="number" value="{{ config.smtp_port or 587 }}" placeholder="587">
+                    <small class="form-hint">通常使用 587 (TLS) 或 465 (SSL)</small>
+                </label>
+            </div>
+
+            <div class="form-grid two">
+                <label>
+                    <span>SMTP用户名</span>
+                    <input name="smtp_username" value="{{ config.smtp_username or '' }}" placeholder="your@email.com" id="smtp-username">
+                    <small class="form-hint">通常是邮箱地址，需与发件人邮箱保持一致</small>
+                </label>
+                <label>
+                    <span>SMTP密码 / 授权码</span>
+                    <input name="smtp_password" type="password" value="{{ config.smtp_password or '' }}" placeholder="输入密码或授权码">
+                    <small class="form-hint">建议使用应用专用授权码而非登录密码</small>
+                </label>
+            </div>
+        </section>
+
+        <section class="form-band">
+            <h2>发件人设置</h2>
+
+            <div class="alert-info">
+                <strong>提示：</strong>发件人邮箱建议与SMTP用户名保持一致，否则可能被邮件服务商拒绝或标记为垃圾邮件。
+            </div>
+
+            <div class="form-grid two">
+                <label>
+                    <span>发件人邮箱</span>
+                    <input name="sender_email" value="{{ config.sender_email or '' }}" placeholder="noreply@example.com" id="sender-email">
+                    <small class="form-hint">显示在邮件中的发件人地址，建议与SMTP用户名相同</small>
+                </label>
+                <label>
+                    <span>发件人名称</span>
+                    <input name="sender_name" value="{{ config.sender_name or '角色卡平台' }}" placeholder="角色卡平台">
+                    <small class="form-hint">显示在收件人邮箱中的发件人名称</small>
+                </label>
+            </div>
+        </section>
+
+        <section class="form-band">
+            <h2>安全与启用</h2>
+
+            <div class="form-grid two">
+                <label class="checkbox-label">
+                    <input type="checkbox" name="use_tls" {% if config.use_tls %}checked{% endif %}>
+                    <span>启用TLS加密</span>
+                </label>
+                <label class="checkbox-label">
+                    <input type="checkbox" name="enabled" {% if config.enabled %}checked{% endif %}>
+                    <span>启用邮件服务</span>
+                </label>
+            </div>
+            <small class="form-hint">建议始终启用TLS加密以保护邮件传输安全</small>
+        </section>
+
+        <section class="form-band">
+            <h2>常见邮箱配置参考</h2>
+            <table class="config-table">
+                <thead>
+                    <tr>
+                        <th>邮箱服务商</th>
+                        <th>SMTP服务器</th>
+                        <th>端口</th>
+                        <th>加密方式</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>QQ邮箱</td>
+                        <td>smtp.qq.com</td>
+                        <td>465</td>
+                        <td>SSL</td>
+                    </tr>
+                    <tr>
+                        <td>163邮箱</td>
+                        <td>smtp.163.com</td>
+                        <td>465</td>
+                        <td>SSL</td>
+                    </tr>
+                    <tr>
+                        <td>Gmail</td>
+                        <td>smtp.gmail.com</td>
+                        <td>587</td>
+                        <td>TLS</td>
+                    </tr>
+                    <tr>
+                        <td>Outlook</td>
+                        <td>smtp.office365.com</td>
+                        <td>587</td>
+                        <td>TLS</td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+
+        <div class="form-actions">
+            <a href="{{ url_for('admin', tab='review') }}">返回</a>
+            <button type="submit">保存配置</button>
+        </div>
+    </form>
+</section>
+
+<style>
+.checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+    padding: 10px 0;
+}
+.checkbox-label input[type="checkbox"] {
+    width: 20px;
+    height: 20px;
+    cursor: pointer;
+}
+.alert-info {
+    background: #e0f2fe;
+    border-left: 4px solid #0ea5e9;
+    padding: 12px 16px;
+    margin-bottom: 16px;
+    border-radius: 4px;
+    color: #0369a1;
+    font-size: 14px;
+}
+.config-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 10px;
+}
+.config-table th,
+.config-table td {
+    padding: 10px 12px;
+    text-align: left;
+    border-bottom: 1px solid var(--line);
+    font-size: 14px;
+}
+.config-table th {
+    font-weight: 600;
+    background: var(--surface);
+}
+.config-table tr:hover {
+    background: var(--surface);
+}
+</style>
+
+<script>
+// 自动同步SMTP用户名到发件人邮箱
+document.getElementById('smtp-username').addEventListener('blur', function() {
+    var senderEmail = document.getElementById('sender-email');
+    if (!senderEmail.value && this.value) {
+        senderEmail.value = this.value;
+    }
+});
+</script>
+{% endblock %}

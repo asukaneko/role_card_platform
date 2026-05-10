@@ -9,10 +9,11 @@
 
 <!-- 标签切换 -->
 <div class="admin-tabs">
-    <a href="{{ url_for('admin', tab='cards') }}" class="admin-tab {% if tab != 'users' and tab != 'review' %}active{% endif %}">角色卡</a>
+    <a href="{{ url_for('admin', tab='cards') }}" class="admin-tab {% if tab != 'users' and tab != 'review' and tab != 'settings' %}active{% endif %}">角色卡</a>
     {% if is_admin %}
     <a href="{{ url_for('admin', tab='users') }}" class="admin-tab {% if tab == 'users' %}active{% endif %}">用户管理</a>
     <a href="{{ url_for('admin', tab='review') }}" class="admin-tab {% if tab == 'review' %}active{% endif %}">审核管理</a>
+    <a href="{{ url_for('admin', tab='settings') }}" class="admin-tab {% if tab == 'settings' %}active{% endif %}">系统设置</a>
     {% endif %}
 </div>
 
@@ -35,6 +36,20 @@
         </div>
         <div class="admin-actions">
             <a href="{{ url_for('admin_ai_config') }}">进入</a>
+        </div>
+    </div>
+</section>
+
+{% elif tab == 'settings' and is_admin %}
+<!-- 系统设置 -->
+<section class="admin-table">
+    <div class="admin-row">
+        <div class="admin-info">
+            <strong>邮件服务配置</strong>
+            <span>配置SMTP邮件服务器，用于注册验证码发送</span>
+        </div>
+        <div class="admin-actions">
+            <a href="{{ url_for('admin_email_config') }}">进入</a>
         </div>
     </div>
 </section>

@@ -113,6 +113,10 @@ def init_db() -> None:
             db.execute("ALTER TABLE users ADD COLUMN avatar_path TEXT DEFAULT ''")
         if "is_admin" not in user_columns:
             db.execute("ALTER TABLE users ADD COLUMN is_admin INTEGER DEFAULT 0")
+        if "email" not in user_columns:
+            db.execute("ALTER TABLE users ADD COLUMN email TEXT DEFAULT ''")
+        if "email_verified" not in user_columns:
+            db.execute("ALTER TABLE users ADD COLUMN email_verified INTEGER DEFAULT 0")
 
         # 评论表
         db.execute(
@@ -203,6 +207,39 @@ def init_db() -> None:
                 FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
                 FOREIGN KEY (card_id) REFERENCES role_cards(id) ON DELETE CASCADE,
                 UNIQUE(user_id, card_id)
+            )
+            """
+        )
+
+        # 邮件配置表
+        db.execute(
+            """
+            CREATE TABLE IF NOT EXISTS email_config (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                smtp_server TEXT DEFAULT '',
+                smtp_port INTEGER DEFAULT 587,
+                smtp_username TEXT DEFAULT '',
+                smtp_password TEXT DEFAULT '',
+                sender_email TEXT DEFAULT '',
+                sender_name TEXT DEFAULT '',
+                use_tls INTEGER DEFAULT 1,
+                enabled INTEGER DEFAULT 0,
+                updated_at TEXT NOT NULL
+            )
+            """
+        )
+
+        # 验证码记录表
+        db.execute(
+            """
+            CREATE TABLE IF NOT EXISTS verification_codes (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                email TEXT NOT NULL,
+                code TEXT NOT NULL,
+                ip_address TEXT DEFAULT '',
+                created_at TEXT NOT NULL,
+                expires_at TEXT NOT NULL,
+                used INTEGER DEFAULT 0
             )
             """
         )
@@ -1017,10 +1054,138 @@ class AIReviewConfig:
         with get_db() as db:
             db.execute(
                 """
-                UPDATE ai_review_config 
+                UPDATE ai_review_config
                 SET api_key = ?, api_url = ?, model = ?, enabled = ?, updated_at = ?
                 WHERE id = 1
                 """,
                 (api_key, api_url, model, 1 if enabled else 0, now)
             )
             db.commit()
+
+
+class EmailConfig:
+    """邮件配置模型"""
+
+    @staticmethod
+    def get() -> dict:
+        """获取邮件配置"""
+        try:
+            with get_db() as db:
+                row = db.execute("SELECT * FROM email_config LIMIT 1").fetchone()
+                if not row:
+                    now = datetime.now().isoformat(timespec="seconds")
+                    db.execute(
+                        """
+                        INSERT INTO email_config (smtp_server, smtp_port, smtp_username, smtp_password, sender_email, sender_name, use_tls, enabled, updated_at)
+                        VALUES ('', 587, '', '', '', '', 1, 0, ?)
+                        """,
+                        (now,)
+                    )
+                    db.commit()
+                    row = db.execute("SELECT * FROM email_config LIMIT 1").fetchone()
+            return dict(row) if row else {
+                "smtp_server": "", "smtp_port": 587, "smtp_username": "",
+                "smtp_password": "", "sender_email": "", "sender_name": "",
+                "use_tls": 1, "enabled": 0
+            }
+        except sqlite3.OperationalError:
+            # 表不存在时返回默认配置
+            return {
+                "smtp_server": "", "smtp_port": 587, "smtp_username": "",
+                "smtp_password": "", "sender_email": "", "sender_name": "",
+                "use_tls": 1, "enabled": 0
+            }
+
+    @staticmethod
+    def update(smtp_server: str, smtp_port: int, smtp_username: str, smtp_password: str,
+               sender_email: str, sender_name: str, use_tls: bool, enabled: bool) -> None:
+        """更新邮件配置"""
+        now = datetime.now().isoformat(timespec="seconds")
+        with get_db() as db:
+            db.execute(
+                """
+                UPDATE email_config
+                SET smtp_server = ?, smtp_port = ?, smtp_username = ?, smtp_password = ?,
+                    sender_email = ?, sender_name = ?, use_tls = ?, enabled = ?, updated_at = ?
+                WHERE id = 1
+                """,
+                (smtp_server, smtp_port, smtp_username, smtp_password,
+                 sender_email, sender_name, 1 if use_tls else 0, 1 if enabled else 0, now)
+            )
+            db.commit()
+
+
+class VerificationCode:
+    """验证码模型"""
+
+    @staticmethod
+    def create(email: str, code: str, ip_address: str = "", expires_minutes: int = 10) -> None:
+        """创建验证码记录"""
+        from datetime import timedelta
+        now = datetime.now()
+        created_at = now.isoformat(timespec="seconds")
+        expires_at = (now + timedelta(minutes=expires_minutes)).isoformat(timespec="seconds")
+        try:
+            with get_db() as db:
+                db.execute(
+                    """
+                    INSERT INTO verification_codes (email, code, ip_address, created_at, expires_at, used)
+                    VALUES (?, ?, ?, ?, ?, 0)
+                    """,
+                    (email, code, ip_address, created_at, expires_at)
+                )
+                db.commit()
+        except sqlite3.OperationalError:
+            # 表不存在时静默处理
+            pass
+
+    @staticmethod
+    def verify(email: str, code: str) -> bool:
+        """验证验证码是否正确且未过期未使用"""
+        now = datetime.now().isoformat(timespec="seconds")
+        try:
+            with get_db() as db:
+                row = db.execute(
+                    """
+                    SELECT id FROM verification_codes
+                    WHERE email = ? AND code = ? AND used = 0 AND expires_at > ?
+                    ORDER BY created_at DESC LIMIT 1
+                    """,
+                    (email, code, now)
+                ).fetchone()
+                if row:
+                    db.execute("UPDATE verification_codes SET used = 1 WHERE id = ?", (row["id"],))
+                    db.commit()
+                    return True
+        except sqlite3.OperationalError:
+            # 表不存在时返回验证失败
+            pass
+        return False
+
+    @staticmethod
+    def count_recent_by_ip(ip_address: str, minutes: int = 1) -> int:
+        """统计指定IP在最近几分钟内发送的验证码数量"""
+        from datetime import timedelta
+        cutoff = (datetime.now() - timedelta(minutes=minutes)).isoformat(timespec="seconds")
+        try:
+            with get_db() as db:
+                row = db.execute(
+                    "SELECT COUNT(*) as cnt FROM verification_codes WHERE ip_address = ? AND created_at > ?",
+                    (ip_address, cutoff)
+                ).fetchone()
+            return row["cnt"] if row else 0
+        except sqlite3.OperationalError:
+            # 表不存在时返回0
+            return 0
+
+    @staticmethod
+    def cleanup_expired() -> None:
+        """清理过期的验证码记录"""
+        now = datetime.now().isoformat(timespec="seconds")
+        try:
+            with get_db() as db:
+                db.execute("DELETE FROM verification_codes WHERE expires_at < ?", (now,))
+                db.commit()
+        except sqlite3.OperationalError:
+            # 表不存在时静默处理
+            pass

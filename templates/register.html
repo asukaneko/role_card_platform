@@ -6,12 +6,23 @@
         <p class="eyebrow">Account</p>
         <h1>注册</h1>
         <p>创建账号后即可上传和分享你的角色卡。</p>
-        <form class="auth-form" method="post" action="{{ url_for('register') }}">
+        <form class="auth-form" method="post" action="{{ url_for('register') }}" id="register-form">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <label>
                 <span>用户名</span>
                 <input name="username" type="text" placeholder="3-24 位字母、数字、下划线或中文" autocomplete="username" required autofocus>
             </label>
+            <label>
+                <span>邮箱</span>
+                <input name="email" type="email" placeholder="your@email.com" autocomplete="email" required id="email-input">
+            </label>
+            <div class="verify-row">
+                <label class="verify-code-label">
+                    <span>验证码</span>
+                    <input name="verification_code" type="text" placeholder="6位数字" maxlength="6" required id="code-input">
+                </label>
+                <button type="button" class="btn-secondary send-code-btn" id="send-code-btn" onclick="sendCode()">获取验证码</button>
+            </div>
             <label>
                 <span>密码</span>
                 <input name="password" type="password" placeholder="至少 6 个字符" autocomplete="new-password" required>
@@ -25,4 +36,100 @@
         <p class="auth-switch">已有账号？<a href="{{ url_for('login') }}">去登录</a></p>
     </div>
 </section>
+
+<style>
+.verify-row {
+    display: flex;
+    gap: 10px;
+    align-items: flex-end;
+}
+.verify-code-label {
+    flex: 1;
+}
+.verify-code-label input {
+    width: 100%;
+}
+.send-code-btn {
+    padding: 10px 16px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    border: 1px solid var(--line);
+    background: var(--paper);
+    color: var(--ink);
+    white-space: nowrap;
+    margin-bottom: 2px;
+    transition: all 0.2s;
+}
+.send-code-btn:hover:not(:disabled) {
+    border-color: var(--accent);
+    color: var(--accent);
+}
+.send-code-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+</style>
+
+<script>
+let countdown = 0;
+let countdownTimer = null;
+
+function updateCountdown() {
+    const btn = document.getElementById('send-code-btn');
+    if (countdown > 0) {
+        btn.textContent = countdown + '秒后重试';
+        btn.disabled = true;
+        countdown--;
+    } else {
+        btn.textContent = '获取验证码';
+        btn.disabled = false;
+        clearInterval(countdownTimer);
+        countdownTimer = null;
+    }
+}
+
+function sendCode() {
+    const email = document.getElementById('email-input').value.trim();
+    if (!email) {
+        alert('请先输入邮箱地址');
+        return;
+    }
+
+    const btn = document.getElementById('send-code-btn');
+    btn.disabled = true;
+    btn.textContent = '发送中...';
+
+    const formData = new FormData();
+    formData.append('email', email);
+    formData.append('csrf_token', document.querySelector('input[name="csrf_token"]').value);
+
+    fetch('{{ url_for("send_verification_code") }}', {
+        method: 'POST',
+        body: formData,
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest'
+        }
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            alert(data.message || '验证码已发送');
+            countdown = 60;
+            updateCountdown();
+            countdownTimer = setInterval(updateCountdown, 1000);
+        } else {
+            alert(data.error || '发送失败');
+            btn.disabled = false;
+            btn.textContent = '获取验证码';
+        }
+    })
+    .catch(err => {
+        alert('网络错误，请重试');
+        btn.disabled = false;
+        btn.textContent = '获取验证码';
+    });
+}
+</script>
 {% endblock %}

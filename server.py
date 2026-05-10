@@ -40,7 +40,7 @@ from config import (
     MAX_CARD_BYTES, MAX_AVATAR_BYTES, MAX_ZIP_BYTES,
     ALLOWED_AVATAR_EXTENSIONS, IMAGE_SIGNATURES, Config
 )
-from models import init_db, get_db, User, RoleCard, Comment, UserLike, UserFavorite, Reviewer, ReviewQueue, AIReviewConfig
+from models import init_db, get_db, User, RoleCard, Comment, UserLike, UserFavorite, Reviewer, ReviewQueue, AIReviewConfig, EmailConfig
 from auth import (
     generate_user_api_token, resolve_api_user, api_token_valid,
     admin_token, get_current_user, login_required, AuthService,
@@ -53,10 +53,16 @@ from utils import (
 )
 from card_utils import normalize_role_card_data, card_from_form, validate_card
 from ai_review import AIReviewer
+from email_service import send_code, verify_code, is_valid_email
+from email_queue import EmailQueue, queue_register_success_email, queue_login_alert_email
 
 # 创建 Flask 应用
 server = Flask(__name__)
 server.config.from_object(Config)
+
+# 初始化邮件队列表并启动工作线程
+EmailQueue.init_db()
+EmailQueue.start_worker()
 
 # 初始化安全设置
 Config.init_app(server)
@@ -94,11 +100,17 @@ def register():
         return render_template("register.html")
 
     username = (request.form.get("username") or "").strip()
+    email = (request.form.get("email") or "").strip().lower()
+    verification_code = (request.form.get("verification_code") or "").strip()
     password = request.form.get("password") or ""
     confirm = request.form.get("confirm") or ""
 
-    if not username or not password:
-        flash("用户名和密码不能为空", "error")
+    if not username or not password or not email:
+        flash("用户名、邮箱和密码不能为空", "error")
+        return redirect(url_for("register"))
+
+    if not is_valid_email(email):
+        flash("邮箱格式不正确", "error")
         return redirect(url_for("register"))
 
     if len(username) < 3 or len(username) > 24:
@@ -117,25 +129,76 @@ def register():
         flash("两次输入的密码不一致", "error")
         return redirect(url_for("register"))
 
+    # 验证邮箱验证码
+    if not verify_code(email, verification_code):
+        flash("验证码错误或已过期，请重新获取", "error")
+        return redirect(url_for("register"))
+
     with get_db() as db:
         existing = db.execute("SELECT id FROM users WHERE username = ?", (username,)).fetchone()
         if existing:
             flash("该用户名已被注册", "error")
             return redirect(url_for("register"))
 
+        existing_email = db.execute("SELECT id FROM users WHERE email = ?", (email,)).fetchone()
+        if existing_email:
+            flash("该邮箱已被注册", "error")
+            return redirect(url_for("register"))
+
         now = datetime.now().isoformat(timespec="seconds")
         password_hash = generate_password_hash(password)
         api_token = generate_user_api_token()
         db.execute(
-            "INSERT INTO users (username, password_hash, display_name, bio, api_token, created_at) VALUES (?, ?, ?, '', ?, ?)",
-            (username, password_hash, username, api_token, now),
+            "INSERT INTO users (username, password_hash, display_name, bio, api_token, email, email_verified, created_at) VALUES (?, ?, ?, '', ?, ?, 1, ?)",
+            (username, password_hash, username, api_token, email, now),
         )
         db.commit()
         user = db.execute("SELECT * FROM users WHERE username = ?", (username,)).fetchone()
 
     session["user_id"] = user["id"]
+
+    # 异步发送注册成功邮件
+    try:
+        queue_register_success_email(email, username)
+    except Exception:
+        pass
+
     flash("注册成功，欢迎加入！")
     return redirect(url_for("index"))
+
+
+@server.route("/send-verification-code", methods=["POST"])
+@limiter.limit("5 per minute")
+def send_verification_code():
+    """发送邮箱验证码"""
+    import traceback
+
+    email = (request.form.get("email") or "").strip().lower()
+
+    if not email:
+        return jsonify({"success": False, "error": "请输入邮箱地址"}), 400
+
+    if not is_valid_email(email):
+        return jsonify({"success": False, "error": "邮箱格式不正确"}), 400
+
+    try:
+        # 检查邮箱是否已被注册
+        with get_db() as db:
+            existing = db.execute("SELECT id FROM users WHERE email = ?", (email,)).fetchone()
+        if existing:
+            return jsonify({"success": False, "error": "该邮箱已被注册"}), 400
+
+        success, message = send_code(email)
+        if success:
+            return jsonify({"success": True, "message": message})
+        else:
+            status_code = 429 if "频繁" in message else 400
+            return jsonify({"success": False, "error": message}), status_code
+    except Exception as e:
+        # 记录详细错误信息到日志
+        error_detail = traceback.format_exc()
+        print(f"[发送验证码错误] {str(e)}\n{error_detail}")
+        return jsonify({"success": False, "error": f"服务器内部错误: {str(e)}"}), 500
 
 
 @server.route("/login", methods=["GET", "POST"])
@@ -166,6 +229,21 @@ def login():
             db.commit()
 
     session["user_id"] = user["id"]
+
+    # 异步发送登录提醒邮件
+    try:
+        if user.get("email"):
+            from email_service import get_client_ip
+            login_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            queue_login_alert_email(
+                user["email"],
+                user["display_name"] or user["username"],
+                get_client_ip(),
+                login_time
+            )
+    except Exception:
+        pass
+
     flash(f"欢迎回来，{user['display_name'] or user['username']}！")
     return redirect(url_for("index"))
 
@@ -1208,6 +1286,32 @@ def admin_ai_config():
 
     config = AIReviewConfig.get()
     return render_template("admin_ai_config.html", config=config)
+
+
+@server.route("/admin/email-config", methods=["GET", "POST"])
+def admin_email_config():
+    """邮件服务配置"""
+    # 检查是否为 admin 用户
+    if not is_admin_user(session.get("user_id")):
+        abort(403)
+
+    if request.method == "POST":
+        smtp_server = request.form.get("smtp_server", "").strip()
+        smtp_port = int(request.form.get("smtp_port", "587") or "587")
+        smtp_username = request.form.get("smtp_username", "").strip()
+        smtp_password = request.form.get("smtp_password", "").strip()
+        sender_email = request.form.get("sender_email", "").strip()
+        sender_name = request.form.get("sender_name", "角色卡平台").strip()
+        use_tls = request.form.get("use_tls") == "on"
+        enabled = request.form.get("enabled") == "on"
+
+        EmailConfig.update(smtp_server, smtp_port, smtp_username, smtp_password,
+                           sender_email, sender_name, use_tls, enabled)
+        flash("邮件配置已更新")
+        return redirect(url_for("admin_email_config"))
+
+    config = EmailConfig.get()
+    return render_template("admin_email_config.html", config=config)
 
 
 @server.context_processor
