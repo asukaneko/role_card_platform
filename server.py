@@ -40,7 +40,7 @@ from app.config import (
     MAX_CARD_BYTES, MAX_AVATAR_BYTES, MAX_ZIP_BYTES,
     ALLOWED_AVATAR_EXTENSIONS, IMAGE_SIGNATURES, Config
 )
-from app.models import init_db, get_db, User, RoleCard, Comment, UserLike, UserFavorite, Reviewer, ReviewQueue, AIReviewConfig, EmailConfig, CardRelation, UserFollow
+from app.models import init_db, get_db, User, RoleCard, Comment, UserLike, UserFavorite, Reviewer, ReviewQueue, AIReviewConfig, EmailConfig, CardRelation, UserFollow, Notification
 from app.auth import (
     generate_user_api_token, resolve_api_user, api_token_valid,
     admin_token, get_current_user, login_required, AuthService,
@@ -708,11 +708,24 @@ def _process_comment(card):
     now = datetime.now().isoformat(timespec="seconds")
     user_id = session.get("user_id")
     with get_db() as db:
-        db.execute(
+        cursor = db.execute(
             "INSERT INTO comments (card_id, user_id, content, created_at, status) VALUES (?, ?, ?, ?, 'pending')",
             (card["id"], user_id, content, now),
         )
+        comment_id = cursor.lastrowid
         db.commit()
+
+    # 给角色卡作者发送通知
+    if card.get("user_id") and user_id != card["user_id"]:
+        Notification.create(
+            user_id=card["user_id"],
+            type=Notification.TYPE_CARD_COMMENTED,
+            actor_id=user_id,
+            card_id=card["id"],
+            comment_id=comment_id,
+            message=f"您的角色卡「{card['name']}」收到了一条评论"
+        )
+
     flash("评论已提交审核，审核通过后将显示")
     return redirect(url_for("card_detail", identifier=card["slug"]))
 
@@ -1514,6 +1527,18 @@ def review_approve_card(card_id):
     reviewer_id = session.get("user_id")
     result = request.form.get("result", "")
     ReviewQueue.approve_card(card_id, reviewer_id, result)
+
+    # 获取卡片信息和作者 ID
+    card = RoleCard.get_by_id(card_id, include_pending=True)
+    if card and card.get("user_id"):
+        Notification.create(
+            user_id=card["user_id"],
+            type=Notification.TYPE_CARD_APPROVED,
+            actor_id=reviewer_id,
+            card_id=card_id,
+            message=f"您的角色卡「{card['name']}」已通过审核"
+        )
+
     flash("角色卡已通过审核")
     # 检查是否是 AJAX 请求
     if request.headers.get("X-Requested-With") == "XMLHttpRequest":
@@ -1528,6 +1553,18 @@ def review_reject_card(card_id):
     reviewer_id = session.get("user_id")
     result = request.form.get("result", "")
     ReviewQueue.reject_card(card_id, reviewer_id, result)
+
+    # 获取卡片信息和作者 ID
+    card = RoleCard.get_by_id(card_id, include_pending=True)
+    if card and card.get("user_id"):
+        Notification.create(
+            user_id=card["user_id"],
+            type=Notification.TYPE_CARD_REJECTED,
+            actor_id=reviewer_id,
+            card_id=card_id,
+            message=f"您的角色卡「{card['name']}」未通过审核：{result or '请查看审核意见'}"
+        )
+
     flash("角色卡已被拒绝")
     # 检查是否是 AJAX 请求
     if request.headers.get("X-Requested-With") == "XMLHttpRequest":
@@ -1690,16 +1727,109 @@ def admin_email_config():
     return render_template("admin_email_config.html", config=safe_config)
 
 
+@server.route("/notifications")
+@login_required
+def notifications():
+    """通知列表页面"""
+    user_id = session.get("user_id")
+    notifications_list = Notification.get_by_user(user_id, limit=50)
+    return render_template("notifications.html", notifications=notifications_list)
+
+
+@server.route("/notifications/mark-all-read", methods=["POST"])
+@login_required
+def mark_all_notifications_read():
+    """标记所有通知为已读"""
+    user_id = session.get("user_id")
+    Notification.mark_all_read(user_id)
+    return jsonify({"success": True})
+
+
+@server.route("/notifications/<int:notification_id>/mark-read", methods=["POST"])
+@login_required
+def mark_notification_read(notification_id):
+    """标记单条通知为已读"""
+    user_id = session.get("user_id")
+    Notification.mark_read(notification_id, user_id)
+    return jsonify({"success": True})
+
+
+@server.route("/notifications/clear-read", methods=["POST"])
+@login_required
+def clear_read_notifications():
+    """清空已读通知"""
+    user_id = session.get("user_id")
+    Notification.clear_read(user_id)
+    return jsonify({"success": True})
+
+
+@server.route("/notifications/<int:notification_id>/delete", methods=["POST"])
+@login_required
+def delete_notification(notification_id):
+    """删除单条通知"""
+    user_id = session.get("user_id")
+    Notification.delete(notification_id, user_id)
+    return jsonify({"success": True})
+
+
+def _format_relative_time(iso_str: str) -> str:
+    """将 ISO 时间字符串转换为相对时间"""
+    try:
+        from datetime import datetime
+        target = datetime.fromisoformat(iso_str)
+        now = datetime.now()
+        delta = now - target
+
+        if delta.days > 0:
+            if delta.days > 30:
+                return target.strftime("%Y-%m-%d %H:%M")
+            return f"{delta.days}天前"
+        hours = delta.seconds // 3600
+        if hours > 0:
+            return f"{hours}小时前"
+        minutes = (delta.seconds % 3600) // 60
+        if minutes > 0:
+            return f"{minutes}分钟前"
+        return "刚刚"
+    except Exception:
+        return iso_str
+
+
+def _get_notification_url(n: dict) -> str:
+    """根据通知类型生成跳转链接"""
+    if n.get("card_id"):
+        with get_db() as db:
+            card = db.execute("SELECT slug FROM role_cards WHERE id = ?", (n["card_id"],)).fetchone()
+            if card:
+                return url_for("card_detail", identifier=card["slug"])
+    if n.get("actor_id"):
+        with get_db() as db:
+            actor = db.execute("SELECT username FROM users WHERE id = ?", (n["actor_id"],)).fetchone()
+            if actor:
+                return url_for("user_profile", username=actor["username"])
+    return url_for("notifications")
+
+
 @server.context_processor
 def inject_globals():
     from app.models import Reviewer
     user = get_current_user()
     is_reviewer = False
     is_admin = False
+    unread_notifications = 0
     if user:
         is_reviewer = Reviewer.is_reviewer(user["id"])
         is_admin = is_admin_user(user["id"])
-    return {"admin_token": admin_token, "current_user": user, "is_reviewer": is_reviewer, "is_admin": is_admin}
+        unread_notifications = Notification.get_unread_count(user["id"])
+    return {
+        "admin_token": admin_token,
+        "current_user": user,
+        "is_reviewer": is_reviewer,
+        "is_admin": is_admin,
+        "unread_notifications": unread_notifications,
+        "format_time": _format_relative_time,
+        "get_notification_url": _get_notification_url
+    }
 
 
 if __name__ == "__main__":

@@ -265,6 +265,22 @@ def init_db() -> None:
         )
         db.execute(
             """
+            CREATE TABLE IF NOT EXISTS notifications (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                type TEXT NOT NULL,
+                actor_id INTEGER DEFAULT NULL,
+                card_id INTEGER DEFAULT NULL,
+                comment_id INTEGER DEFAULT NULL,
+                message TEXT DEFAULT '',
+                is_read INTEGER DEFAULT 0,
+                created_at TEXT NOT NULL,
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+            )
+            """
+        )
+        db.execute(
+            """
             CREATE TABLE IF NOT EXISTS user_follows (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 follower_id INTEGER NOT NULL,
@@ -1603,3 +1619,108 @@ class UserFollow:
                 (user_id,)
             ).fetchone()
         return row["cnt"] if row else 0
+
+
+class Notification:
+    """通知模型"""
+
+    # 通知类型常量
+    TYPE_CARD_APPROVED = "card_approved"       # 角色卡审核通过
+    TYPE_CARD_REJECTED = "card_rejected"       # 角色卡审核被拒
+    TYPE_CARD_COMMENTED = "card_commented"     # 角色卡被评论
+    TYPE_CARD_LIKED = "card_liked"             # 角色卡被点赞
+    TYPE_CARD_FAVORITED = "card_favorited"     # 角色卡被收藏
+    TYPE_NEW_FOLLOWER = "new_follower"         # 收到新关注
+    TYPE_CARD_RELATED = "card_related"         # 角色卡被关联
+
+    @staticmethod
+    def create(user_id: int, type: str, actor_id: int = None, card_id: int = None,
+               comment_id: int = None, message: str = "") -> None:
+        """创建一条通知"""
+        now = datetime.now().isoformat(timespec="seconds")
+        with get_db() as db:
+            db.execute(
+                """
+                INSERT INTO notifications (user_id, type, actor_id, card_id, comment_id, message, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (user_id, type, actor_id, card_id, comment_id, message, now)
+            )
+            db.commit()
+
+    @staticmethod
+    def get_unread_count(user_id: int) -> int:
+        """获取用户未读通知数量"""
+        with get_db() as db:
+            row = db.execute(
+                "SELECT COUNT(*) as cnt FROM notifications WHERE user_id = ? AND is_read = 0",
+                (user_id,)
+            ).fetchone()
+        return row["cnt"] if row else 0
+
+    @staticmethod
+    def get_by_user(user_id: int, limit: int = 50, offset: int = 0) -> list:
+        """获取用户的通知列表（最新在前）"""
+        with get_db() as db:
+            rows = db.execute(
+                """
+                SELECT n.*, u.username as actor_username, u.display_name as actor_display_name
+                FROM notifications n
+                LEFT JOIN users u ON n.actor_id = u.id
+                WHERE n.user_id = ?
+                ORDER BY n.created_at DESC
+                LIMIT ? OFFSET ?
+                """,
+                (user_id, limit, offset)
+            ).fetchall()
+        return [dict(row) for row in rows]
+
+    @staticmethod
+    def mark_all_read(user_id: int) -> None:
+        """标记所有通知为已读"""
+        with get_db() as db:
+            db.execute(
+                "UPDATE notifications SET is_read = 1 WHERE user_id = ? AND is_read = 0",
+                (user_id,)
+            )
+            db.commit()
+
+    @staticmethod
+    def mark_read(notification_id: int, user_id: int) -> None:
+        """标记单条通知为已读"""
+        with get_db() as db:
+            db.execute(
+                "UPDATE notifications SET is_read = 1 WHERE id = ? AND user_id = ?",
+                (notification_id, user_id)
+            )
+            db.commit()
+
+    @staticmethod
+    def clear_read(user_id: int) -> None:
+        """清空已读通知"""
+        with get_db() as db:
+            db.execute(
+                "DELETE FROM notifications WHERE user_id = ? AND is_read = 1",
+                (user_id,)
+            )
+            db.commit()
+
+    @staticmethod
+    def delete(notification_id: int, user_id: int) -> None:
+        """删除单条通知"""
+        with get_db() as db:
+            db.execute(
+                "DELETE FROM notifications WHERE id = ? AND user_id = ?",
+                (notification_id, user_id)
+            )
+            db.commit()
+
+    @staticmethod
+    def clear_all(user_id: int) -> None:
+        """清空所有通知"""
+        with get_db() as db:
+            db.execute(
+                "DELETE FROM notifications WHERE user_id = ?",
+                (user_id,)
+            )
+            db.commit()

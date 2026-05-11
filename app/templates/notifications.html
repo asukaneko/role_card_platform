@@ -1,0 +1,133 @@
+{% extends "base.html" %}
+{% block title %}通知中心 - 角色卡平台{% endblock %}
+{% block content %}
+<div class="notifications-page">
+    <div class="notifications-header">
+        <h1>通知中心</h1>
+        {% if notifications %}
+        <div class="notifications-actions">
+            <button type="button" id="mark-all-read-btn">标记全部已读</button>
+            <button type="button" id="clear-read-btn" class="danger">清空已读</button>
+        </div>
+        {% endif %}
+    </div>
+
+    {% if notifications %}
+    <div class="notification-list" id="notification-list">
+        {% for n in notifications %}
+        <a href="{{ get_notification_url(n) }}" 
+           class="notification-item {% if not n.is_read %}unread{% endif %}" 
+           data-id="{{ n.id }}"
+           data-type="{{ n.type }}">
+            <div class="notification-icon {{ n.type }}">
+                {% if n.type == 'card_approved' %}
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M20 6L9 17l-5-5"/>
+                    </svg>
+                {% elif n.type == 'card_rejected' %}
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M18 6L6 18M6 6l12 12"/>
+                    </svg>
+                {% elif n.type == 'card_commented' %}
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                    </svg>
+                {% elif n.type == 'card_liked' %}
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+                    </svg>
+                {% elif n.type == 'card_favorited' %}
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+                    </svg>
+                {% elif n.type == 'new_follower' %}
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/>
+                        <circle cx="9" cy="7" r="4"/>
+                        <path d="M22 21v-2a4 4 0 0 0-3-3.87"/>
+                        <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                    </svg>
+                {% else %}
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"/>
+                        <line x1="12" y1="16" x2="12" y2="12"/>
+                        <line x1="12" y1="8" x2="12.01" y2="8"/>
+                    </svg>
+                {% endif %}
+            </div>
+            <div class="notification-content">
+                <p>{{ n.message }}</p>
+                <time>{{ format_time(n.created_at) }}</time>
+            </div>
+        </a>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="notification-empty">
+        <svg width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+            <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+            <path d="M12 2v1"/>
+        </svg>
+        <p>暂无通知</p>
+        <p style="font-size: 13px; margin-top: 8px;">当您收到新通知时，会在这里显示</p>
+    </div>
+    {% endif %}
+</div>
+
+<script>
+    // 标记全部已读
+    const markAllReadBtn = document.getElementById('mark-all-read-btn');
+    if (markAllReadBtn) {
+        markAllReadBtn.addEventListener('click', function() {
+            fetch('/notifications/mark-all-read', {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': window.csrfToken,
+                    'Content-Type': 'application/json'
+                }
+            }).then(function(res) {
+                if (res.ok) {
+                    window.location.reload();
+                }
+            });
+        });
+    }
+
+    // 清空已读通知
+    const clearReadBtn = document.getElementById('clear-read-btn');
+    if (clearReadBtn) {
+        clearReadBtn.addEventListener('click', function() {
+            if (!confirm('确定要清空所有已读通知吗？')) return;
+            fetch('/notifications/clear-read', {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': window.csrfToken,
+                    'Content-Type': 'application/json'
+                }
+            }).then(function(res) {
+                if (res.ok) {
+                    window.location.reload();
+                }
+            });
+        });
+    }
+
+    // 点击通知项时标记为已读
+    document.querySelectorAll('.notification-item').forEach(function(item) {
+        item.addEventListener('click', function(e) {
+            if (item.classList.contains('unread')) {
+                var id = item.getAttribute('data-id');
+                fetch('/notifications/' + id + '/mark-read', {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': window.csrfToken,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                item.classList.remove('unread');
+            }
+        });
+    });
+</script>
+{% endblock %}

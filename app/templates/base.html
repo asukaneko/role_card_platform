@@ -37,6 +37,16 @@
                 {% if is_reviewer %}
                     <a href="{{ url_for('review_queue') }}" class="nav-review-link">审核</a>
                 {% endif %}
+                <a href="{{ url_for('notifications') }}" class="nav-notification-link" style="position:relative;">
+                    <svg style="width:16px;height:16px;vertical-align:middle;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+                        <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+                    </svg>
+                    通知
+                    {% if unread_notifications > 0 %}
+                        <span class="notification-badge">{{ unread_notifications if unread_notifications < 100 else '99+' }}</span>
+                    {% endif %}
+                </a>
             {% endif %}
             <div class="nav-divider"></div>
             {% if current_user %}
