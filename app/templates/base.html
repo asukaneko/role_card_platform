@@ -90,6 +90,21 @@
         </div>
     </footer>
 
+    <!-- 确认弹窗 -->
+    <div id="confirm-modal" class="confirm-modal-overlay">
+        <div class="confirm-modal">
+            <div class="confirm-modal-header" id="confirm-header">
+                <div class="confirm-modal-icon" id="confirm-icon"></div>
+                <h3 class="confirm-modal-title" id="confirm-title"></h3>
+                <p class="confirm-modal-message" id="confirm-message"></p>
+            </div>
+            <div class="confirm-modal-footer">
+                <button type="button" class="confirm-btn cancel" id="confirm-cancel-btn">取消</button>
+                <button type="button" class="confirm-btn confirm" id="confirm-submit-btn">确认</button>
+            </div>
+        </div>
+    </div>
+
     <script src="{{ url_for('static', filename='js/main.js') }}?v=20260510-improvements"></script>
     
     <!-- CSRF Token for AJAX requests -->

@@ -2958,3 +2958,253 @@ pre {
     margin-bottom: 16px;
     opacity: 0.4;
 }
+
+/* 玻璃拟态确认弹窗 */
+.confirm-modal-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    background: rgba(0, 0, 0, 0.4);
+    backdrop-filter: blur(8px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.25s ease, visibility 0.25s ease;
+    padding: 20px;
+}
+
+.confirm-modal-overlay.active {
+    opacity: 1;
+    visibility: visible;
+}
+
+.confirm-modal {
+    width: min(420px, 100%);
+    background: rgba(255, 253, 245, 0.85);
+    border: 1px solid rgba(255, 255, 255, 0.5);
+    border-radius: 20px;
+    box-shadow: 
+        0 30px 80px rgba(0, 0, 0, 0.3),
+        0 0 0 1px rgba(255, 255, 255, 0.2) inset;
+    backdrop-filter: blur(24px);
+    overflow: hidden;
+    transform: scale(0.9) translateY(20px);
+    transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.confirm-modal-overlay.active .confirm-modal {
+    transform: scale(1) translateY(0);
+}
+
+:root[data-theme="dark"] .confirm-modal {
+    background: rgba(25, 30, 40, 0.88);
+    border-color: rgba(255, 255, 255, 0.12);
+    box-shadow: 
+        0 30px 80px rgba(0, 0, 0, 0.6),
+        0 0 0 1px rgba(255, 255, 255, 0.08) inset;
+}
+
+.confirm-modal-header {
+    position: relative;
+    padding: 32px 28px 24px;
+    text-align: center;
+    background: linear-gradient(180deg, rgba(47, 111, 115, 0.08) 0%, transparent 100%);
+}
+
+:root[data-theme="dark"] .confirm-modal-header {
+    background: linear-gradient(180deg, rgba(98, 185, 191, 0.12) 0%, transparent 100%);
+}
+
+.confirm-modal-header.danger {
+    background: linear-gradient(180deg, rgba(239, 68, 68, 0.12) 0%, transparent 100%);
+}
+
+.confirm-modal-icon {
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    margin: 0 auto 16px;
+    font-size: 28px;
+    animation: confirmPulse 2s infinite;
+}
+
+@keyframes confirmPulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+}
+
+.confirm-modal-icon.warning {
+    background: linear-gradient(135deg, #f59e0b, #f97316);
+    color: white;
+    box-shadow: 0 12px 28px rgba(245, 158, 11, 0.4);
+}
+
+.confirm-modal-icon.danger {
+    background: linear-gradient(135deg, #ef4444, #dc2626);
+    color: white;
+    box-shadow: 0 12px 28px rgba(239, 68, 68, 0.4);
+}
+
+.confirm-modal-icon.success {
+    background: linear-gradient(135deg, #10b981, #059669);
+    color: white;
+    box-shadow: 0 12px 28px rgba(16, 185, 129, 0.4);
+}
+
+.confirm-modal-icon.info {
+    background: linear-gradient(135deg, var(--accent), #0ea5e9);
+    color: white;
+    box-shadow: 0 12px 28px rgba(47, 111, 115, 0.4);
+}
+
+:root[data-theme="dark"] .confirm-modal-icon.warning {
+    background: linear-gradient(135deg, #fbbf24, #fb923c);
+    box-shadow: 0 12px 28px rgba(251, 191, 36, 0.35);
+}
+
+:root[data-theme="dark"] .confirm-modal-icon.danger {
+    background: linear-gradient(135deg, #f87171, #fca5a5);
+    box-shadow: 0 12px 28px rgba(248, 113, 113, 0.35);
+}
+
+:root[data-theme="dark"] .confirm-modal-icon.success {
+    background: linear-gradient(135deg, #34d399, #6ee7b7);
+    box-shadow: 0 12px 28px rgba(52, 211, 153, 0.35);
+}
+
+:root[data-theme="dark"] .confirm-modal-icon.info {
+    background: linear-gradient(135deg, #62b9bf, #38bdf8);
+    box-shadow: 0 12px 28px rgba(98, 185, 191, 0.35);
+}
+
+.confirm-modal-title {
+    margin: 0 0 8px;
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--ink);
+}
+
+.confirm-modal-message {
+    margin: 0;
+    font-size: 14px;
+    line-height: 1.6;
+    color: var(--muted);
+    max-width: 320px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.confirm-modal-footer {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    padding: 0 28px 28px;
+}
+
+.confirm-btn {
+    padding: 14px 20px;
+    border: none;
+    border-radius: 12px;
+    font: inherit;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.confirm-btn::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.2) 0%, transparent 100%);
+    pointer-events: none;
+}
+
+.confirm-btn.cancel {
+    background: rgba(120, 120, 130, 0.15);
+    color: var(--muted);
+    border: 1px solid var(--line);
+}
+
+.confirm-btn.cancel:hover {
+    background: rgba(120, 120, 130, 0.25);
+    color: var(--ink);
+    transform: translateY(-2px);
+}
+
+.confirm-btn.confirm {
+    color: white;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+}
+
+.confirm-btn.confirm:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.25);
+}
+
+.confirm-btn.confirm:active {
+    transform: translateY(0);
+}
+
+.confirm-btn.confirm.warning {
+    background: linear-gradient(135deg, #f59e0b, #f97316);
+}
+
+.confirm-btn.confirm.warning:hover {
+    background: linear-gradient(135deg, #fbbf24, #fb923c);
+}
+
+.confirm-btn.confirm.danger {
+    background: linear-gradient(135deg, #ef4444, #dc2626);
+}
+
+.confirm-btn.confirm.danger:hover {
+    background: linear-gradient(135deg, #f87171, #ef4444);
+}
+
+.confirm-btn.confirm.success {
+    background: linear-gradient(135deg, #10b981, #059669);
+}
+
+.confirm-btn.confirm.success:hover {
+    background: linear-gradient(135deg, #34d399, #10b981);
+}
+
+.confirm-btn.confirm.info {
+    background: linear-gradient(135deg, var(--accent), #0ea5e9);
+}
+
+.confirm-btn.confirm.info:hover {
+    background: linear-gradient(135deg, #62b9bf, #38bdf8);
+}
+
+:root[data-theme="dark"] .confirm-btn.cancel {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.15);
+}
+
+:root[data-theme="dark"] .confirm-btn.cancel:hover {
+    background: rgba(255, 255, 255, 0.15);
+}
+
+/* 移动端优化 */
+@media (max-width: 480px) {
+    .confirm-modal-footer {
+        grid-template-columns: 1fr;
+        gap: 10px;
+    }
+
+    .confirm-btn.cancel {
+        order: 1;
+    }
+
+    .confirm-btn.confirm {
+        order: 2;
+    }
+}

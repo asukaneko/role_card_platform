@@ -136,10 +136,22 @@ document.addEventListener("click", async (event) => {
 
     const confirmForm = event.target.closest("form[data-confirm]");
     if (confirmForm && event.target.closest("button")) {
+        event.preventDefault();
         const message = confirmForm.dataset.confirm || "确定执行这个操作吗？";
-        if (!window.confirm(message)) {
-            event.preventDefault();
-        }
+        
+        // 判断是否为危险操作
+        const isDanger = confirmForm.querySelector(".danger-btn") || 
+                         message.includes("删除") || 
+                         message.includes("不可撤销");
+        
+        showConfirmModal({
+            title: isDanger ? "危险操作" : "确认操作",
+            message: message,
+            type: isDanger ? "danger" : "info",
+            onConfirm: () => {
+                confirmForm.submit();
+            }
+        });
     }
 
     // 整张角色卡点击跳转详情页（排除内部链接和按钮）
@@ -178,9 +190,21 @@ document.addEventListener("click", (event) => {
     const action = batchBtn.dataset.action;
     const actionLabel = { hide: "隐藏", publish: "公开", delete: "删除" }[action] || action;
     if (action === "delete") {
-        if (!window.confirm(`确定批量删除 ${checked.length} 张角色卡吗？此操作不可撤销。`)) {
-            return;
-        }
+        showConfirmModal({
+            title: "批量删除",
+            message: `确定批量删除 ${checked.length} 张角色卡吗？此操作不可撤销。`,
+            type: "danger",
+            onConfirm: () => {
+                const ids = Array.from(checked).map(cb => cb.value).join(",");
+                const idsInput = document.getElementById("batch-ids");
+                const actionInput = document.getElementById("batch-action");
+                if (idsInput) idsInput.value = ids;
+                if (actionInput) actionInput.value = action;
+                const form = document.querySelector(".batch-form");
+                if (form) form.submit();
+            }
+        });
+        return;
     }
 
     const ids = Array.from(checked).map(cb => cb.value).join(",");
@@ -301,6 +325,83 @@ document.addEventListener("click", (event) => {
             renderSelected();
         }
     });
+})();
+
+// 确认弹窗功能
+(function initConfirmModal() {
+    const overlay = document.getElementById("confirm-modal");
+    const iconEl = document.getElementById("confirm-icon");
+    const titleEl = document.getElementById("confirm-title");
+    const messageEl = document.getElementById("confirm-message");
+    const headerEl = document.getElementById("confirm-header");
+    const cancelBtn = document.getElementById("confirm-cancel-btn");
+    const submitBtn = document.getElementById("confirm-submit-btn");
+
+    let currentCallback = null;
+    let currentConfirmBtn = null;
+
+    // 图标 SVG 映射
+    const icons = {
+        danger: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>',
+        warning: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>',
+        success: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>',
+        info: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>'
+    };
+
+    function openModal(options) {
+        const { title, message, type = "info", confirmText = "确认", cancelText = "取消", onConfirm } = options;
+        currentCallback = onConfirm;
+
+        // 设置内容
+        titleEl.textContent = title;
+        messageEl.textContent = message;
+        iconEl.innerHTML = icons[type] || icons.info;
+        iconEl.className = "confirm-modal-icon " + type;
+        headerEl.className = "confirm-modal-header" + (type === "danger" ? " danger" : "");
+        
+        // 设置按钮文字和样式
+        cancelBtn.textContent = cancelText;
+        submitBtn.textContent = confirmText;
+        submitBtn.className = "confirm-btn confirm " + type;
+
+        // 显示弹窗
+        overlay.classList.add("active");
+        document.body.style.overflow = "hidden";
+    }
+
+    function closeModal() {
+        overlay.classList.remove("active");
+        document.body.style.overflow = "";
+        currentCallback = null;
+    }
+
+    // 取消按钮
+    cancelBtn.addEventListener("click", closeModal);
+
+    // 确认按钮
+    submitBtn.addEventListener("click", () => {
+        if (currentCallback) {
+            currentCallback();
+        }
+        closeModal();
+    });
+
+    // 点击背景关闭
+    overlay.addEventListener("click", (e) => {
+        if (e.target === overlay) {
+            closeModal();
+        }
+    });
+
+    // ESC 键关闭
+    document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape" && overlay.classList.contains("active")) {
+            closeModal();
+        }
+    });
+
+    // 暴露全局函数
+    window.showConfirmModal = openModal;
 })();
 
 // 分享弹窗功能
