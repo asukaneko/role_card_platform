@@ -198,12 +198,14 @@ def login_required(f):
 
 
 def owner_required(card_id: int) -> dict:
-    """验证当前用户是卡片所有者，返回卡片数据，否则 403"""
-    from .models import RoleCard
-    card = RoleCard.get_by_id(card_id)
-    if not card:
+    """验证当前用户是卡片所有者，返回卡片数据（包含草稿等所有状态），否则 403"""
+    from .models import RoleCard, get_db
+    with get_db() as db:
+        row = db.execute("SELECT * FROM role_cards WHERE id = ?", (card_id,)).fetchone()
+    if not row:
         from flask import abort
         abort(404)
+    card = RoleCard.row_to_card(row)
     user_id = session.get("user_id")
     if not user_id or card.get("user_id") != user_id:
         from flask import abort

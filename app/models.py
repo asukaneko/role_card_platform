@@ -93,7 +93,8 @@ def init_db() -> None:
             ("response_format", "ALTER TABLE role_cards ADD COLUMN response_format TEXT DEFAULT ''"),
             ("rules_json", "ALTER TABLE role_cards ADD COLUMN rules_json TEXT DEFAULT '[]'"),
             ("state_json", "ALTER TABLE role_cards ADD COLUMN state_json TEXT DEFAULT '{}'"),
-            ("status", "ALTER TABLE role_cards ADD COLUMN status TEXT DEFAULT 'pending'"),
+            # 将 status 默认值从 pending 改为 draft
+            ("status", "ALTER TABLE role_cards ADD COLUMN status TEXT DEFAULT 'draft'"),
             ("reviewed_by", "ALTER TABLE role_cards ADD COLUMN reviewed_by INTEGER DEFAULT NULL"),
             ("reviewed_at", "ALTER TABLE role_cards ADD COLUMN reviewed_at TEXT DEFAULT NULL"),
             ("review_result", "ALTER TABLE role_cards ADD COLUMN review_result TEXT DEFAULT NULL"),
@@ -102,6 +103,9 @@ def init_db() -> None:
         for col, sql in migrations:
             if col not in columns:
                 db.execute(sql)
+        
+        # 如果 status 列已存在但默认值是 pending，不修改已有数据，只确保新数据可以使用 draft
+        # 注意：sqlite 不支持 ALTER COLUMN，所以我们通过业务逻辑来处理
 
         # 用户表迁移
         user_columns = {row["name"] for row in db.execute("PRAGMA table_info(users)").fetchall()}
@@ -634,14 +638,14 @@ class RoleCard:
         return RoleCard.row_to_card(row)
 
     @staticmethod
-    def create(card_data: dict, avatar_path: str = "", user_id: int = None, status: str = "pending") -> dict:
+    def create(card_data: dict, avatar_path: str = "", user_id: int = None, status: str = "draft") -> dict:
         """创建新角色卡
 
         Args:
             card_data: 角色卡数据
             avatar_path: 头像路径
             user_id: 上传用户ID
-            status: 初始状态，默认pending（网页上传需审核），api上传可指定approved
+            status: 初始状态，默认draft（网页上传保存草稿），可指定pending（提交审核）或approved（API上传）
         """
         now = datetime.now().isoformat(timespec="seconds")
         with get_db() as db:
@@ -836,14 +840,29 @@ class RoleCard:
         return [RoleCard.row_to_card(row) for row in rows]
 
     @staticmethod
-    def get_by_user(user_id: int, include_private: bool = False, include_pending: bool = False) -> list:
-        """获取用户的角色卡"""
+    def get_by_user(user_id: int, include_private: bool = False, include_pending: bool = False, status_filter: str = None) -> list:
+        """获取用户的角色卡
+        
+        Args:
+            user_id: 用户ID
+            include_private: 是否包含私有卡片
+            include_pending: 是否包含待审核/草稿/被拒绝的卡片
+            status_filter: 状态筛选 (draft, pending, approved, rejected)
+        """
         with get_db() as db:
             if include_private:
-                # 用户自己查看自己的卡片，显示所有状态
+                # 用户自己查看自己的卡片
+                where = ["user_id = ?"]
+                params = [user_id]
+                
+                # 如果指定了状态筛选
+                if status_filter:
+                    where.append("status = ?")
+                    params.append(status_filter)
+                
                 rows = db.execute(
-                    "SELECT * FROM role_cards WHERE user_id = ? ORDER BY created_at DESC",
-                    (user_id,),
+                    f"SELECT * FROM role_cards WHERE {' AND '.join(where)} ORDER BY created_at DESC",
+                    params,
                 ).fetchall()
             else:
                 # 其他人查看，只显示公开且已审核的

@@ -257,18 +257,37 @@ def logout():
 @server.route("/user/<username>")
 def user_profile(username):
     tab = request.args.get("tab", "cards")
+    status_filter = request.args.get("status", "all")  # 状态筛选：all, approved, pending, draft, rejected
     with get_db() as db:
         user = db.execute("SELECT * FROM users WHERE username = ?", (username,)).fetchone()
         if not user:
             abort(404)
         is_self = session.get("user_id") == user["id"]
         is_admin = is_admin_user(session.get("user_id"))
+        
+        # 统计各状态数量（仅自己查看时，基于所有卡片统计）
+        status_counts = {"all": 0, "approved": 0, "pending": 0, "draft": 0, "rejected": 0}
+        
         if is_self:
-            # 自己查看：显示所有角色卡（包括待审核和已拒绝的）
-            rows = db.execute(
+            # 先查询所有卡片用于统计数量
+            all_rows = db.execute(
                 "SELECT * FROM role_cards WHERE user_id = ? ORDER BY created_at DESC",
                 (user["id"],),
             ).fetchall()
+            status_counts["all"] = len(all_rows)
+            for row in all_rows:
+                status = dict(row).get("status", "approved")
+                if status in status_counts:
+                    status_counts[status] += 1
+            
+            # 根据筛选条件返回对应卡片
+            if status_filter and status_filter != "all":
+                rows = db.execute(
+                    "SELECT * FROM role_cards WHERE user_id = ? AND status = ? ORDER BY created_at DESC",
+                    (user["id"], status_filter),
+                ).fetchall()
+            else:
+                rows = all_rows
         else:
             # 其他人查看：只显示已审核通过且公开的角色卡
             rows = db.execute(
@@ -291,7 +310,7 @@ def user_profile(username):
     if is_self and tab == "following":
         following_list = UserFollow.get_following(user["id"])
 
-    return render_template("user_profile.html", profile_user=dict(user), cards=cards, favorite_cards=favorite_cards, is_self=is_self, tab=tab, is_admin=is_admin, follower_count=follower_count, following_count=following_count, is_following=is_following, following_list=following_list)
+    return render_template("user_profile.html", profile_user=dict(user), cards=cards, favorite_cards=favorite_cards, is_self=is_self, tab=tab, status_filter=status_filter, status_counts=status_counts, is_admin=is_admin, follower_count=follower_count, following_count=following_count, is_following=is_following, following_list=following_list)
 
 
 @server.route("/feed")
@@ -509,41 +528,40 @@ def card_detail(identifier):
             user_id = api_user_id
         is_admin = is_admin or is_admin_user(api_user_id)
 
-    # 先尝试获取已审核的角色卡
-    card = RoleCard.get_by_slug(identifier)
+    # 先查找卡片（不限状态）：优先按 slug 查找，再按 ID 查找
+    with get_db() as db:
+        row = db.execute("SELECT * FROM role_cards WHERE slug = ?", (identifier,)).fetchone()
+        if not row and str(identifier).isdigit():
+            row = db.execute("SELECT * FROM role_cards WHERE id = ?", (identifier,)).fetchone()
 
-    # 如果找不到，检查是否是所有者、审核员、管理员或API上传者在查看待审核内容
-    if not card:
-        with get_db() as db:
-            if str(identifier).isdigit():
-                row = db.execute("SELECT * FROM role_cards WHERE id = ?", (identifier,)).fetchone()
-            else:
-                row = db.execute("SELECT * FROM role_cards WHERE slug = ?", (identifier,)).fetchone()
+    if not row:
+        abort(404)
 
-            if row:
-                # 检查权限：所有者、审核员、管理员、API Token持有者可以查看待审核内容
-                is_owner = user_id and row["user_id"] == user_id
-                is_reviewer = user_id and Reviewer.is_reviewer(user_id)
-                # API上传的卡片（user_id为None）允许任何有效API Token查看
-                is_api_uploader = api_user_id is not None and row["user_id"] is None
+    card = RoleCard.row_to_card(row)
+    card_status = card.get("status", "approved")
 
-                if is_owner or is_reviewer or is_admin or is_api_uploader:
-                    card = RoleCard.row_to_card(row)
-                else:
-                    abort(404)
-            else:
-                abort(404)
+    # 检查访问权限：
+    # 1. 已审核的公开卡片：所有人都可以查看
+    # 2. 非 approved 状态：只有所有者、审核员、管理员可以查看
+    # 3. 私有卡片：只有所有者和管理员可以查看
+    is_owner = user_id and card.get("user_id") == user_id
+    is_reviewer = user_id and Reviewer.is_reviewer(user_id)
+    # API上传的卡片（user_id为None）允许任何有效API Token查看
+    is_api_uploader = api_user_id is not None and row["user_id"] is None
 
-    # 检查权限：私有卡片只有所有者和管理员可以查看
-    if card["visibility"] != "public":
-        is_owner = user_id and card.get("user_id") == user_id
-        if not is_owner and not is_admin:
+    # 非公开状态需要特殊权限
+    if card_status != "approved":
+        if not (is_owner or is_reviewer or is_admin or is_api_uploader):
             abort(404)
 
-    # 增加浏览量（已审核的公开卡片才统计）
-    if card.get("status") == "approved" and card.get("visibility") == "public":
+    # 私有卡片只有所有者和管理员可以查看
+    if card["visibility"] != "public":
+        if not (is_owner or is_admin):
+            abort(404)
+
+    # 增加浏览量（仅已审核的公开卡片）
+    if card_status == "approved" and card.get("visibility") == "public":
         RoleCard.increment_views(card["id"])
-        # 更新内存中的浏览量（避免再次查询）
         card["views"] = card.get("views", 0) + 1
 
     user_liked = False
@@ -551,9 +569,6 @@ def card_detail(identifier):
 
     with get_db() as db:
         # 评论查询：普通用户只显示已审核评论，所有者和审核员显示全部
-        is_owner = user_id and card.get("user_id") == user_id
-        is_reviewer = user_id and Reviewer.is_reviewer(user_id)
-
         if is_owner or is_reviewer:
             rows = db.execute(
                 "SELECT c.*, u.username, u.display_name FROM comments c "
@@ -569,7 +584,7 @@ def card_detail(identifier):
                 (card["id"],),
             ).fetchall()
 
-        # 检查当前用户是否已经喜欢过该角色
+        # 检查当前用户是否已经喜欢/收藏过该角色
         if user_id:
             like_row = db.execute(
                 "SELECT id FROM user_likes WHERE user_id = ? AND card_id = ?",
@@ -597,9 +612,6 @@ def card_detail(identifier):
     is_following_author = False
     if user_id and card.get("user_id"):
         is_following_author = UserFollow.is_following(user_id, card["user_id"])
-
-    # 检查当前用户是否是卡片所有者
-    is_owner = user_id and card.get("user_id") == user_id
 
     return render_template("detail.html", card=card, comments=comments, user_liked=user_liked, user_favorited=user_favorited, current_user_id=user_id, related_cards=related_cards, linked_by_cards=linked_by_cards, is_following_author=is_following_author, is_owner=is_owner)
 
@@ -770,6 +782,10 @@ def edit_card(card_id):
     try:
         updated = card_from_form(request.form)
         avatar_path = save_avatar(request.files.get("avatar"))
+        
+        # 检查是否需要重新提交审核
+        action = request.form.get("action", "update")
+        resubmit = action == "submit" and card["status"] in ("draft", "rejected")
 
         now = datetime.now().isoformat(timespec="seconds")
         with get_db() as db:
@@ -809,6 +825,14 @@ def edit_card(card_id):
                 new_slug = unique_slug(db, updated["name"], existing_id=card_id)
                 sets.append("slug = ?")
                 params.append(new_slug)
+            
+            # 如果重新提交审核，更新状态为 pending 并清理审核记录
+            if resubmit:
+                sets.append("status = ?")
+                sets.append("reviewed_by = ?")
+                sets.append("reviewed_at = ?")
+                sets.append("review_result = ?")
+                params.extend(["pending", None, None, None])
 
             params.append(card_id)
             db.execute(
@@ -820,7 +844,10 @@ def edit_card(card_id):
             new_row = db.execute("SELECT slug FROM role_cards WHERE id = ?", (card_id,)).fetchone()
             new_slug = new_row["slug"] if new_row else card["slug"]
 
-        flash("角色卡已更新")
+        if resubmit:
+            flash("角色卡已重新提交审核")
+        else:
+            flash("角色卡已更新")
         return redirect(url_for("card_detail", identifier=new_slug))
     except ValueError as exc:
         flash(str(exc), "error")
@@ -897,6 +924,10 @@ def upload():
                 card["creator"] = current["display_name"] or current["username"]
 
         now = datetime.now().isoformat(timespec="seconds")
+        # 根据表单提交的动作决定状态
+        action = request.form.get("action", "draft")
+        card_status = "draft" if action == "draft" else "pending"
+        
         with get_db() as db:
             slug = unique_slug(db, card["name"])
             db.execute(
@@ -930,11 +961,16 @@ def upload():
                     card.get("response_format", ""),
                     json.dumps(card.get("rules", []), ensure_ascii=False),
                     json.dumps(card.get("state", {}), ensure_ascii=False),
-                    "pending",  # 明确设置为待审核状态
+                    card_status,
                 ),
             )
             db.commit()
-        flash("角色卡已提交审核，审核通过后将自动发布")
+        
+        if card_status == "draft":
+            flash("草稿已保存")
+        else:
+            flash("角色卡已提交审核，审核通过后将自动发布")
+        
         if current:
             return redirect(url_for("user_profile", username=current["username"]))
         return redirect(url_for("index"))
@@ -1836,4 +1872,4 @@ if __name__ == "__main__":
     init_db()
     port = int(os.getenv("ROLE_CARD_PORT", "7861"))
     debug = os.getenv("ROLE_CARD_DEBUG", "").lower() in {"1", "true", "yes", "on"}
-    server.run(host="0.0.0.0", port=port, debug=debug, use_reloader=False, threaded=True)
+    server.run(host="0.0.0.0", port=port, debug=debug, use_reloader=debug, threaded=True)

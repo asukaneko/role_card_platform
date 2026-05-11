@@ -126,9 +126,14 @@
         </label>
     </section>
 
-    <div class="form-actions">
+    <div class="form-actions edit-actions">
         <a href="{{ url_for('card_detail', identifier=card.slug) }}">取消</a>
-        <button type="submit">保存修改</button>
+        <button type="submit" name="action" value="update" class="btn-save">保存修改</button>
+        {% if card.status in ['draft', 'rejected'] %}
+        <button type="submit" name="action" value="submit" class="btn-submit-review">
+            {% if card.status == 'draft' %}提交审核{% else %}重新提交审核{% endif %}
+        </button>
+        {% endif %}
     </div>
 </form>
 

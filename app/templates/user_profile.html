@@ -122,6 +122,27 @@
     {% endif %}
 </div>
 
+{# 状态筛选标签（仅自己在查看角色卡时显示） #}
+{% if is_self and tab == 'cards' %}
+<div class="status-filter-tabs">
+    <a href="{{ url_for('user_profile', username=profile_user.username, tab='cards', status='all') }}" class="status-tab{% if status_filter == 'all' %} active{% endif %}">
+        全部 <span class="tab-count">{{ status_counts.all }}</span>
+    </a>
+    <a href="{{ url_for('user_profile', username=profile_user.username, tab='cards', status='approved') }}" class="status-tab{% if status_filter == 'approved' %} active{% endif %}">
+        <span class="status-dot approved"></span> 已发布 <span class="tab-count">{{ status_counts.approved }}</span>
+    </a>
+    <a href="{{ url_for('user_profile', username=profile_user.username, tab='cards', status='pending') }}" class="status-tab{% if status_filter == 'pending' %} active{% endif %}">
+        <span class="status-dot pending"></span> 审核中 <span class="tab-count">{{ status_counts.pending }}</span>
+    </a>
+    <a href="{{ url_for('user_profile', username=profile_user.username, tab='cards', status='draft') }}" class="status-tab{% if status_filter == 'draft' %} active{% endif %}">
+        <span class="status-dot draft"></span> 草稿 <span class="tab-count">{{ status_counts.draft }}</span>
+    </a>
+    <a href="{{ url_for('user_profile', username=profile_user.username, tab='cards', status='rejected') }}" class="status-tab{% if status_filter == 'rejected' %} active{% endif %}">
+        <span class="status-dot rejected"></span> 被拒绝 <span class="tab-count">{{ status_counts.rejected }}</span>
+    </a>
+</div>
+{% endif %}
+
 {% if tab == 'following' and is_self %}
 {% if following_list %}
 <section class="toolbar">

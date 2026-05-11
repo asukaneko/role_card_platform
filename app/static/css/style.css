@@ -900,6 +900,147 @@ textarea:focus {
     align-items: center;
 }
 
+.upload-actions {
+    justify-content: flex-end;
+    gap: 10px;
+}
+
+.btn-draft {
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 12px 20px;
+    background: var(--field-bg);
+    color: var(--muted);
+    cursor: pointer;
+    font: inherit;
+    font-weight: 600;
+    font-size: 14px;
+    transition: all 0.2s ease;
+}
+
+.btn-draft:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+    transform: translateY(-2px);
+}
+
+.btn-submit {
+    border: 1px solid var(--accent);
+    border-radius: 8px;
+    padding: 12px 24px;
+    background: var(--accent);
+    color: white;
+    cursor: pointer;
+    font: inherit;
+    font-weight: 700;
+    font-size: 14px;
+    transition: all 0.2s ease;
+}
+
+.edit-actions {
+    justify-content: space-between;
+}
+
+.btn-save {
+    border: 1px solid var(--accent);
+    border-radius: 8px;
+    padding: 12px 20px;
+    background: var(--accent);
+    color: white;
+    cursor: pointer;
+    font: inherit;
+    font-weight: 600;
+    font-size: 14px;
+    transition: all 0.2s ease;
+}
+
+.btn-save:hover {
+    opacity: 0.9;
+    transform: translateY(-2px);
+}
+
+.btn-submit-review {
+    border: 1px solid var(--gold);
+    border-radius: 8px;
+    padding: 12px 20px;
+    background: var(--gold);
+    color: white;
+    cursor: pointer;
+    font: inherit;
+    font-weight: 700;
+    font-size: 14px;
+    transition: all 0.2s ease;
+}
+
+.btn-submit-review:hover {
+    opacity: 0.9;
+    transform: translateY(-2px);
+}
+
+/* 状态筛选标签 */
+.status-filter-tabs {
+    display: flex;
+    gap: 8px;
+    padding: 16px 0;
+    border-bottom: 1px solid var(--line);
+    margin-bottom: 20px;
+    overflow-x: auto;
+}
+
+.status-tab {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 16px;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--muted);
+    text-decoration: none;
+    font-size: 13px;
+    font-weight: 600;
+    white-space: nowrap;
+    transition: all 0.2s ease;
+}
+
+.status-tab:hover {
+    background: var(--field-bg);
+    color: var(--accent);
+}
+
+.status-tab.active {
+    background: var(--accent);
+    color: white;
+}
+
+.status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+}
+
+.status-dot.approved {
+    background: #10b981;
+}
+
+.status-dot.pending {
+    background: #f59e0b;
+}
+
+.status-dot.draft {
+    background: #6b7280;
+}
+
+.status-dot.rejected {
+    background: #ef4444;
+}
+
+.tab-count {
+    font-size: 11px;
+    opacity: 0.7;
+    font-weight: 500;
+}
+
 /* 规则列表样式 */
 .rule-item {
     margin-bottom: 10px;
@@ -2059,6 +2200,11 @@ pre {
 
 .status-rejected {
     background: #ef4444;
+    color: white;
+}
+
+.status-draft {
+    background: #9ca3af;
     color: white;
 }
 

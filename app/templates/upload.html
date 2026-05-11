@@ -143,9 +143,10 @@
         </label>
     </section>
 
-    <div class="form-actions">
+    <div class="form-actions upload-actions">
         <a href="{{ url_for('index') }}">取消</a>
-        <button type="submit">发布角色卡</button>
+        <button type="submit" name="action" value="draft" class="btn-draft">保存草稿</button>
+        <button type="submit" name="action" value="submit" class="btn-submit">提交审核</button>
     </div>
 </form>
 
