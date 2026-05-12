@@ -13,12 +13,33 @@ from email.mime.text import MIMEText
 from email.utils import formataddr
 from html import escape
 
-from flask import request
+from flask import request, current_app
 
 from .models import EmailConfig, VerificationCode
 
-# 验证码hash密钥（优先从环境变量读取，否则使用应用secret_key的派生值）
-_CODE_HMAC_KEY = os.getenv("ROLE_CARD_CODE_HMAC_KEY", "role_card_platform_code_hmac_key_v1")
+
+def _get_code_hmac_key() -> str:
+    """获取验证码 HMAC 密钥
+
+    优先从环境变量读取，否则使用 SECRET_KEY 派生值
+    生产环境强烈建议设置 ROLE_CARD_CODE_HMAC_KEY
+    """
+    env_key = os.getenv("ROLE_CARD_CODE_HMAC_KEY", "").strip()
+    if env_key:
+        return env_key
+
+    # 回退到 SECRET_KEY 的派生值
+    secret_key = current_app.config.get("SECRET_KEY", "")
+    if secret_key:
+        # 使用 SECRET_KEY 派生一个专用密钥
+        return hmac.new(
+            b"role_card_code_key_derivation_v1",
+            secret_key.encode(),
+            hashlib.sha256
+        ).hexdigest()[:32]
+
+    # 最后的 fallback（仅开发环境）
+    return "dev_only_fallback_key_change_in_production"
 
 # 允许的SMTP端口
 ALLOWED_SMTP_PORTS = {465, 587}
@@ -40,8 +61,9 @@ def generate_verification_code(length: int = 6) -> str:
 
 def hash_code(email: str, code: str) -> str:
     """对验证码进行HMAC hash，避免明文存储"""
+    key = _get_code_hmac_key()
     return hmac.new(
-        _CODE_HMAC_KEY.encode(),
+        key.encode(),
         f"{email}:{code}".encode(),
         hashlib.sha256
     ).hexdigest()
@@ -53,17 +75,50 @@ def get_client_ip() -> str:
 
 
 def _is_private_smtp(host: str) -> bool:
-    """检查SMTP服务器地址是否为私网/保留地址"""
-    if host.lower() in _BLOCKED_HOSTNAMES:
+    """检查SMTP服务器地址是否为私网/保留地址
+
+    对域名会进行DNS解析并检查所有解析IP，防止DNS重绑定攻击
+    """
+    host_lower = host.lower()
+
+    # 检查黑名单主机名
+    if host_lower in _BLOCKED_HOSTNAMES:
         return True
-    if host.endswith('.local') or host.endswith('.internal'):
+
+    # 检查可疑域名后缀
+    if host_lower.endswith('.local') or host_lower.endswith('.internal'):
         return True
+
+    # 检查是否是IP地址
     try:
         ip = ipaddress.ip_address(host)
-        return ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved
+        return ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved or ip.is_multicast
     except ValueError:
-        # 不是IP地址（是域名），允许通过
-        return False
+        # 不是IP地址（是域名），需要解析DNS并检查所有IP
+        pass
+
+    # DNS解析并检查所有解析IP（防止DNS重绑定攻击）
+    try:
+        import socket
+        resolved = socket.getaddrinfo(host, None)
+        resolved_ips = set()
+        for item in resolved:
+            ip_str = item[4][0]
+            resolved_ips.add(ip_str)
+
+        # 检查所有解析的IP
+        for ip_str in resolved_ips:
+            try:
+                ip = ipaddress.ip_address(ip_str)
+                if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved or ip.is_multicast:
+                    return True
+            except ValueError:
+                continue
+    except socket.gaierror:
+        # DNS解析失败，视为不安全
+        return True
+
+    return False
 
 
 def can_send_code(ip_address: str, max_per_minute: int = 5) -> bool:

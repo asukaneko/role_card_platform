@@ -4,7 +4,7 @@
 import difflib
 import json
 import sqlite3
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional
 
 from flask import abort, session
@@ -412,9 +412,154 @@ def init_db() -> None:
         )
         db.commit()
 
+        # 预览token表（用于一次性临时访问卡片）
+        db.execute(
+            """
+            CREATE TABLE IF NOT EXISTS preview_tokens (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                card_id INTEGER NOT NULL,
+                token_hash TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                expires_at TEXT NOT NULL,
+                used INTEGER DEFAULT 0,
+                use_count INTEGER DEFAULT 0,
+                max_uses INTEGER DEFAULT 1,
+                FOREIGN KEY (card_id) REFERENCES role_cards(id) ON DELETE CASCADE
+            )
+            """
+        )
+        db.commit()
+
+
+class PreviewToken:
+    """预览Token模型 - 用于一次性临时访问卡片
+
+    安全特性：
+    - Token 只保存 hash，不存明文
+    - 有过期时间（默认10分钟）
+    - 有使用次数限制（默认1次）
+    - 使用后标记为已用
+    """
+
+    @staticmethod
+    def create(card_id: int, max_uses: int = 1, expires_minutes: int = 10) -> str:
+        """创建新的预览token，返回明文token（仅显示一次）
+
+        Args:
+            card_id: 卡片ID
+            max_uses: 最大使用次数，默认1次
+            expires_minutes: 过期时间（分钟），默认10分钟
+
+        Returns:
+            明文token（需要立即返回给用户，之后无法找回）
+        """
+        import hashlib
+        import hmac
+        import os
+        import secrets
+
+        # 生成随机token
+        raw_token = secrets.token_urlsafe(32)
+
+        # 计算hash（使用与API token相同的pepper）
+        pepper = os.getenv("ROLE_CARD_TOKEN_PEPPER", "").strip()
+        if not pepper:
+            pepper = "default-pepper-change-in-production"
+        token_hash = hmac.new(
+            pepper.encode(),
+            raw_token.encode(),
+            hashlib.sha256
+        ).hexdigest()
+
+        now = datetime.now()
+        created_at = now.isoformat(timespec="seconds")
+        expires_at = (now + timedelta(minutes=expires_minutes)).isoformat(timespec="seconds")
+
+        with get_db() as db:
+            db.execute(
+                """
+                INSERT INTO preview_tokens (card_id, token_hash, created_at, expires_at, max_uses)
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                (card_id, token_hash, created_at, expires_at, max_uses)
+            )
+            db.commit()
+
+        return raw_token
+
+    @staticmethod
+    def verify(card_id: int, token: str) -> bool:
+        """验证预览token是否有效
+
+        Args:
+            card_id: 卡片ID
+            token: 明文token
+
+        Returns:
+            是否有效
+        """
+        import hashlib
+        import hmac
+        import os
+
+        if not token:
+            return False
+
+        # 计算hash
+        pepper = os.getenv("ROLE_CARD_TOKEN_PEPPER", "").strip()
+        if not pepper:
+            pepper = "default-pepper-change-in-production"
+        token_hash = hmac.new(
+            pepper.encode(),
+            token.encode(),
+            hashlib.sha256
+        ).hexdigest()
+
+        now = datetime.now().isoformat(timespec="seconds")
+
+        with get_db() as db:
+            # 查找有效的token
+            row = db.execute(
+                """
+                SELECT id, used, use_count, max_uses FROM preview_tokens
+                WHERE card_id = ? AND token_hash = ? AND expires_at > ?
+                """,
+                (card_id, token_hash, now)
+            ).fetchone()
+
+            if not row:
+                return False
+
+            # 检查是否已用完
+            if row["used"] or row["use_count"] >= row["max_uses"]:
+                return False
+
+            # 更新使用次数
+            new_count = row["use_count"] + 1
+            is_used = 1 if new_count >= row["max_uses"] else 0
+
+            db.execute(
+                """
+                UPDATE preview_tokens
+                SET use_count = ?, used = ?
+                WHERE id = ?
+                """,
+                (new_count, is_used, row["id"])
+            )
+            db.commit()
+
+        return True
+
+    @staticmethod
+    def cleanup_expired() -> None:
+        """清理过期的preview token"""
+        now = datetime.now().isoformat(timespec="seconds")
+        with get_db() as db:
+            db.execute("DELETE FROM preview_tokens WHERE expires_at < ?", (now,))
+            db.commit()
+
 
 class CardVersion:
-    """角色卡版本历史模型"""
 
     @staticmethod
     def create_snapshot(card_id: int, user_id: int = None) -> dict:
@@ -660,16 +805,19 @@ class User:
 
     @staticmethod
     def create(username: str, password_hash: str, display_name: str = "", api_token: str = "") -> dict:
-        """创建新用户"""
+        """创建新用户
+
+        注意：api_token 只保存 hash，明文字段留空（安全考虑）
+        """
         now = datetime.now().isoformat(timespec="seconds")
-        # 计算 api_token 的 hash
+        # 计算 api_token 的 hash，明文字段留空
         from .auth import hash_api_token
         api_token_hash = hash_api_token(api_token) if api_token else ""
-        
+
         with get_db() as db:
             db.execute(
-                "INSERT INTO users (username, password_hash, display_name, bio, api_token, api_token_hash, created_at) VALUES (?, ?, ?, '', ?, ?, ?)",
-                (username, password_hash, display_name or username, api_token, api_token_hash, now),
+                "INSERT INTO users (username, password_hash, display_name, bio, api_token, api_token_hash, created_at) VALUES (?, ?, ?, '', '', ?, ?)",
+                (username, password_hash, display_name or username, api_token_hash, now),
             )
             db.commit()
             row = db.execute("SELECT * FROM users WHERE username = ?", (username,)).fetchone()
@@ -677,13 +825,17 @@ class User:
 
     @staticmethod
     def update_api_token(user_id: int, token: str) -> None:
-        """更新用户 API Token（存储 hash）"""
+        """更新用户 API Token（只存储 hash，明文字段留空）
+
+        安全说明：api_token 字段留空，只保存 hash，防止数据库泄露导致 token 被盗用
+        """
         from .auth import hash_api_token
         token_hash = hash_api_token(token) if token else ""
         with get_db() as db:
+            # 明文字段置空，只保留 hash
             db.execute(
-                "UPDATE users SET api_token = ?, api_token_hash = ? WHERE id = ?",
-                (token, token_hash, user_id)
+                "UPDATE users SET api_token = '', api_token_hash = ? WHERE id = ?",
+                (token_hash, user_id)
             )
             db.commit()
 

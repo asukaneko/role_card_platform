@@ -56,21 +56,18 @@ def generate_user_api_token() -> str:
 def resolve_api_user() -> int | None:
     """验证 API Token，返回对应的 user_id（None 表示无效）
 
-    接受以下方式的token：
+    只接受 Header 中的 token（安全考虑，避免 URL token 泄露到日志）：
     - Header: X-Role-Card-Token: <token>
     - Header: Authorization: Bearer <token>
-    - URL查询参数: ?api_token=<token>
+
+    注意：URL 查询参数中的 api_token 已被移除，如需临时访问请使用 preview_token
     """
-    # 优先从Header获取
+    # 只从 Header 获取 token（URL token 会进入服务器日志、浏览器历史，不安全）
     provided = request.headers.get("X-Role-Card-Token", "").strip()
 
     auth = request.headers.get("Authorization", "")
     if auth.lower().startswith("bearer "):
         provided = auth.split(" ", 1)[1].strip()
-
-    # 如果Header没有，尝试从URL查询参数获取（nekobot浏览器跳转场景）
-    if not provided:
-        provided = request.args.get("api_token", "").strip()
 
     if not provided:
         return None
@@ -138,11 +135,27 @@ def admin_token() -> str:
 
 
 def get_or_create_admin_user() -> dict:
-    """获取或创建 admin 用户"""
+    """获取或创建 admin 用户
+
+    安全说明：
+    1. 如果 admin 用户不存在，创建新用户并设为管理员
+    2. 如果 admin 用户已存在但不是管理员，拒绝自动提升权限（防止恶意注册 admin 用户名）
+    3. 只有在初始化阶段（BOOTSTRAP_ADMIN=true）才允许创建/设置管理员
+    """
+    import os
     from .models import get_db
-    
+
+    # 检查是否允许初始化管理员（环境变量控制）
+    allow_bootstrap = os.getenv("ROLE_CARD_BOOTSTRAP_ADMIN", "").lower() in {"1", "true", "yes", "on"}
+
     admin_user = User.get_by_username("admin")
+
     if not admin_user:
+        # admin 用户不存在，检查是否允许初始化
+        if not allow_bootstrap:
+            # 不允许自动创建，返回 None（应用启动时会显示警告）
+            return None
+
         # 创建 admin 用户
         password = admin_token()
         password_hash = generate_password_hash(password)
@@ -158,11 +171,21 @@ def get_or_create_admin_user() -> dict:
             db.execute("UPDATE users SET is_admin = 1 WHERE username = 'admin'")
             db.commit()
     else:
-        # 确保 is_admin = 1
-        with get_db() as db:
-            db.execute("UPDATE users SET is_admin = 1 WHERE username = 'admin'")
-            db.commit()
-    
+        # admin 用户已存在
+        if not admin_user.get("is_admin", 0):
+            # 已存在的非管理员用户，拒绝自动提升权限
+            # 这是为了防止：攻击者提前注册 admin 用户名，然后利用自动升级获得管理员权限
+            if not allow_bootstrap:
+                raise RuntimeError(
+                    "安全错误：用户 'admin' 已存在但不是管理员。"
+                    "拒绝自动提升权限。如需手动设置管理员，请设置环境变量 ROLE_CARD_BOOTSTRAP_ADMIN=true 后启动，"
+                    "或者直接在数据库中设置 is_admin=1。"
+                )
+            # 允许初始化时提升权限
+            with get_db() as db:
+                db.execute("UPDATE users SET is_admin = 1 WHERE username = 'admin'")
+                db.commit()
+
     return admin_user
 
 

@@ -1,0 +1,141 @@
+{% extends "base.html" %}
+
+{% block title %}预览链接已过期 - 角色卡平台{% endblock %}
+
+{% block content %}
+<style>
+    .expired-container {
+        max-width: 600px;
+        margin: 80px auto;
+        padding: 40px;
+        text-align: center;
+        background: var(--card-bg, #fff);
+        border-radius: 12px;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+    }
+    .expired-icon {
+        width: 80px;
+        height: 80px;
+        margin: 0 auto 24px;
+        background: #fef3c7;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    .expired-icon svg {
+        width: 40px;
+        height: 40px;
+        color: #f59e0b;
+    }
+    .expired-title {
+        font-size: 24px;
+        font-weight: 600;
+        color: var(--text-primary, #1f2937);
+        margin-bottom: 16px;
+    }
+    .expired-message {
+        font-size: 16px;
+        color: var(--text-secondary, #6b7280);
+        line-height: 1.6;
+        margin-bottom: 24px;
+    }
+    .expired-card-info {
+        background: var(--bg-secondary, #f9fafb);
+        border-radius: 8px;
+        padding: 16px;
+        margin-bottom: 24px;
+        text-align: left;
+    }
+    .expired-card-info h3 {
+        font-size: 18px;
+        color: var(--text-primary, #374151);
+        margin-bottom: 8px;
+    }
+    .expired-card-info p {
+        font-size: 14px;
+        color: var(--text-secondary, #6b7280);
+        margin: 0;
+    }
+    .expired-actions {
+        display: flex;
+        gap: 12px;
+        justify-content: center;
+        flex-wrap: wrap;
+    }
+    .expired-btn {
+        padding: 12px 24px;
+        border-radius: 8px;
+        font-size: 14px;
+        font-weight: 500;
+        text-decoration: none;
+        transition: all 0.2s;
+    }
+    .expired-btn-primary {
+        background: #2f6f73;
+        color: white;
+    }
+    .expired-btn-primary:hover {
+        background: #265a5d;
+    }
+    .expired-btn-secondary {
+        background: var(--bg-secondary, #f3f4f6);
+        color: var(--text-primary, #4b5563);
+    }
+    .expired-btn-secondary:hover {
+        background: var(--border-color, #e5e7eb);
+    }
+    .expired-help {
+        margin-top: 32px;
+        padding-top: 24px;
+        border-top: 1px solid var(--border-color, #e5e7eb);
+        font-size: 14px;
+        color: var(--text-tertiary, #9ca3af);
+    }
+    .expired-help a {
+        color: #2f6f73;
+        text-decoration: none;
+    }
+    .expired-help a:hover {
+        text-decoration: underline;
+    }
+</style>
+
+<div class="expired-container">
+    <div class="expired-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"/>
+            <line x1="12" y1="8" x2="12" y2="12"/>
+            <line x1="12" y1="16" x2="12.01" y2="16"/>
+        </svg>
+    </div>
+
+    <h1 class="expired-title">预览链接已过期</h1>
+
+    <p class="expired-message">
+        您使用的预览链接已经过期或已达到使用次数上限。<br>
+        预览链接有效期为 10 分钟，最多可使用 3 次。
+    </p>
+
+    {% if card %}
+    <div class="expired-card-info">
+        <h3>🎭 {{ card.name }}</h3>
+        <p>该角色卡正在审核中，审核通过后将公开显示。</p>
+    </div>
+    {% endif %}
+
+    <div class="expired-actions">
+        <a href="{{ url_for('index') }}" class="expired-btn expired-btn-primary">
+            返回首页
+        </a>
+        <a href="{{ url_for('search') }}" class="expired-btn expired-btn-secondary">
+            搜索角色卡
+        </a>
+    </div>
+
+    <div class="expired-help">
+        <p>如果您是卡片上传者，可以通过 NekoBot 重新生成预览链接</p>
+        <p>如有疑问，请 <a href="mailto:support@example.com">联系我们</a></p>
+    </div>
+</div>
+{% endblock %}

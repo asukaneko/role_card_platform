@@ -82,6 +82,7 @@
     </label>
     <span class="batch-count">已选 <strong id="selected-user-count">0</strong> 项</span>
     <form method="post" action="{{ url_for('admin_user_batch') }}" class="batch-form" data-batch-confirm="delete" id="user-batch-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="ids" id="batch-user-ids">
         <input type="hidden" name="action" id="batch-user-action">
         <button type="button" class="batch-btn danger" data-action="delete">批量删除</button>
@@ -127,6 +128,7 @@
     </label>
     <span class="batch-count">已选 <strong id="selected-count">0</strong> 项</span>
     <form method="post" action="{{ url_for('admin_batch') }}" class="batch-form" data-batch-confirm="delete" id="card-batch-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="ids" id="batch-ids">
         <input type="hidden" name="action" id="batch-action">
         <button type="button" class="batch-btn" data-action="hide">批量隐藏</button>

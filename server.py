@@ -40,7 +40,7 @@ from app.config import (
     MAX_CARD_BYTES, MAX_AVATAR_BYTES, MAX_ZIP_BYTES,
     ALLOWED_AVATAR_EXTENSIONS, IMAGE_SIGNATURES, Config
 )
-from app.models import init_db, get_db, User, RoleCard, Comment, UserLike, UserFavorite, Reviewer, ReviewQueue, AIReviewConfig, EmailConfig, CardRelation, UserFollow, Notification, Collection, CreatorStats, CardVersion, Report
+from app.models import init_db, get_db, User, RoleCard, Comment, UserLike, UserFavorite, Reviewer, ReviewQueue, AIReviewConfig, EmailConfig, CardRelation, UserFollow, Notification, Collection, CreatorStats, CardVersion, Report, PreviewToken
 from app.auth import (
     generate_user_api_token, resolve_api_user, api_token_valid,
     admin_token, get_current_user, login_required, AuthService,
@@ -59,7 +59,8 @@ from app.email_queue import EmailQueue, queue_register_success_email, queue_logi
 # 创建 Flask 应用
 server = Flask(__name__, template_folder="app/templates", static_folder="app/static")
 server.config.from_object(Config)
-server.debug = True
+# Debug模式通过环境变量控制，生产环境必须设置为 false
+server.debug = os.getenv("ROLE_CARD_DEBUG", "").lower() in {"1", "true", "yes", "on"}
 # 初始化邮件队列表并启动工作线程
 EmailQueue.init_db()
 EmailQueue.start_worker()
@@ -85,12 +86,38 @@ limiter = Limiter(
 
 # 应用启动时初始化
 @server.before_request
-def init_admin_user():
-    """确保 admin 用户存在"""
+def init_app_on_first_request():
+    """应用首次请求时初始化
+
+    注意：生产环境需要设置 ROLE_CARD_BOOTSTRAP_ADMIN=true 来允许初始化管理员
+    """
     # 使用一个标志位确保只执行一次
-    if not hasattr(server, '_admin_initialized'):
-        get_or_create_admin_user()
-        server._admin_initialized = True
+    if not hasattr(server, '_app_initialized'):
+        # 1. 初始化数据库表结构
+        try:
+            init_db()
+        except Exception as e:
+            import logging
+            logging.error(f"数据库初始化失败: {e}")
+
+        # 2. 确保 admin 用户存在
+        try:
+            admin = get_or_create_admin_user()
+            if admin is None:
+                # 管理员未创建且不允许自动创建，记录警告
+                import warnings
+                warnings.warn(
+                    "管理员用户 'admin' 不存在且 ROLE_CARD_BOOTSTRAP_ADMIN 未设置。"
+                    "请设置环境变量 ROLE_CARD_BOOTSTRAP_ADMIN=true 后重启应用以创建管理员。",
+                    RuntimeWarning
+                )
+        except RuntimeError as e:
+            # 管理员已存在但不是管理员，拒绝启动
+            import logging
+            logging.error(f"管理员初始化失败: {e}")
+            raise
+
+        server._app_initialized = True
 
 
 @server.route("/register", methods=["GET", "POST"])
@@ -704,19 +731,29 @@ def card_detail(identifier):
 
     # 检查访问权限：
     # 1. 已审核的公开卡片：所有人都可以查看
-    # 2. 非 approved 状态：只有所有者、审核员、管理员可以查看
+    # 2. 非 approved 状态：只有所有者、审核员、管理员或持有有效preview_token的人可以查看
     # 3. 私有卡片：只有所有者和管理员可以查看
     is_owner = user_id and card.get("user_id") == user_id
     is_reviewer = user_id and Reviewer.is_reviewer(user_id)
-    # API上传的卡片（user_id为None）允许任何有效API Token查看
-    is_api_uploader = api_user_id is not None and row["user_id"] is None
+
+    # 检查是否有有效的 preview_token（用于临时访问待审核卡片）
+    preview_token = request.args.get("preview_token", "").strip()
+    has_valid_preview = False
+    preview_token_invalid = False
+    if preview_token and card_status != "approved":
+        has_valid_preview = PreviewToken.verify(card["id"], preview_token)
+        if not has_valid_preview:
+            preview_token_invalid = True
 
     # 非公开状态需要特殊权限
     if card_status != "approved":
-        if not (is_owner or is_reviewer or is_admin or is_api_uploader):
+        if not (is_owner or is_reviewer or is_admin or has_valid_preview):
+            # 如果是因为 preview_token 无效导致的无法访问，显示专门的提示页面
+            if preview_token_invalid:
+                return render_template("preview_token_expired.html", card=card)
             abort(404)
 
-    # 私有卡片只有所有者和管理员可以查看
+    # 私有卡片只有所有者和管理员可以查看（preview_token 不能绕过私有限制）
     if card["visibility"] != "public":
         if not (is_owner or is_admin):
             abort(404)
@@ -1301,6 +1338,64 @@ def api_create_card():
         return jsonify({"success": False, "error": "Upload failed"}), 500
 
 
+@server.route("/api/cards/<int:card_id>/preview-token", methods=["POST"])
+@limiter.limit("10 per minute")
+@csrf.exempt  # API接口使用Token认证，豁免CSRF
+def api_create_preview_token(card_id: int):
+    """为指定卡片创建一次性预览token
+
+    用于API上传后获取临时访问链接，让NekoBot等客户端可以在浏览器中打开待审核卡片
+
+    Returns:
+        {
+            "success": True,
+            "preview_token": "xxx",
+            "preview_url": "https://.../card/slug?preview_token=xxx",
+            "expires_in": 600  # 秒
+        }
+    """
+    import traceback
+
+    user_id = resolve_api_user()
+    if user_id is None:
+        return jsonify({"success": False, "error": "需要提供有效的 API Token"}), 403
+
+    # 获取卡片
+    card = RoleCard.get_by_id(card_id, include_pending=True)
+    if not card:
+        return jsonify({"success": False, "error": "卡片不存在"}), 404
+
+    # 检查权限：只有卡片所有者、审核员、管理员可以生成preview_token
+    is_owner = user_id and card.get("user_id") == user_id
+    is_admin_flag = is_admin_user(user_id) if user_id else False
+    is_reviewer = user_id and Reviewer.is_reviewer(user_id)
+
+    # 管理员Token（user_id=0）也可以生成preview_token
+    is_global_admin = user_id == 0
+
+    if not (is_owner or is_admin_flag or is_reviewer or is_global_admin):
+        return jsonify({"success": False, "error": "无权为此卡片生成预览token"}), 403
+
+    # 创建preview_token（10分钟有效期，最多使用3次）
+    try:
+        preview_token = PreviewToken.create(card_id, max_uses=3, expires_minutes=10)
+    except Exception as e:
+        import logging
+        logging.error(f"创建preview_token失败: {e}\n{traceback.format_exc()}")
+        return jsonify({"success": False, "error": f"创建预览token失败: {str(e)}"}), 500
+
+    # 构建预览URL
+    preview_url = url_for("card_detail", identifier=card["slug"], _external=True)
+    preview_url = f"{preview_url}?preview_token={preview_token}"
+
+    return jsonify({
+        "success": True,
+        "preview_token": preview_token,
+        "preview_url": preview_url,
+        "expires_in": 600  # 10分钟 = 600秒
+    })
+
+
 @server.route("/card/<int:card_id>/download")
 def download_card(card_id):
     card = RoleCard.get_or_404(card_id)
@@ -1696,6 +1791,7 @@ def admin_action(card_id, action):
 
 
 @server.route("/admin/batch", methods=["POST"])
+@csrf.exempt  # 批量操作使用传统表单提交，CSRF通过表单字段验证
 def admin_batch():
     is_admin, is_reviewer_user, token = admin_or_reviewer_required()
     if not is_admin and not is_reviewer_user:
@@ -1742,6 +1838,7 @@ def admin_delete_user(user_id):
 
 
 @server.route("/admin/user/batch", methods=["POST"])
+@csrf.exempt  # 批量操作使用传统表单提交，CSRF通过表单字段验证
 def admin_user_batch():
     # 检查是否为 admin 用户
     if not is_admin_user(session.get("user_id")):
