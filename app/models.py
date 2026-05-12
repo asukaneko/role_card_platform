@@ -837,9 +837,13 @@ class User:
                 (user.get("exp", 0),)
             ).fetchone()[0]
             
+        # 获取等级经验范围
+        level = user.get("level", 1)
+        exp_range = User.get_level_exp_range(level)
+        
         return {
             "user": user,
-            "level_title": User.get_level_title(user.get("level", 1)),
+            "level_title": User.get_level_title(level),
             "cards": {
                 "total": card_stats["total_cards"] or 0,
                 "likes": total_likes,
@@ -848,7 +852,9 @@ class User:
             },
             "comments": comment_count,
             "rank": rank,
-            "next_level_exp": User.get_next_level_exp(user.get("level", 1))
+            "next_level_exp": User.get_next_level_exp(level),
+            "level_exp_min": exp_range[0],
+            "level_exp_max": exp_range[1]
         }
 
     @staticmethod
@@ -866,6 +872,28 @@ class User:
             return 1500
         else:
             return 1500 + (level - 5) * 500
+    
+    @staticmethod
+    def get_level_exp_range(level: int) -> tuple:
+        """获取当前等级的经验值范围 (min_exp, max_exp)
+        
+        Returns:
+            tuple: (当前等级最小经验, 下一级所需经验)
+        """
+        if level == 1:
+            return (0, 100)
+        elif level == 2:
+            return (100, 300)
+        elif level == 3:
+            return (300, 600)
+        elif level == 4:
+            return (600, 1000)
+        elif level == 5:
+            return (1000, 1500)
+        else:
+            min_exp = 1500 + (level - 6) * 500
+            max_exp = min_exp + 500
+            return (min_exp, max_exp)
 
     @staticmethod
     def get_leaderboard(limit: int = 10) -> list:

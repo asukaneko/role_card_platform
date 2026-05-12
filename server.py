@@ -904,6 +904,11 @@ def _process_comment(card):
             message=f"您的角色卡「{card['name']}」收到了一条评论"
         )
 
+    # 评论者获得经验值（不能给自己的卡片评论获得经验）
+    if user_id and user_id != card.get("user_id"):
+        from app.models import User
+        User.add_exp(user_id, 3)  # 发表评论获得3经验
+    
     flash("评论已提交审核，审核通过后将显示")
     return redirect(url_for("card_detail", identifier=card["slug"]))
 
@@ -1191,6 +1196,13 @@ def upload():
             if new_card:
                 CardVersion.create_snapshot(new_card["id"], user_id)
 
+        # 增加经验值奖励（非草稿状态）
+        if card_status != "draft" and user_id:
+            from app.models import User
+            exp_result = User.add_exp(user_id, 50)  # 上传角色卡获得50经验
+            if exp_result and exp_result.get("level_up"):
+                flash(f"🎉 恭喜升级到 Lv{exp_result['new_level']}！", "success")
+
         if card_status == "draft":
             flash("草稿已保存")
         else:
@@ -1294,6 +1306,15 @@ def download_card(card_id):
     # 异步记录到每日统计
     try:
         CreatorStats.record_card_download(card_id)
+    except Exception:
+        pass
+    
+    # 给卡片作者增加经验值（不能给自己下载获得经验）
+    try:
+        user_id = session.get("user_id")
+        if card.get("user_id") and card["user_id"] != user_id:
+            from app.models import User
+            User.add_exp(card["user_id"], 2)  # 被下载获得2经验
     except Exception:
         pass
 
@@ -1550,6 +1571,15 @@ def like_card(card_id):
         # 异步记录到每日统计
         try:
             CreatorStats.record_card_like(card_id)
+        except Exception:
+            pass
+        
+        # 给卡片作者增加经验值（不能给自己点赞获得经验）
+        try:
+            card_owner = db.execute("SELECT user_id FROM role_cards WHERE id = ?", (card_id,)).fetchone()
+            if card_owner and card_owner["user_id"] and card_owner["user_id"] != user_id:
+                from app.models import User
+                User.add_exp(card_owner["user_id"], 5)  # 被点赞获得5经验
         except Exception:
             pass
 
@@ -1810,6 +1840,10 @@ def review_approve_card(card_id):
     # 获取卡片信息和作者 ID
     card = RoleCard.get_by_id(card_id, include_pending=True)
     if card and card.get("user_id"):
+        # 给作者增加经验值
+        from app.models import User
+        exp_result = User.add_exp(card["user_id"], 50)  # 审核通过获得50经验
+        
         Notification.create(
             user_id=card["user_id"],
             type=Notification.TYPE_CARD_APPROVED,
@@ -1817,6 +1851,14 @@ def review_approve_card(card_id):
             card_id=card_id,
             message=f"您的角色卡「{card['name']}」已通过审核"
         )
+        
+        # 如果升级了，发送升级通知
+        if exp_result and exp_result.get("level_up"):
+            Notification.create(
+                user_id=card["user_id"],
+                type=Notification.TYPE_SYSTEM,
+                message=f"🎉 恭喜！您的角色卡通过审核，升级到 Lv{exp_result['new_level']}！"
+            )
 
     flash("角色卡已通过审核")
     # 检查是否是 AJAX 请求

@@ -49,69 +49,124 @@
     </div>
     {% endif %}
     
-    <!-- 用户数据卡板 -->
-    {% if user_stats %}
-    <div class="user-stats-dashboard">
-        <h3>📊 创作者数据</h3>
-        <div class="stats-grid">
-            <div class="stat-card">
-                <div class="stat-icon">🏆</div>
-                <div class="stat-value">#{{ user_stats.rank }}</div>
-                <div class="stat-label">全站排名</div>
+    <!-- 用户等级和数据卡板 -->
+    <div class="user-stats-bar">
+        <div class="stat-item level-item" onclick="toggleLevelPanel()" style="cursor: pointer;" title="点击查看等级详情">
+            <div class="stat-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+                </svg>
             </div>
-            <div class="stat-card">
-                <div class="stat-icon">⭐</div>
-                <div class="stat-value">Lv{{ profile_user.level or 1 }}</div>
-                <div class="stat-label">{{ level_title }}</div>
+            <div class="stat-text">
+                <span class="stat-value">Lv{{ profile_user.level or 1 }}</span>
+                <span class="stat-label">{{ level_title }}</span>
             </div>
-            <div class="stat-card">
-                <div class="stat-icon">✨</div>
-                <div class="stat-value">{{ profile_user.exp or 0 }}</div>
-                <div class="stat-label">经验值</div>
+            <svg class="expand-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="6 9 12 15 18 9"/>
+            </svg>
+        </div>
+        
+        <div class="stat-divider"></div>
+        
+        <div class="stat-item exp-item">
+            <div class="stat-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"/>
+                    <polyline points="12 6 12 12 16 14"/>
+                </svg>
             </div>
-            <div class="stat-card">
-                <div class="stat-icon">📝</div>
-                <div class="stat-value">{{ user_stats.cards.total }}</div>
-                <div class="stat-label">角色卡</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-icon">👍</div>
-                <div class="stat-value">{{ user_stats.cards.likes }}</div>
-                <div class="stat-label">获得点赞</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-icon">👁️</div>
-                <div class="stat-value">{{ user_stats.cards.views }}</div>
-                <div class="stat-label">总浏览量</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-icon">⬇️</div>
-                <div class="stat-value">{{ user_stats.cards.downloads }}</div>
-                <div class="stat-label">被下载</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-icon">💬</div>
-                <div class="stat-value">{{ user_stats.comments }}</div>
-                <div class="stat-label">评论数</div>
+            <div class="stat-text">
+                <span class="stat-value">{{ profile_user.exp or 0 }}</span>
+                <span class="stat-label">EXP</span>
             </div>
         </div>
         
-        <!-- 经验值进度条 -->
-        <div class="exp-progress-section">
-            <div class="exp-info">
-                <span>当前经验: {{ profile_user.exp or 0 }}</span>
-                <span>下一级需要: {{ user_stats.next_level_exp }} EXP</span>
+        {% if user_stats %}
+        <div class="exp-progress-mini">
+            <div class="exp-progress-fill" style="width: {{ ((profile_user.exp or 0) - user_stats.level_exp_min) / (user_stats.level_exp_max - user_stats.level_exp_min) * 100 }}%"></div>
+        </div>
+        {% endif %}
+        
+        {% if user_stats %}
+        <div class="stat-divider"></div>
+        
+        <div class="stat-item">
+            <div class="stat-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                    <line x1="3" y1="9" x2="21" y2="9"/>
+                    <line x1="9" y1="21" x2="9" y2="9"/>
+                </svg>
             </div>
-            <div class="exp-progress-bar">
-                {% set current_level_exp = user_stats.next_level_exp - (500 if profile_user.level > 5 else [100, 200, 300, 400, 500][(profile_user.level or 1) - 1]) %}
-                {% set exp_in_level = (profile_user.exp or 0) - current_level_exp %}
-                {% set exp_needed = user_stats.next_level_exp - current_level_exp %}
-                {% set progress = (exp_in_level / exp_needed * 100) if exp_needed > 0 else 100 %}
-                <div class="exp-progress-fill" style="width: {{ progress }}%"></div>
+            <div class="stat-text">
+                <span class="stat-value">{{ user_stats.cards.total }}</span>
+                <span class="stat-label">角色卡</span>
             </div>
         </div>
+        
+        <div class="stat-divider"></div>
+        
+        <div class="stat-item">
+            <div class="stat-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/>
+                </svg>
+            </div>
+            <div class="stat-text">
+                <span class="stat-value">{{ user_stats.cards.likes }}</span>
+                <span class="stat-label">获赞</span>
+            </div>
+        </div>
+        {% endif %}
     </div>
-    {% endif %}
+    
+    <!-- 等级详情面板 -->
+    <div id="levelPanel" class="level-panel">
+        <div class="level-panel-header">
+            <h4>等级体系</h4>
+            <button class="close-btn" onclick="toggleLevelPanel()">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="18" y1="6" x2="6" y2="18"/>
+                    <line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+            </button>
+        </div>
+        <div class="level-list">
+            {% set levels = [
+                (1, '新手', 0, 100),
+                (2, '学徒', 100, 300),
+                (3, '创作者', 300, 600),
+                (4, '资深创作者', 600, 1000),
+                (5, '大师', 1000, 1500),
+                (6, '传说', 1500, 2000),
+                (7, '神话', 2000, 2500),
+                (8, '半神', 2500, 3000),
+                (9, '神明', 3000, 3500),
+                (10, '创世神', 3500, 4000)
+            ] %}
+            {% for lvl, title, min_exp, max_exp in levels %}
+            <div class="level-item-row {% if (profile_user.level or 1) == lvl %}current{% elif (profile_user.level or 1) > lvl %}passed{% endif %}">
+                <div class="level-badge">Lv{{ lvl }}</div>
+                <div class="level-info">
+                    <span class="level-title">{{ title }}</span>
+                    <span class="level-exp">{{ min_exp }} - {{ max_exp }} EXP</span>
+                </div>
+                {% if (profile_user.level or 1) == lvl %}
+                <div class="level-status">
+                    <span class="current-tag">当前</span>
+                    <span class="remain-exp">还需 {{ max_exp - (profile_user.exp or 0) }} EXP</span>
+                </div>
+                {% elif (profile_user.level or 1) > lvl %}
+                <div class="level-status">
+                    <svg class="passed-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="20 6 9 17 4 12"/>
+                    </svg>
+                </div>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+    </div>
 </section>
 
 {# 标签页切换 #}
@@ -448,111 +503,375 @@ document.addEventListener("DOMContentLoaded", function() {
         });
     });
 });
+
+// 等级面板切换
+function toggleLevelPanel() {
+    const panel = document.getElementById('levelPanel');
+    panel.classList.toggle('show');
+}
 </script>
 
 <style>
-/* 用户数据卡板样式 */
-.user-stats-dashboard {
-    margin-top: 1.5rem;
-    padding: 1.5rem;
-    background: rgba(47, 111, 115, 0.08);
-    border: 1px solid rgba(47, 111, 115, 0.15);
-    border-radius: 16px;
-}
-
-.user-stats-dashboard h3 {
-    margin: 0 0 1rem 0;
-    color: var(--ink);
-    font-size: 1.1rem;
-}
-
-.stats-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-    gap: 1rem;
-}
-
-.stat-card {
+/* 用户数据横条样式 */
+.user-stats-bar {
     display: flex;
-    flex-direction: column;
     align-items: center;
-    padding: 1rem;
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    gap: 1rem;
+    margin-top: 1.25rem;
+    padding: 0.75rem 1.25rem;
+    background: rgba(255, 255, 255, 0.55);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(35, 124, 131, 0.12);
     border-radius: 12px;
-    text-align: center;
-    transition: all 0.2s;
+    box-shadow: 0 4px 16px rgba(35, 124, 131, 0.06);
 }
 
-.stat-card:hover {
-    background: rgba(47, 111, 115, 0.1);
-    border-color: rgba(47, 111, 115, 0.3);
-    transform: translateY(-2px);
+.stat-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.stat-item.level-item .stat-value {
+    background: linear-gradient(135deg, #D6A847, #237C83);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    font-weight: 700;
 }
 
 .stat-icon {
-    font-size: 1.5rem;
-    margin-bottom: 0.5rem;
+    width: 18px;
+    height: 18px;
+    color: #237C83;
+    flex-shrink: 0;
+}
+
+.stat-icon svg {
+    width: 100%;
+    height: 100%;
+}
+
+.stat-text {
+    display: flex;
+    flex-direction: column;
+    line-height: 1.2;
 }
 
 .stat-value {
-    font-size: 1.5rem;
-    font-weight: 700;
-    color: var(--accent);
-    margin-bottom: 0.25rem;
+    font-size: 0.9375rem;
+    font-weight: 600;
+    color: #1F2A2A;
 }
 
 .stat-label {
-    font-size: 0.75rem;
-    color: var(--muted);
+    font-size: 0.6875rem;
+    color: #6F746F;
 }
 
-/* 经验值进度条 */
-.exp-progress-section {
-    margin-top: 1.5rem;
-    padding-top: 1rem;
-    border-top: 1px solid rgba(47, 111, 115, 0.1);
+.stat-divider {
+    width: 1px;
+    height: 24px;
+    background: rgba(35, 124, 131, 0.15);
+    flex-shrink: 0;
 }
 
-.exp-info {
-    display: flex;
-    justify-content: space-between;
-    margin-bottom: 0.5rem;
-    font-size: 0.8125rem;
-    color: var(--muted);
-}
-
-.exp-progress-bar {
-    height: 8px;
-    background: rgba(0, 0, 0, 0.1);
-    border-radius: 4px;
+/* 经验值进度条 - 迷你版 */
+.exp-progress-mini {
+    flex: 1;
+    height: 6px;
+    min-width: 80px;
+    max-width: 150px;
+    background: rgba(35, 124, 131, 0.1);
+    border-radius: 3px;
     overflow: hidden;
 }
 
-.exp-progress-fill {
+.exp-progress-mini .exp-progress-fill {
     height: 100%;
-    background: linear-gradient(90deg, var(--accent), var(--accent-light));
-    border-radius: 4px;
-    transition: width 0.5s ease;
+    background: linear-gradient(90deg, #237C83, #1D9BB0);
+    border-radius: 3px;
+    transition: width 0.4s ease;
 }
 
 /* 深色模式适配 */
-:root[data-theme="dark"] .user-stats-dashboard {
-    background: rgba(0, 0, 0, 0.2);
-    border-color: rgba(255, 255, 255, 0.1);
+:root[data-theme="dark"] .user-stats-bar {
+    background: rgba(9, 15, 30, 0.5);
+    border-color: rgba(98, 185, 191, 0.12);
 }
 
-:root[data-theme="dark"] .stat-card {
-    background: rgba(0, 0, 0, 0.25);
-    border-color: rgba(255, 255, 255, 0.1);
+:root[data-theme="dark"] .stat-icon {
+    color: #62B9BF;
 }
 
-:root[data-theme="dark"] .stat-card:hover {
+:root[data-theme="dark"] .stat-value {
+    color: #f5f1e8;
+}
+
+:root[data-theme="dark"] .stat-label {
+    color: #aeb6c5;
+}
+
+:root[data-theme="dark"] .stat-divider {
     background: rgba(98, 185, 191, 0.15);
 }
 
-:root[data-theme="dark"] .exp-progress-bar {
-    background: rgba(255, 255, 255, 0.1);
+:root[data-theme="dark"] .exp-progress-mini {
+    background: rgba(98, 185, 191, 0.12);
+}
+
+:root[data-theme="dark"] .exp-progress-mini .exp-progress-fill {
+    background: linear-gradient(90deg, #2a8a91, #3ab0c0);
+}
+
+/* 等级详情面板 */
+.level-panel {
+    margin-top: 0.75rem;
+    background: rgba(255, 255, 255, 0.7);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(35, 124, 131, 0.15);
+    border-radius: 14px;
+    box-shadow: 0 8px 32px rgba(35, 124, 131, 0.1);
+    max-height: 0;
+    overflow: hidden;
+    opacity: 0;
+    transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.level-panel.show {
+    max-height: 500px;
+    opacity: 1;
+    padding: 1rem;
+}
+
+.level-panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.875rem;
+    padding-bottom: 0.625rem;
+    border-bottom: 1px solid rgba(35, 124, 131, 0.1);
+}
+
+.level-panel-header h4 {
+    margin: 0;
+    font-size: 0.9375rem;
+    font-weight: 700;
+    color: #1F2A2A;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.level-panel-header h4::before {
+    content: '';
+    width: 4px;
+    height: 16px;
+    background: linear-gradient(180deg, #D6A847, #237C83);
+    border-radius: 2px;
+}
+
+.close-btn {
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(35, 124, 131, 0.08);
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    color: #6F746F;
+    transition: all 0.2s;
+}
+
+.close-btn:hover {
+    background: rgba(35, 124, 131, 0.15);
+    color: #237C83;
+}
+
+.close-btn svg {
+    width: 16px;
+    height: 16px;
+}
+
+.level-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    max-height: 320px;
+    overflow-y: auto;
+}
+
+.level-item-row {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.625rem 0.875rem;
+    background: rgba(255, 255, 255, 0.5);
+    border: 1px solid rgba(35, 124, 131, 0.08);
+    border-radius: 10px;
+    transition: all 0.2s;
+}
+
+.level-item-row:hover {
+    background: rgba(255, 255, 255, 0.8);
+    border-color: rgba(35, 124, 131, 0.15);
+}
+
+.level-item-row.current {
+    background: linear-gradient(135deg, rgba(214, 168, 71, 0.12), rgba(35, 124, 131, 0.08));
+    border-color: rgba(214, 168, 71, 0.25);
+}
+
+.level-item-row.passed {
+    opacity: 0.7;
+}
+
+.level-badge {
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, #237C83, #1D9BB0);
+    color: white;
+    font-size: 0.75rem;
+    font-weight: 700;
+    border-radius: 10px;
+    flex-shrink: 0;
+}
+
+.level-item-row.current .level-badge {
+    background: linear-gradient(135deg, #D6A847, #237C83);
+}
+
+.level-item-row.passed .level-badge {
+    background: linear-gradient(135deg, #6F746F, #8B9A9B);
+}
+
+.level-info {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 0.125rem;
+}
+
+.level-title {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #1F2A2A;
+}
+
+.level-exp {
+    font-size: 0.6875rem;
+    color: #6F746F;
+}
+
+.level-status {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 0.25rem;
+}
+
+.current-tag {
+    padding: 0.25rem 0.5rem;
+    background: linear-gradient(135deg, rgba(214, 168, 71, 0.15), rgba(35, 124, 131, 0.1));
+    border: 1px solid rgba(214, 168, 71, 0.3);
+    border-radius: 6px;
+    font-size: 0.625rem;
+    font-weight: 700;
+    color: #B8956B;
+    text-transform: uppercase;
+}
+
+.remain-exp {
+    font-size: 0.6875rem;
+    color: #237C83;
+    font-weight: 500;
+}
+
+.passed-icon {
+    width: 18px;
+    height: 18px;
+    color: #237C83;
+}
+
+/* 展开图标 */
+.expand-icon {
+    width: 14px;
+    height: 14px;
+    color: #6F746F;
+    margin-left: 0.25rem;
+    transition: transform 0.3s;
+}
+
+.level-item:hover .expand-icon {
+    transform: rotate(180deg);
+}
+
+/* 深色模式适配 */
+:root[data-theme="dark"] .level-panel {
+    background: rgba(9, 15, 30, 0.7);
+    border-color: rgba(98, 185, 191, 0.15);
+}
+
+:root[data-theme="dark"] .level-panel-header {
+    border-color: rgba(98, 185, 191, 0.1);
+}
+
+:root[data-theme="dark"] .level-panel-header h4 {
+    color: #f5f1e8;
+}
+
+:root[data-theme="dark"] .close-btn {
+    background: rgba(98, 185, 191, 0.1);
+    color: #aeb6c5;
+}
+
+:root[data-theme="dark"] .close-btn:hover {
+    background: rgba(98, 185, 191, 0.2);
+    color: #62B9BF;
+}
+
+:root[data-theme="dark"] .level-item-row {
+    background: rgba(16, 23, 34, 0.5);
+    border-color: rgba(98, 185, 191, 0.08);
+}
+
+:root[data-theme="dark"] .level-item-row:hover {
+    background: rgba(25, 35, 50, 0.7);
+    border-color: rgba(98, 185, 191, 0.15);
+}
+
+:root[data-theme="dark"] .level-item-row.current {
+    background: linear-gradient(135deg, rgba(214, 168, 71, 0.1), rgba(98, 185, 191, 0.08));
+}
+
+:root[data-theme="dark"] .level-title {
+    color: #f5f1e8;
+}
+
+:root[data-theme="dark"] .level-exp {
+    color: #aeb6c5;
+}
+
+:root[data-theme="dark"] .current-tag {
+    background: linear-gradient(135deg, rgba(214, 168, 71, 0.12), rgba(98, 185, 191, 0.08));
+    color: #D6A847;
+}
+
+:root[data-theme="dark"] .remain-exp {
+    color: #62B9BF;
+}
+
+:root[data-theme="dark"] .passed-icon {
+    color: #62B9BF;
+}
+
+:root[data-theme="dark"] .expand-icon {
+    color: #aeb6c5;
 }
 </style>
 
