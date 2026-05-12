@@ -11,12 +11,15 @@
             document.documentElement.dataset.theme = saved || (prefersDark ? "dark" : "light");
         })();
     </script>
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='png/favicon.png') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=20260510-improvements">
 </head>
 <body>
     <header class="site-header">
         <a class="brand" href="{{ url_for('landing') }}">
-            <span class="brand-mark">RC</span>
+            <span class="brand-mark">
+                <img src="{{ url_for('static', filename='png/favicon.png') }}" alt="Logo" style="width: 100%; height: 100%; object-fit: cover; border-radius: 8px;">
+            </span>
             <span>
                 <strong>角色卡平台</strong>
                 <small>Role Card Library</small>
