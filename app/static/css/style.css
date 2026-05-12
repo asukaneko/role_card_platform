@@ -254,6 +254,224 @@ textarea {
     transform: translateY(-1px);
 }
 
+/* 导航下拉菜单 */
+.nav-dropdown {
+    position: relative;
+    display: inline-block;
+}
+
+.nav-dropdown-trigger {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 14px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--paper);
+    color: var(--ink);
+    font: inherit;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.nav-dropdown-trigger:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+}
+
+:root[data-theme="dark"] .nav-dropdown-trigger:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.nav-dropdown-trigger.active {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: var(--bg-wash-a);
+}
+
+.nav-dropdown-arrow {
+    transition: transform 0.2s ease;
+}
+
+.nav-dropdown-trigger.active .nav-dropdown-arrow {
+    transform: rotate(180deg);
+}
+
+.nav-user-trigger {
+    padding: 6px 12px 6px 8px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--paper);
+    color: var(--ink);
+}
+
+.nav-user-avatar {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border-radius: 6px;
+    background: linear-gradient(135deg, var(--accent), #0ea5e9);
+    color: white;
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1;
+}
+
+.nav-user-name {
+    max-width: 80px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.nav-dropdown-menu {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    min-width: 200px;
+    padding: 6px;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    border-radius: 14px;
+    background: rgba(255, 253, 245, 0.92);
+    backdrop-filter: blur(20px);
+    box-shadow: 
+        0 12px 40px rgba(0, 0, 0, 0.12),
+        0 0 0 1px rgba(255, 255, 255, 0.2) inset;
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(-8px) scale(0.96);
+    transition: all 0.2s ease;
+    z-index: 100;
+}
+
+:root[data-theme="dark"] .nav-dropdown-menu {
+    background: rgba(25, 30, 40, 0.92);
+    border-color: rgba(255, 255, 255, 0.1);
+    box-shadow: 
+        0 12px 40px rgba(0, 0, 0, 0.45),
+        0 0 0 1px rgba(255, 255, 255, 0.06) inset;
+}
+
+.nav-dropdown-menu.show {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0) scale(1);
+}
+
+.nav-dropdown-menu a {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    border: none;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--ink);
+    font: inherit;
+    font-size: 14px;
+    font-weight: 500;
+    text-decoration: none;
+    transition: all 0.15s ease;
+}
+
+.nav-dropdown-menu a:hover {
+    background: var(--bg-wash-a);
+    color: var(--accent);
+    transform: none;
+    box-shadow: none;
+    border-color: transparent;
+}
+
+.nav-dropdown-menu a svg {
+    flex-shrink: 0;
+}
+
+.nav-dropdown-badge {
+    margin-left: auto;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: linear-gradient(135deg, var(--rose), #f97316);
+    color: white;
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 1.4;
+}
+
+.nav-dropdown-divider {
+    height: 1px;
+    margin: 6px 8px;
+    background: rgba(222, 215, 202, 0.4);
+}
+
+:root[data-theme="dark"] .nav-dropdown-divider {
+    background: rgba(40, 50, 66, 0.5);
+}
+
+.nav-dropdown-logout-form {
+    margin: 0;
+    padding: 0;
+}
+
+.nav-dropdown-logout-btn {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 10px 14px;
+    border: none;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--rose);
+    font: inherit;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.nav-dropdown-logout-btn:hover {
+    background: rgba(239, 68, 68, 0.08);
+    transform: none;
+    box-shadow: none;
+}
+
+/* 登录/注册按钮样式 */
+.nav-btn-login,
+.nav-btn-register {
+    padding: 8px 14px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--paper);
+    color: var(--ink);
+    font-weight: 600;
+    text-decoration: none;
+    transition: all 0.2s ease;
+}
+
+.nav-btn-login:hover,
+.nav-btn-register:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+    transform: translateY(-1px);
+}
+
+.nav-btn-register {
+    background: linear-gradient(135deg, var(--accent), #0ea5e9);
+    border-color: transparent;
+    color: white;
+}
+
+.nav-btn-register:hover {
+    color: white;
+    box-shadow: 0 4px 12px rgba(47, 111, 115, 0.3);
+}
+
 .theme-toggle {
     display: inline-grid;
     width: 42px;
@@ -2055,6 +2273,18 @@ pre {
     border-color: rgba(255, 120, 120, 0.6);
 }
 
+.card-action-btn.add-to-collection-btn {
+    background: rgba(47, 111, 115, 0.15);
+    border-color: rgba(47, 111, 115, 0.3);
+    color: var(--accent);
+}
+
+.card-action-btn.add-to-collection-btn:hover {
+    background: linear-gradient(135deg, var(--accent), #0ea5e9);
+    color: white;
+    border-color: transparent;
+}
+
 .toast-stack {
     position: fixed;
     top: 86px;
@@ -3353,4 +3583,1358 @@ pre {
     .confirm-btn.confirm {
         order: 2;
     }
+}
+
+/* 合集页面样式 */
+.collections-page {
+    max-width: 1000px;
+    margin: 0 auto;
+}
+
+.collections-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 24px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--line);
+}
+
+.collections-header h1 {
+    margin: 0;
+    font-size: clamp(28px, 5vw, 42px);
+}
+
+.btn-create-collection {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 10px 20px;
+    border: 1px solid var(--accent);
+    border-radius: 8px;
+    background: var(--accent);
+    color: white;
+    text-decoration: none;
+    font: inherit;
+    font-size: 14px;
+    font-weight: 700;
+    transition: all 0.2s ease;
+}
+
+.btn-create-collection:hover {
+    opacity: 0.9;
+    transform: translateY(-2px);
+}
+
+/* 合集列表页面 */
+.collections-page {
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.collections-page h1 {
+    margin: 0 0 32px;
+    font-size: clamp(32px, 5vw, 48px);
+    background: linear-gradient(135deg, var(--accent), var(--gold));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.collections-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 20px;
+}
+
+.collection-card {
+    display: flex;
+    flex-direction: column;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    border-radius: 16px;
+    background: rgba(255, 253, 245, 0.7);
+    backdrop-filter: blur(20px);
+    box-shadow: 
+        0 8px 32px rgba(0, 0, 0, 0.08),
+        0 0 0 1px rgba(255, 255, 255, 0.2) inset;
+    text-decoration: none;
+    color: inherit;
+    overflow: hidden;
+    transition: all 0.3s ease;
+}
+
+:root[data-theme="dark"] .collection-card {
+    background: rgba(25, 30, 40, 0.75);
+    border-color: rgba(255, 255, 255, 0.1);
+    box-shadow: 
+        0 8px 32px rgba(0, 0, 0, 0.4),
+        0 0 0 1px rgba(255, 255, 255, 0.05) inset;
+}
+
+.collection-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 
+        0 20px 50px rgba(0, 0, 0, 0.12),
+        0 0 0 1px rgba(47, 111, 115, 0.3) inset;
+    border-color: var(--accent);
+}
+
+:root[data-theme="dark"] .collection-card:hover {
+    box-shadow: 
+        0 20px 50px rgba(0, 0, 0, 0.5),
+        0 0 0 1px rgba(98, 185, 191, 0.3) inset;
+}
+
+.collection-cover {
+    position: relative;
+    height: 120px;
+    background: linear-gradient(135deg, var(--accent) 0%, #0ea5e9 100%);
+    display: grid;
+    place-items: center;
+    overflow: hidden;
+}
+
+.collection-cover img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.collection-cover-placeholder {
+    opacity: 0.4;
+}
+
+.collection-cover-placeholder svg {
+    width: 48px;
+    height: 48px;
+    color: white;
+}
+
+.collection-visibility-badge {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    padding: 2px 10px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.9);
+    color: var(--ink);
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.collection-visibility-badge.private {
+    background: rgba(0, 0, 0, 0.6);
+    color: white;
+}
+
+.collection-info {
+    padding: 16px;
+}
+
+.collection-info h3 {
+    margin: 0 0 6px;
+    font-size: 16px;
+    font-weight: 700;
+}
+
+.collection-desc {
+    margin: 0 0 10px;
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--muted);
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.collection-meta {
+    display: flex;
+    justify-content: space-between;
+    font-size: 12px;
+    color: var(--muted);
+}
+
+.collection-empty {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--muted);
+}
+
+.collection-empty svg {
+    margin-bottom: 16px;
+    opacity: 0.4;
+}
+
+/* 合集卡片 - 广场方卡样式 */
+.collection-square-card .card-media {
+    background: linear-gradient(135deg, var(--accent), #0ea5e9);
+}
+
+.collection-card-visibility {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    z-index: 2;
+    padding: 2px 10px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.9);
+    color: var(--ink);
+    font-size: 11px;
+    font-weight: 600;
+    backdrop-filter: blur(4px);
+}
+
+.collection-card-visibility.private {
+    background: rgba(0, 0, 0, 0.6);
+    color: white;
+}
+
+/* 合集详情页中的角色卡片 - 移除按钮 */
+.collection-card-item .card-title-row {
+    position: relative;
+}
+
+.card-unlink-form {
+    position: absolute;
+    top: 0;
+    right: 0;
+    margin: 0;
+}
+
+.card-unlink-btn {
+    width: 28px;
+    height: 28px;
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    border-radius: 6px;
+    background: rgba(239, 68, 68, 0.08);
+    color: var(--rose);
+    font-size: 16px;
+    line-height: 28px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.card-unlink-btn:hover {
+    background: linear-gradient(135deg, #ef4444, #dc2626);
+    border-color: transparent;
+    color: white;
+    box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+}
+
+/* 合集表单页面 */
+.collection-form-page {
+    max-width: 640px;
+    margin: 0 auto;
+}
+
+.collection-form-page h1 {
+    margin: 0 0 32px;
+    font-size: clamp(28px, 5vw, 42px);
+    background: linear-gradient(135deg, var(--accent), var(--gold));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.collection-form-page .form-card {
+    padding: 32px;
+    border: 1px solid rgba(255, 255, 255, 0.35);
+    border-radius: 20px;
+    background: rgba(255, 253, 245, 0.72);
+    backdrop-filter: blur(24px);
+    box-shadow: 
+        0 24px 60px rgba(0, 0, 0, 0.1),
+        0 0 0 1px rgba(255, 255, 255, 0.25) inset;
+    transition: box-shadow 0.3s ease;
+}
+
+:root[data-theme="dark"] .collection-form-page .form-card {
+    background: rgba(25, 30, 40, 0.78);
+    border-color: rgba(255, 255, 255, 0.12);
+    box-shadow: 
+        0 24px 60px rgba(0, 0, 0, 0.45),
+        0 0 0 1px rgba(255, 255, 255, 0.06) inset;
+}
+
+.collection-form-page .form-card:hover {
+    box-shadow: 
+        0 28px 70px rgba(0, 0, 0, 0.13),
+        0 0 0 1px rgba(47, 111, 115, 0.2) inset;
+}
+
+:root[data-theme="dark"] .collection-form-page .form-card:hover {
+    box-shadow: 
+        0 28px 70px rgba(0, 0, 0, 0.5),
+        0 0 0 1px rgba(98, 185, 191, 0.15) inset;
+}
+
+.collection-form-page .form-group {
+    margin-bottom: 24px;
+}
+
+.collection-form-page .form-group label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 600;
+    color: var(--ink);
+}
+
+.collection-form-page .form-group input,
+.collection-form-page .form-group textarea,
+.collection-form-page .form-group select {
+    width: 100%;
+    padding: 12px 16px;
+    border: 1px solid rgba(222, 215, 202, 0.6);
+    border-radius: 12px;
+    background: rgba(255, 251, 240, 0.6);
+    backdrop-filter: blur(12px);
+    color: var(--ink);
+    font-size: 14px;
+    transition: all 0.2s ease;
+}
+
+:root[data-theme="dark"] .collection-form-page .form-group input,
+:root[data-theme="dark"] .collection-form-page .form-group textarea,
+:root[data-theme="dark"] .collection-form-page .form-group select {
+    border-color: rgba(40, 50, 66, 0.6);
+    background: rgba(11, 17, 27, 0.5);
+}
+
+.collection-form-page .form-group input:focus,
+.collection-form-page .form-group textarea:focus,
+.collection-form-page .form-group select:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(47, 111, 115, 0.15);
+    background: rgba(255, 255, 255, 0.85);
+}
+
+:root[data-theme="dark"] .collection-form-page .form-group input:focus,
+:root[data-theme="dark"] .collection-form-page .form-group textarea:focus,
+:root[data-theme="dark"] .collection-form-page .form-group select:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(98, 185, 191, 0.2);
+    background: rgba(16, 23, 34, 0.7);
+}
+
+.collection-form-page .form-group textarea {
+    resize: vertical;
+    min-height: 100px;
+}
+
+.collection-form-page .form-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+    margin-top: 32px;
+    padding-top: 24px;
+    border-top: 1px solid rgba(222, 215, 202, 0.4);
+}
+
+:root[data-theme="dark"] .collection-form-page .form-actions {
+    border-top-color: rgba(40, 50, 66, 0.4);
+}
+
+.collection-form-page .form-actions a {
+    padding: 10px 24px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    color: var(--muted);
+    text-decoration: none;
+    font-weight: 600;
+    transition: all 0.2s ease;
+}
+
+.collection-form-page .form-actions a:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+.collection-form-page .form-actions button {
+    padding: 10px 28px;
+    border: none;
+    border-radius: 10px;
+    background: linear-gradient(135deg, var(--accent), #0ea5e9);
+    color: white;
+    font-weight: 700;
+    font-size: 15px;
+    cursor: pointer;
+    box-shadow: 0 8px 20px rgba(47, 111, 115, 0.3);
+    transition: all 0.3s ease;
+}
+
+.collection-form-page .form-actions button:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 12px 28px rgba(47, 111, 115, 0.4);
+}
+
+.collection-form-page .form-actions button:active {
+    transform: translateY(0);
+}
+
+/* 合集卡片管理区域 */
+.collection-cards-manager {
+    margin-top: 28px;
+}
+
+.collection-cards-manager > h2,
+.manager-header h2 {
+    margin: 0 0 16px;
+    font-size: 20px;
+    font-weight: 700;
+}
+
+.manager-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
+.card-count-badge {
+    padding: 4px 12px;
+    border-radius: 999px;
+    background: linear-gradient(135deg, var(--accent), #0ea5e9);
+    color: white;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+/* 已添加的卡片区域 */
+.added-cards-section {
+    margin-bottom: 28px;
+    padding: 24px;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    border-radius: 16px;
+    background: rgba(255, 253, 245, 0.7);
+    backdrop-filter: blur(20px);
+    box-shadow: 
+        0 12px 36px rgba(0, 0, 0, 0.08),
+        0 0 0 1px rgba(255, 255, 255, 0.2) inset;
+}
+
+:root[data-theme="dark"] .added-cards-section {
+    background: rgba(25, 30, 40, 0.75);
+    border-color: rgba(255, 255, 255, 0.1);
+    box-shadow: 
+        0 12px 36px rgba(0, 0, 0, 0.4),
+        0 0 0 1px rgba(255, 255, 255, 0.05) inset;
+}
+
+.added-cards-section > h3 {
+    margin: 0 0 14px;
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--ink);
+}
+
+.added-cards-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 12px;
+}
+
+.added-card-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.5);
+    transition: all 0.2s ease;
+}
+
+:root[data-theme="dark"] .added-card-item {
+    background: rgba(40, 50, 66, 0.5);
+    border-color: rgba(255, 255, 255, 0.08);
+}
+
+.added-card-item:hover {
+    background: rgba(255, 255, 255, 0.7);
+}
+
+:root[data-theme="dark"] .added-card-item:hover {
+    background: rgba(40, 50, 66, 0.7);
+}
+
+.added-card-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 8px;
+    overflow: hidden;
+    background: var(--field-bg);
+    display: grid;
+    place-items: center;
+    font-weight: 700;
+    font-size: 16px;
+    color: var(--accent);
+    flex-shrink: 0;
+}
+
+.added-card-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.added-card-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.added-card-name {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--ink);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: block;
+}
+
+.remove-card-form {
+    flex-shrink: 0;
+}
+
+.remove-card-btn {
+    width: 26px;
+    height: 26px;
+    border: none;
+    border-radius: 6px;
+    background: rgba(239, 68, 68, 0.08);
+    color: var(--rose);
+    font-size: 18px;
+    line-height: 26px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.remove-card-btn:hover {
+    background: linear-gradient(135deg, #ef4444, #dc2626);
+    color: white;
+    box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+}
+
+.added-cards-empty {
+    text-align: center;
+    padding: 20px;
+    color: var(--muted);
+}
+
+.added-cards-empty p {
+    margin: 4px 0;
+}
+
+.added-cards-empty .empty-hint {
+    font-size: 13px;
+    opacity: 0.7;
+}
+
+/* 可添加的卡片区域 */
+.available-cards-section {
+    padding: 24px;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    border-radius: 16px;
+    background: rgba(255, 253, 245, 0.7);
+    backdrop-filter: blur(20px);
+    box-shadow: 
+        0 12px 36px rgba(0, 0, 0, 0.08),
+        0 0 0 1px rgba(255, 255, 255, 0.2) inset;
+}
+
+:root[data-theme="dark"] .available-cards-section {
+    background: rgba(25, 30, 40, 0.75);
+    border-color: rgba(255, 255, 255, 0.1);
+    box-shadow: 
+        0 12px 36px rgba(0, 0, 0, 0.4),
+        0 0 0 1px rgba(255, 255, 255, 0.05) inset;
+}
+
+.available-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 14px;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+.available-header h3 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--ink);
+}
+
+.search-box {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.search-box input {
+    padding: 8px 14px;
+    border: 1px solid rgba(222, 215, 202, 0.5);
+    border-radius: 8px;
+    background: rgba(255, 251, 240, 0.5);
+    backdrop-filter: blur(8px);
+    color: var(--ink);
+    font-size: 13px;
+    width: 180px;
+    transition: all 0.2s ease;
+}
+
+:root[data-theme="dark"] .search-box input {
+    border-color: rgba(40, 50, 66, 0.5);
+    background: rgba(11, 17, 27, 0.4);
+}
+
+.search-box input:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(47, 111, 115, 0.12);
+}
+
+:root[data-theme="dark"] .search-box input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(98, 185, 191, 0.12);
+}
+
+.search-btn {
+    width: 34px;
+    height: 34px;
+    border: 1px solid rgba(222, 215, 202, 0.5);
+    border-radius: 8px;
+    background: rgba(255, 251, 240, 0.5);
+    color: var(--muted);
+    cursor: pointer;
+    display: grid;
+    place-items: center;
+    transition: all 0.2s ease;
+}
+
+:root[data-theme="dark"] .search-btn {
+    border-color: rgba(40, 50, 66, 0.5);
+    background: rgba(11, 17, 27, 0.4);
+}
+
+.search-btn svg {
+    width: 16px;
+    height: 16px;
+}
+
+.search-btn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+.available-cards-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 12px;
+}
+
+.available-card-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.4);
+    transition: all 0.25s ease;
+}
+
+:root[data-theme="dark"] .available-card-item {
+    background: rgba(40, 50, 66, 0.4);
+    border-color: rgba(255, 255, 255, 0.08);
+}
+
+.available-card-item:hover {
+    background: rgba(255, 255, 255, 0.6);
+    border-color: var(--accent);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.06);
+}
+
+:root[data-theme="dark"] .available-card-item:hover {
+    background: rgba(40, 50, 66, 0.6);
+    border-color: var(--accent);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.3);
+}
+
+.available-card-item.hidden {
+    display: none;
+}
+
+.available-card-avatar {
+    width: 44px;
+    height: 44px;
+    border-radius: 10px;
+    overflow: hidden;
+    background: var(--field-bg);
+    display: grid;
+    place-items: center;
+    font-weight: 700;
+    font-size: 18px;
+    color: var(--accent);
+    flex-shrink: 0;
+}
+
+.available-card-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.available-card-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.available-card-name {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--ink);
+    display: block;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.available-card-desc {
+    font-size: 12px;
+    color: var(--muted);
+    display: block;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-top: 2px;
+}
+
+.add-card-form {
+    flex-shrink: 0;
+}
+
+.add-card-btn {
+    width: 32px;
+    height: 32px;
+    border: none;
+    border-radius: 8px;
+    background: linear-gradient(135deg, var(--accent), #0ea5e9);
+    color: white;
+    cursor: pointer;
+    display: grid;
+    place-items: center;
+    box-shadow: 0 4px 12px rgba(47, 111, 115, 0.25);
+    transition: all 0.25s ease;
+}
+
+:root[data-theme="dark"] .add-card-btn {
+    background: linear-gradient(135deg, var(--accent), #38bdf8);
+}
+
+.add-card-btn svg {
+    width: 18px;
+    height: 18px;
+}
+
+.add-card-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 18px rgba(47, 111, 115, 0.35);
+}
+
+.available-cards-empty {
+    text-align: center;
+    padding: 24px;
+    color: var(--muted);
+}
+
+.available-cards-empty p {
+    margin: 4px 0;
+}
+
+/* 响应式调整 */
+@media (max-width: 768px) {
+    .collection-cards-manager {
+        margin-top: 20px;
+    }
+
+    .added-cards-section,
+    .available-cards-section {
+        padding: 16px;
+    }
+
+    .added-cards-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .available-cards-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .available-header {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .search-box {
+        width: 100%;
+    }
+
+    .search-box input {
+        flex: 1;
+        width: auto;
+    }
+}
+
+/* 合集详情页 */
+.collection-detail-page {
+    max-width: 1000px;
+    margin: 0 auto;
+}
+
+.collection-detail-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 24px;
+    margin-bottom: 28px;
+    padding: 28px 32px;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    border-radius: 20px;
+    background: rgba(255, 253, 245, 0.7);
+    backdrop-filter: blur(24px);
+    box-shadow: 
+        0 16px 48px rgba(0, 0, 0, 0.08),
+        0 0 0 1px rgba(255, 255, 255, 0.2) inset;
+}
+
+:root[data-theme="dark"] .collection-detail-header {
+    background: rgba(25, 30, 40, 0.75);
+    border-color: rgba(255, 255, 255, 0.1);
+    box-shadow: 
+        0 16px 48px rgba(0, 0, 0, 0.4),
+        0 0 0 1px rgba(255, 255, 255, 0.05) inset;
+}
+
+.collection-detail-info h1 {
+    margin: 0 0 10px;
+    font-size: clamp(24px, 4vw, 36px);
+    background: linear-gradient(135deg, var(--accent), var(--gold));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.collection-detail-desc {
+    margin: 0 0 14px;
+    font-size: 14px;
+    line-height: 1.7;
+    color: var(--muted);
+}
+
+.collection-detail-meta {
+    display: flex;
+    gap: 18px;
+    align-items: center;
+    font-size: 13px;
+    color: var(--muted);
+}
+
+.collection-detail-meta .badge {
+    padding: 4px 12px;
+    border-radius: 999px;
+    background: linear-gradient(135deg, var(--accent), #0ea5e9);
+    color: white;
+    font-weight: 700;
+    font-size: 12px;
+}
+
+.collection-detail-actions {
+    display: flex;
+    gap: 10px;
+    flex-shrink: 0;
+    flex-wrap: wrap;
+}
+
+.collection-detail-actions form {
+    display: inline;
+}
+
+.collection-detail-actions .delete-collection-form {
+    position: static;
+    top: auto;
+    right: auto;
+}
+
+.btn-edit-collection,
+.btn-download-collection {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 10px 18px;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    border-radius: 12px;
+    background: rgba(255, 253, 245, 0.6);
+    backdrop-filter: blur(12px);
+    color: var(--ink);
+    text-decoration: none;
+    font: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.25s ease;
+}
+
+:root[data-theme="dark"] .btn-edit-collection,
+:root[data-theme="dark"] .btn-download-collection {
+    background: rgba(25, 30, 40, 0.6);
+    border-color: rgba(255, 255, 255, 0.1);
+}
+
+.btn-edit-collection:hover,
+.btn-download-collection:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(47, 111, 115, 0.2);
+}
+
+:root[data-theme="dark"] .btn-edit-collection:hover,
+:root[data-theme="dark"] .btn-download-collection:hover {
+    box-shadow: 0 6px 16px rgba(98, 185, 191, 0.2);
+}
+
+.btn-delete-collection {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 10px 18px;
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    border-radius: 12px;
+    background: rgba(239, 68, 68, 0.08);
+    backdrop-filter: blur(12px);
+    color: var(--rose);
+    font: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.25s ease;
+}
+
+.btn-delete-collection:hover {
+    background: linear-gradient(135deg, #ef4444, #dc2626);
+    border-color: transparent;
+    color: white;
+    box-shadow: 0 8px 20px rgba(239, 68, 68, 0.35);
+    transform: translateY(-2px);
+}
+
+.collection-cards-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 18px;
+}
+
+.collection-cards-grid .card-item {
+    position: relative;
+    display: flex;
+    gap: 14px;
+    padding: 18px;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    border-radius: 14px;
+    background: rgba(255, 253, 245, 0.65);
+    backdrop-filter: blur(18px);
+    box-shadow: 
+        0 6px 24px rgba(0, 0, 0, 0.06),
+        0 0 0 1px rgba(255, 255, 255, 0.15) inset;
+    text-decoration: none;
+    color: inherit;
+    transition: all 0.3s ease;
+}
+
+:root[data-theme="dark"] .collection-cards-grid .card-item {
+    background: rgba(25, 30, 40, 0.7);
+    border-color: rgba(255, 255, 255, 0.1);
+    box-shadow: 
+        0 6px 24px rgba(0, 0, 0, 0.35),
+        0 0 0 1px rgba(255, 255, 255, 0.04) inset;
+}
+
+.collection-cards-grid .card-item:hover {
+    border-color: var(--accent);
+    transform: translateY(-3px);
+    box-shadow: 
+        0 16px 40px rgba(0, 0, 0, 0.1),
+        0 0 0 1px rgba(47, 111, 115, 0.25) inset;
+}
+
+:root[data-theme="dark"] .collection-cards-grid .card-item:hover {
+    box-shadow: 
+        0 16px 40px rgba(0, 0, 0, 0.45),
+        0 0 0 1px rgba(98, 185, 191, 0.2) inset;
+}
+
+.collection-cards-grid .card-avatar {
+    width: 56px;
+    height: 56px;
+    border-radius: 10px;
+    overflow: hidden;
+    background: var(--field-bg);
+    display: grid;
+    place-items: center;
+    font-weight: 700;
+    font-size: 20px;
+    color: var(--accent);
+    flex-shrink: 0;
+}
+
+.collection-cards-grid .card-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.collection-cards-grid .card-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.collection-cards-grid .card-info h3 {
+    margin: 0 0 4px;
+    font-size: 15px;
+    font-weight: 700;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.collection-cards-grid .card-info p {
+    margin: 0 0 8px;
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--muted);
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.collection-cards-grid .card-meta {
+    display: flex;
+    gap: 12px;
+    font-size: 12px;
+    color: var(--muted);
+}
+
+.collection-cards-grid .unlink-btn {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    width: 24px;
+    height: 24px;
+    border: none;
+    border-radius: 50%;
+    background: rgba(239, 68, 68, 0.1);
+    color: var(--rose);
+    font-size: 16px;
+    line-height: 24px;
+    text-align: center;
+    cursor: pointer;
+    opacity: 0;
+    transition: all 0.2s ease;
+}
+
+.collection-cards-grid .card-item:hover .unlink-btn {
+    opacity: 1;
+}
+
+.collection-cards-grid .unlink-btn:hover {
+    background: var(--rose);
+    color: white;
+}
+
+/* 角色卡详情页 - 加入合集 */
+.collection-add-section {
+    margin-top: 28px;
+    padding: 24px 28px;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    border-radius: 18px;
+    background: rgba(255, 253, 245, 0.7);
+    backdrop-filter: blur(20px);
+    box-shadow: 
+        0 12px 40px rgba(0, 0, 0, 0.08),
+        0 0 0 1px rgba(255, 255, 255, 0.2) inset;
+}
+
+:root[data-theme="dark"] .collection-add-section {
+    background: rgba(25, 30, 40, 0.75);
+    border-color: rgba(255, 255, 255, 0.1);
+    box-shadow: 
+        0 12px 40px rgba(0, 0, 0, 0.4),
+        0 0 0 1px rgba(255, 255, 255, 0.05) inset;
+}
+
+.collection-add-section h2 {
+    margin: 0 0 16px;
+    font-size: 18px;
+    font-weight: 700;
+    background: linear-gradient(135deg, var(--accent), #0ea5e9);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.collection-add-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.collection-add-item {
+    display: inline-block;
+}
+
+.collection-add-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 18px;
+    border: 1px dashed rgba(47, 111, 115, 0.3);
+    border-radius: 12px;
+    background: rgba(47, 111, 115, 0.08);
+    backdrop-filter: blur(8px);
+    color: var(--accent);
+    font: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.25s ease;
+}
+
+:root[data-theme="dark"] .collection-add-btn {
+    background: rgba(98, 185, 191, 0.1);
+    border-color: rgba(98, 185, 191, 0.3);
+}
+
+.collection-add-btn:hover {
+    border-color: var(--accent);
+    border-style: solid;
+    background: linear-gradient(135deg, rgba(47, 111, 115, 0.12), rgba(14, 165, 233, 0.08));
+    box-shadow: 0 4px 14px rgba(47, 111, 115, 0.2);
+    transform: translateY(-1px);
+}
+
+:root[data-theme="dark"] .collection-add-btn:hover {
+    background: linear-gradient(135deg, rgba(98, 185, 191, 0.15), rgba(56, 189, 248, 0.1));
+    box-shadow: 0 4px 14px rgba(98, 185, 191, 0.2);
+}
+
+.collection-add-icon {
+    display: grid;
+    place-items: center;
+}
+
+.collection-add-icon svg {
+    width: 16px;
+    height: 16px;
+}
+
+/* 响应式 */
+@media (max-width: 768px) {
+    .collection-detail-header {
+        flex-direction: column;
+    }
+
+    .collection-detail-actions {
+        width: 100%;
+        flex-wrap: wrap;
+    }
+
+    .collections-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .collection-cards-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* 加入合集弹窗样式 */
+.collection-modal-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    background: rgba(0, 0, 0, 0.4);
+    backdrop-filter: blur(8px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    animation: modalFadeIn 0.2s ease;
+}
+
+@keyframes modalFadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.collection-modal-content {
+    width: min(440px, 100%);
+    max-height: 80vh;
+    display: flex;
+    flex-direction: column;
+    border: 1px solid rgba(255, 255, 255, 0.35);
+    border-radius: 20px;
+    background: rgba(255, 253, 245, 0.88);
+    backdrop-filter: blur(24px);
+    box-shadow: 
+        0 30px 80px rgba(0, 0, 0, 0.25),
+        0 0 0 1px rgba(255, 255, 255, 0.2) inset;
+    overflow: hidden;
+    animation: modalSlideIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes modalSlideIn {
+    from { transform: scale(0.9) translateY(20px); }
+    to { transform: scale(1) translateY(0); }
+}
+
+:root[data-theme="dark"] .collection-modal-content {
+    background: rgba(25, 30, 40, 0.9);
+    border-color: rgba(255, 255, 255, 0.12);
+    box-shadow: 
+        0 30px 80px rgba(0, 0, 0, 0.6),
+        0 0 0 1px rgba(255, 255, 255, 0.08) inset;
+}
+
+.collection-modal-header {
+    position: relative;
+    padding: 24px 28px 18px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: linear-gradient(180deg, rgba(47, 111, 115, 0.08) 0%, transparent 100%);
+}
+
+:root[data-theme="dark"] .collection-modal-header {
+    background: linear-gradient(180deg, rgba(98, 185, 191, 0.12) 0%, transparent 100%);
+}
+
+.collection-modal-header h3 {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--ink);
+}
+
+.collection-modal-close {
+    width: 32px;
+    height: 32px;
+    border: none;
+    border-radius: 8px;
+    background: rgba(0, 0, 0, 0.06);
+    color: var(--muted);
+    font-size: 20px;
+    line-height: 32px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.collection-modal-close:hover {
+    background: rgba(239, 68, 68, 0.1);
+    color: var(--rose);
+}
+
+.collection-modal-body {
+    padding: 0 28px 24px;
+    overflow-y: auto;
+    flex: 1;
+}
+
+.collection-modal-search {
+    margin-bottom: 14px;
+}
+
+.collection-modal-search input {
+    width: 100%;
+    padding: 10px 14px;
+    border: 1px solid rgba(222, 215, 202, 0.5);
+    border-radius: 10px;
+    background: rgba(255, 251, 240, 0.6);
+    backdrop-filter: blur(8px);
+    color: var(--ink);
+    font-size: 14px;
+    transition: all 0.2s ease;
+}
+
+:root[data-theme="dark"] .collection-modal-search input {
+    border-color: rgba(40, 50, 66, 0.5);
+    background: rgba(11, 17, 27, 0.5);
+}
+
+.collection-modal-search input:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(47, 111, 115, 0.12);
+}
+
+:root[data-theme="dark"] .collection-modal-search input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(98, 185, 191, 0.12);
+}
+
+.collection-modal-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.collection-modal-item {
+    margin: 0;
+}
+
+.collection-modal-item button {
+    width: 100%;
+    padding: 12px 16px;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.5);
+    color: var(--ink);
+    font: inherit;
+    font-size: 14px;
+    font-weight: 600;
+    text-align: left;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+:root[data-theme="dark"] .collection-modal-item button {
+    background: rgba(40, 50, 66, 0.5);
+    border-color: rgba(255, 255, 255, 0.08);
+}
+
+.collection-modal-item button:hover {
+    background: linear-gradient(135deg, var(--accent), #0ea5e9);
+    color: white;
+    border-color: transparent;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(47, 111, 115, 0.25);
+}
+
+.collection-modal-item-title {
+    display: block;
+}
+
+.collection-modal-empty {
+    text-align: center;
+    padding: 16px;
+    color: var(--muted);
+    font-size: 13px;
 }

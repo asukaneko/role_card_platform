@@ -296,6 +296,36 @@ def init_db() -> None:
             )
             """
         )
+        db.execute(
+            """
+            CREATE TABLE IF NOT EXISTS collections (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                title TEXT NOT NULL,
+                slug TEXT NOT NULL UNIQUE,
+                description TEXT DEFAULT '',
+                cover_path TEXT DEFAULT '',
+                user_id INTEGER NOT NULL,
+                visibility TEXT DEFAULT 'public',
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+            )
+            """
+        )
+        db.execute(
+            """
+            CREATE TABLE IF NOT EXISTS collection_cards (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                collection_id INTEGER NOT NULL,
+                card_id INTEGER NOT NULL,
+                sort_order INTEGER DEFAULT 0,
+                created_at TEXT NOT NULL,
+                FOREIGN KEY (collection_id) REFERENCES collections(id) ON DELETE CASCADE,
+                FOREIGN KEY (card_id) REFERENCES role_cards(id) ON DELETE CASCADE,
+                UNIQUE(collection_id, card_id)
+            )
+            """
+        )
         db.commit()
 
 
@@ -1743,3 +1773,194 @@ class Notification:
                 (user_id,)
             )
             db.commit()
+
+
+class Collection:
+    """合集模型"""
+
+    @staticmethod
+    def create(title: str, description: str = "", user_id: int = None, visibility: str = "public") -> dict:
+        """创建合集"""
+        from .utils import unique_slug
+        now = datetime.now().isoformat(timespec="seconds")
+        with get_db() as db:
+            slug = unique_slug(db, title)
+            cursor = db.execute(
+                """
+                INSERT INTO collections (title, slug, description, user_id, visibility, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (title, slug, description, user_id, visibility, now, now)
+            )
+            db.commit()
+            row = db.execute("SELECT * FROM collections WHERE id = ?", (cursor.lastrowid,)).fetchone()
+        return dict(row) if row else None
+
+    @staticmethod
+    def get_by_id(collection_id: int) -> Optional[dict]:
+        """通过 ID 获取合集"""
+        with get_db() as db:
+            row = db.execute("SELECT * FROM collections WHERE id = ?", (collection_id,)).fetchone()
+        return dict(row) if row else None
+
+    @staticmethod
+    def get_by_slug(slug: str) -> Optional[dict]:
+        """通过 slug 获取合集"""
+        with get_db() as db:
+            row = db.execute("SELECT * FROM collections WHERE slug = ?", (slug,)).fetchone()
+        return dict(row) if row else None
+
+    @staticmethod
+    def update(collection_id: int, title: str = None, description: str = None, cover_path: str = None, visibility: str = None) -> None:
+        """更新合集信息"""
+        now = datetime.now().isoformat(timespec="seconds")
+        sets = []
+        params = []
+        if title is not None:
+            sets.append("title = ?")
+            params.append(title)
+        if description is not None:
+            sets.append("description = ?")
+            params.append(description)
+        if cover_path is not None:
+            sets.append("cover_path = ?")
+            params.append(cover_path)
+        if visibility is not None:
+            sets.append("visibility = ?")
+            params.append(visibility)
+        if sets:
+            sets.append("updated_at = ?")
+            params.append(now)
+            params.append(collection_id)
+            with get_db() as db:
+                db.execute(f"UPDATE collections SET {', '.join(sets)} WHERE id = ?", params)
+                db.commit()
+
+    @staticmethod
+    def delete(collection_id: int) -> None:
+        """删除合集"""
+        with get_db() as db:
+            db.execute("DELETE FROM collections WHERE id = ?", (collection_id,))
+            db.commit()
+
+    @staticmethod
+    def get_by_user(user_id: int, include_private: bool = False) -> list:
+        """获取用户的合集列表"""
+        with get_db() as db:
+            if include_private:
+                rows = db.execute(
+                    """
+                    SELECT c.*, COUNT(cc.card_id) as card_count
+                    FROM collections c
+                    LEFT JOIN collection_cards cc ON c.id = cc.collection_id
+                    WHERE c.user_id = ?
+                    GROUP BY c.id
+                    ORDER BY c.created_at DESC
+                    """,
+                    (user_id,)
+                ).fetchall()
+            else:
+                rows = db.execute(
+                    """
+                    SELECT c.*, COUNT(cc.card_id) as card_count
+                    FROM collections c
+                    LEFT JOIN collection_cards cc ON c.id = cc.collection_id
+                    WHERE c.user_id = ? AND c.visibility = 'public'
+                    GROUP BY c.id
+                    ORDER BY c.created_at DESC
+                    """,
+                    (user_id,)
+                ).fetchall()
+        
+        # 为每个合集查询第一个角色卡的头像作为封面
+        result = []
+        for row in rows:
+            collection = dict(row)
+            with get_db() as db2:
+                first_card = db2.execute(
+                    """
+                    SELECT rc.avatar_path FROM collection_cards cc
+                    JOIN role_cards rc ON cc.card_id = rc.id
+                    WHERE cc.collection_id = ?
+                    ORDER BY cc.sort_order ASC, cc.created_at ASC
+                    LIMIT 1
+                    """,
+                    (collection["id"],)
+                ).fetchone()
+            collection["cover_avatar"] = first_card["avatar_path"] if first_card else None
+            result.append(collection)
+        return result
+
+    @staticmethod
+    def add_card(collection_id: int, card_id: int, sort_order: int = None) -> None:
+        """向合集添加角色卡"""
+        if sort_order is None:
+            # 默认放在最后
+            with get_db() as db:
+                row = db.execute(
+                    "SELECT COALESCE(MAX(sort_order), 0) as max_order FROM collection_cards WHERE collection_id = ?",
+                    (collection_id,)
+                ).fetchone()
+                sort_order = (row["max_order"] if row else 0) + 1
+                now = datetime.now().isoformat(timespec="seconds")
+                db.execute(
+                    "INSERT OR IGNORE INTO collection_cards (collection_id, card_id, sort_order, created_at) VALUES (?, ?, ?, ?)",
+                    (collection_id, card_id, sort_order, now)
+                )
+                # 更新合集更新时间
+                db.execute(
+                    "UPDATE collections SET updated_at = ? WHERE id = ?",
+                    (now, collection_id)
+                )
+                db.commit()
+
+    @staticmethod
+    def remove_card(collection_id: int, card_id: int) -> None:
+        """从合集移除角色卡"""
+        with get_db() as db:
+            db.execute(
+                "DELETE FROM collection_cards WHERE collection_id = ? AND card_id = ?",
+                (collection_id, card_id)
+            )
+            # 更新合集更新时间
+            now = datetime.now().isoformat(timespec="seconds")
+            db.execute("UPDATE collections SET updated_at = ? WHERE id = ?", (now, collection_id))
+            db.commit()
+
+    @staticmethod
+    def get_cards(collection_id: int) -> list:
+        """获取合集中的角色卡列表（按排序顺序）"""
+        with get_db() as db:
+            rows = db.execute(
+                """
+                SELECT rc.*, cc.sort_order
+                FROM role_cards rc
+                JOIN collection_cards cc ON rc.id = cc.card_id
+                WHERE cc.collection_id = ? AND rc.visibility = 'public' AND rc.status = 'approved'
+                ORDER BY cc.sort_order ASC, cc.created_at ASC
+                """,
+                (collection_id,)
+            ).fetchall()
+        return [RoleCard.row_to_card(row) for row in rows]
+
+    @staticmethod
+    def move_card(collection_id: int, card_id: int, new_sort_order: int) -> None:
+        """移动角色卡在合集中的排序位置"""
+        with get_db() as db:
+            db.execute(
+                "UPDATE collection_cards SET sort_order = ? WHERE collection_id = ? AND card_id = ?",
+                (new_sort_order, collection_id, card_id)
+            )
+            now = datetime.now().isoformat(timespec="seconds")
+            db.execute("UPDATE collections SET updated_at = ? WHERE id = ?", (now, collection_id))
+            db.commit()
+
+    @staticmethod
+    def is_card_in_collection(collection_id: int, card_id: int) -> bool:
+        """检查角色卡是否已在合集中"""
+        with get_db() as db:
+            row = db.execute(
+                "SELECT id FROM collection_cards WHERE collection_id = ? AND card_id = ?",
+                (collection_id, card_id)
+            ).fetchone()
+        return row is not None

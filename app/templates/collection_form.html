@@ -1,0 +1,155 @@
+{% extends "base.html" %}
+{% block title %}{% if collection %}编辑合集{% else %}新建合集{% endif %} - 角色卡平台{% endblock %}
+{% block content %}
+<div class="collection-form-page">
+    <h1>{% if collection %}编辑合集{% else %}新建合集{% endif %}</h1>
+
+    {# 基本信息表单 #}
+    <form method="post" class="form-card">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="form-group">
+            <label for="title">合集名称</label>
+            <input type="text" id="title" name="title" value="{{ collection.title if collection else '' }}" required maxlength="100" placeholder="给你的合集起个名字">
+        </div>
+
+        <div class="form-group">
+            <label for="description">描述</label>
+            <textarea id="description" name="description" rows="4" placeholder="简单介绍一下这个合集">{{ collection.description if collection else '' }}</textarea>
+        </div>
+
+        <div class="form-group">
+            <label for="visibility">可见性</label>
+            <select id="visibility" name="visibility">
+                <option value="public" {% if not collection or collection.visibility == 'public' %}selected{% endif %}>公开</option>
+                <option value="private" {% if collection and collection.visibility == 'private' %}selected{% endif %}>私有</option>
+            </select>
+        </div>
+
+        <div class="form-actions">
+            <a href="{{ url_for('collection_detail', slug=collection.slug) if collection else url_for('collections_list') }}">取消</a>
+            <button type="submit">{% if collection %}保存修改{% else %}创建合集{% endif %}</button>
+        </div>
+    </form>
+
+    {# 卡片管理区域（仅编辑模式） #}
+    {% if collection %}
+    <div class="collection-cards-manager">
+        <div class="manager-header">
+            <h2>管理角色卡</h2>
+            <span class="card-count-badge">{{ collection_cards|length }} 张</span>
+        </div>
+
+        {# 已添加的卡片 #}
+        <div class="added-cards-section">
+            <h3>已添加的卡片</h3>
+            {% if collection_cards %}
+            <div class="added-cards-grid">
+                {% for card in collection_cards %}
+                <div class="added-card-item">
+                    <div class="added-card-avatar">
+                        {% if card.avatar_path %}
+                            <img src="{{ url_for('avatar_file', filename=card.avatar_path.split('/')[-1]) }}" alt="{{ card.name }}">
+                        {% else %}
+                            <span>{{ card.name[:1] }}</span>
+                        {% endif %}
+                    </div>
+                    <div class="added-card-info">
+                        <span class="added-card-name">{{ card.name }}</span>
+                    </div>
+                    <form method="post" class="remove-card-form">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <input type="hidden" name="action" value="remove_card">
+                        <input type="hidden" name="card_id" value="{{ card.id }}">
+                        <button type="submit" class="remove-card-btn" title="从合集移除">&times;</button>
+                    </form>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="added-cards-empty">
+                <p>还没有添加任何角色卡</p>
+                <p class="empty-hint">在下方选择你的卡片加入合集</p>
+            </div>
+            {% endif %}
+        </div>
+
+        {# 可添加的卡片 #}
+        <div class="available-cards-section">
+            <div class="available-header">
+                <h3>可添加的卡片</h3>
+                <div class="search-box">
+                    <input type="text" id="card-search-input" placeholder="搜索角色卡..." autocomplete="off">
+                    <button type="button" id="card-search-btn" class="search-btn">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="11" cy="11" r="8"/>
+                            <path d="m21 21-4.35-4.35"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+
+            {# 已添加卡片ID集合，用于过滤 #}
+            {% set added_ids = collection_card_ids or [] %}
+            
+            <div class="available-cards-grid" id="available-cards-grid">
+                {% for card in user_cards %}
+                    {% if card.id not in added_ids %}
+                    <div class="available-card-item" data-card-name="{{ card.name }}" data-card-id="{{ card.id }}">
+                        <div class="available-card-avatar">
+                            {% if card.avatar_path %}
+                                <img src="{{ url_for('avatar_file', filename=card.avatar_path.split('/')[-1]) }}" alt="{{ card.name }}">
+                            {% else %}
+                                <span>{{ card.name[:1] }}</span>
+                            {% endif %}
+                        </div>
+                        <div class="available-card-info">
+                            <span class="available-card-name">{{ card.name }}</span>
+                            {% if card.description %}
+                            <span class="available-card-desc">{{ card.description[:50] }}{% if card.description|length > 50 %}...{% endif %}</span>
+                            {% endif %}
+                        </div>
+                        <form method="post" class="add-card-form">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <input type="hidden" name="action" value="add_card">
+                            <input type="hidden" name="card_id" value="{{ card.id }}">
+                            <button type="submit" class="add-card-btn">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M12 5v14M5 12h14"/>
+                                </svg>
+                            </button>
+                        </form>
+                    </div>
+                    {% endif %}
+                {% endfor %}
+            </div>
+
+            {% if user_cards|length - added_ids|length <= 0 %}
+            <div class="available-cards-empty">
+                <p>所有卡片都已加入合集</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+    const searchInput = document.getElementById("card-search-input");
+    if (!searchInput) return;
+
+    searchInput.addEventListener("input", function() {
+        const query = searchInput.value.toLowerCase().trim();
+        const items = document.querySelectorAll(".available-card-item");
+        items.forEach(function(item) {
+            const name = item.dataset.cardName.toLowerCase();
+            if (query === "" || name.includes(query)) {
+                item.classList.remove("hidden");
+            } else {
+                item.classList.add("hidden");
+            }
+        });
+    });
+});
+</script>
+{% endblock %}

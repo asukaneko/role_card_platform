@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% block title %}{{ collection.title }} - 角色卡平台{% endblock %}
+{% block content %}
+<div class="collection-detail-page">
+    <div class="collection-detail-header">
+        <div class="collection-detail-info">
+            <h1>{{ collection.title }}</h1>
+            <p class="collection-detail-desc">{{ collection.description or '暂无描述' }}</p>
+            <div class="collection-detail-meta">
+                <span class="collection-visibility-badge {% if collection.visibility == 'private' %}private{% endif %}">
+                    {% if collection.visibility == 'private' %}私有{% else %}公开{% endif %}
+                </span>
+                <span>{{ cards|length }} 张角色卡</span>
+                <span>更新于 {{ format_time(collection.updated_at) }}</span>
+            </div>
+        </div>
+        <div class="collection-detail-actions">
+            {% if is_owner %}
+            <a href="{{ url_for('edit_collection', slug=collection.slug) }}" class="btn-edit-collection">编辑</a>
+            {% endif %}
+            <a href="{{ url_for('collection_download', slug=collection.slug) }}" class="btn-download-collection">下载 ZIP</a>
+            {% if is_owner %}
+            <form method="post" action="{{ url_for('delete_collection', slug=collection.slug) }}" class="delete-collection-form" data-confirm="确定要删除这个合集吗？">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="btn-delete-collection danger-btn">删除</button>
+            </form>
+            {% endif %}
+        </div>
+    </div>
+
+    {% if cards %}
+    <section class="card-grid">
+        {% for card in cards %}
+        <article class="role-card collection-card-item" data-card-url="{{ url_for('card_detail', identifier=card.slug) }}">
+            <a class="card-media" href="{{ url_for('card_detail', identifier=card.slug) }}">
+                {% if card.avatar_path %}
+                    <img src="{{ url_for('avatar_file', filename=card.avatar_path.split('/')[-1]) }}" alt="{{ card.name }}">
+                {% else %}
+                    <span>{{ card.name[:1] }}</span>
+                {% endif %}
+            </a>
+            <div class="card-body">
+                <div class="card-title-row">
+                    <h2><a href="{{ url_for('card_detail', identifier=card.slug) }}">{{ card.name }}</a></h2>
+                    {% if is_owner %}
+                    <form method="post" action="{{ url_for('collection_remove_card', slug=collection.slug, card_id=card.id) }}" class="card-unlink-form" data-confirm="确定要从合集中移除「{{ card.name }}」吗？">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button type="submit" class="card-unlink-btn" title="从合集移除">&times;</button>
+                    </form>
+                    {% endif %}
+                </div>
+                <p>{{ card.description or card.personality }}</p>
+                {% if card.tags %}
+                <div class="tags">
+                    {% for item in card.tags %}
+                        <a href="{{ url_for('index', tag=item) }}">#{{ item }}</a>
+                    {% endfor %}
+                </div>
+                {% endif %}
+                <div class="card-meta">
+                    <span>{{ card.likes }} 赞 · {{ card.views }} 浏览</span>
+                </div>
+            </div>
+        </article>
+        {% endfor %}
+    </section>
+    {% else %}
+    <div class="collection-empty">
+        <p>这个合集还没有角色卡</p>
+        {% if is_owner %}
+        <p style="font-size: 13px; margin-top: 8px; color: var(--muted);">在角色卡详情页可以将角色卡添加到合集</p>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

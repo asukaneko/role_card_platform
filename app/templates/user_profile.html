@@ -117,6 +117,7 @@
 <div class="profile-tabs">
     <a href="{{ url_for('user_profile', username=profile_user.username, tab='cards') }}" class="profile-tab{% if tab == 'cards' %} active{% endif %}">我的角色卡</a>
     {% if is_self %}
+    <a href="{{ url_for('user_profile', username=profile_user.username, tab='collections') }}" class="profile-tab{% if tab == 'collections' %} active{% endif %}">我的合集</a>
     <a href="{{ url_for('user_profile', username=profile_user.username, tab='favorites') }}" class="profile-tab{% if tab == 'favorites' %} active{% endif %}">我的收藏</a>
     <a href="{{ url_for('user_profile', username=profile_user.username, tab='following') }}" class="profile-tab{% if tab == 'following' %} active{% endif %}">我的关注</a>
     {% endif %}
@@ -216,11 +217,50 @@
 </section>
 {% else %}
 <section class="empty-state">
-    <h2>还没有收藏</h2>
+    <p>还没有收藏任何角色卡</p>
     <p>浏览角色卡并收藏你喜欢的角色吧。</p>
 </section>
 {% endif %}
+{% elif tab == 'collections' and is_self %}
+{% if collections %}
+<section class="toolbar">
+    <div>
+        <strong>{{ collections|length }}</strong>
+        <span>个合集</span>
+    </div>
+</section>
+<section class="card-grid">
+    {% for c in collections %}
+    <article class="role-card collection-square-card" data-card-url="{{ url_for('collection_detail', slug=c.slug) }}">
+        <a class="card-media" href="{{ url_for('collection_detail', slug=c.slug) }}">
+            {% if c.cover_avatar %}
+                <img src="{{ url_for('avatar_file', filename=c.cover_avatar.split('/')[-1]) }}" alt="{{ c.title }}">
+            {% else %}
+                <span>{{ c.title[:1] }}</span>
+            {% endif %}
+            <span class="collection-card-visibility {% if c.visibility == 'private' %}private{% endif %}">
+                {% if c.visibility == 'private' %}私有{% else %}公开{% endif %}
+            </span>
+        </a>
+        <div class="card-body">
+            <div class="card-title-row">
+                <h2><a href="{{ url_for('collection_detail', slug=c.slug) }}">{{ c.title }}</a></h2>
+            </div>
+            <p>{{ c.description or '暂无描述' }}</p>
+            <div class="card-meta">
+                <span>{{ c.card_count or 0 }} 张角色卡 · {{ format_time(c.updated_at) }}</span>
+            </div>
+        </div>
+    </article>
+    {% endfor %}
+</section>
 {% else %}
+<section class="empty-state">
+    <p>还没有创建合集</p>
+    <a href="{{ url_for('create_collection') }}" class="btn-create-collection" style="margin-top: 16px;">+ 新建合集</a>
+</section>
+{% endif %}
+{% elif tab == 'cards' %}
 {% if cards %}
 <section class="toolbar">
     <div>
@@ -259,6 +299,9 @@
                 {% if is_self %}
                 <div class="card-owner-actions">
                     <a class="card-action-btn" href="{{ url_for('edit_card', card_id=card.id) }}">编辑</a>
+                    {% if collections and collections|length > 0 %}
+                    <button type="button" class="card-action-btn add-to-collection-btn" data-card-id="{{ card.id }}" data-card-name="{{ card.name }}">加入合集</button>
+                    {% endif %}
                     <form method="post" action="{{ url_for('toggle_visibility', card_id=card.id) }}" style="display:inline">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <input type="hidden" name="source" value="profile">
@@ -309,6 +352,100 @@ function copyApiToken() {
         setTimeout(() => { btn.textContent = "复制"; }, 1500);
     });
 }
+
+{# 加入合集弹窗逻辑 #}
+document.addEventListener("DOMContentLoaded", function() {
+    const addToCollectionBtns = document.querySelectorAll(".add-to-collection-btn");
+    if (addToCollectionBtns.length === 0) return;
+
+    {# 构建合集数据 #}
+    const collections = [
+        {% for c in collections %}
+        { id: {{ c.id }}, slug: "{{ c.slug }}", title: "{{ c.title }}" },
+        {% endfor %}
+    ];
+
+    addToCollectionBtns.forEach(function(btn) {
+        btn.addEventListener("click", function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            const cardId = btn.dataset.cardId;
+            const cardName = btn.dataset.cardName;
+
+            {# 创建弹窗 #}
+            let modal = document.getElementById("add-to-collection-modal");
+            if (modal) modal.remove();
+
+            modal = document.createElement("div");
+            modal.id = "add-to-collection-modal";
+            modal.className = "collection-modal-overlay";
+            modal.innerHTML = `
+                <div class="collection-modal-content">
+                    <div class="collection-modal-header">
+                        <h3>将「${cardName}」加入合集</h3>
+                        <button type="button" class="collection-modal-close">&times;</button>
+                    </div>
+                    <div class="collection-modal-body">
+                        <div class="collection-modal-search">
+                            <input type="text" id="collection-search-input" placeholder="搜索合集..." autocomplete="off">
+                        </div>
+                        <div class="collection-modal-list" id="collection-modal-list">
+                            ${collections.map(c => `
+                                <form method="post" action="/collections/${c.slug}/add-card" class="collection-modal-item">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                    <input type="hidden" name="card_id" value="${cardId}">
+                                    <button type="submit">
+                                        <span class="collection-modal-item-title">${c.title}</span>
+                                    </button>
+                                </form>
+                            `).join("")}
+                        </div>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+
+            {# 关闭按钮 #}
+            modal.querySelector(".collection-modal-close").addEventListener("click", function() {
+                modal.remove();
+            });
+            modal.addEventListener("click", function(e) {
+                if (e.target === modal) modal.remove();
+            });
+
+            {# 搜索功能 #}
+            const searchInput = modal.querySelector("#collection-search-input");
+            const list = modal.querySelector("#collection-modal-list");
+            searchInput.addEventListener("input", function() {
+                const query = searchInput.value.toLowerCase().trim();
+                const items = list.querySelectorAll(".collection-modal-item");
+                let visibleCount = 0;
+                items.forEach(function(item) {
+                    const title = item.querySelector(".collection-modal-item-title").textContent.toLowerCase();
+                    if (query === "" || title.includes(query)) {
+                        item.style.display = "";
+                        visibleCount++;
+                    } else {
+                        item.style.display = "none";
+                    }
+                });
+                let emptyMsg = list.querySelector(".collection-modal-empty");
+                if (visibleCount === 0) {
+                    if (!emptyMsg) {
+                        emptyMsg = document.createElement("div");
+                        emptyMsg.className = "collection-modal-empty";
+                        emptyMsg.textContent = "没有找到匹配的合集";
+                        list.appendChild(emptyMsg);
+                    }
+                    emptyMsg.style.display = "";
+                } else if (emptyMsg) {
+                    emptyMsg.style.display = "none";
+                }
+            });
+            searchInput.focus();
+        });
+    });
+});
 </script>
 
 <style>

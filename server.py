@@ -40,7 +40,7 @@ from app.config import (
     MAX_CARD_BYTES, MAX_AVATAR_BYTES, MAX_ZIP_BYTES,
     ALLOWED_AVATAR_EXTENSIONS, IMAGE_SIGNATURES, Config
 )
-from app.models import init_db, get_db, User, RoleCard, Comment, UserLike, UserFavorite, Reviewer, ReviewQueue, AIReviewConfig, EmailConfig, CardRelation, UserFollow, Notification
+from app.models import init_db, get_db, User, RoleCard, Comment, UserLike, UserFavorite, Reviewer, ReviewQueue, AIReviewConfig, EmailConfig, CardRelation, UserFollow, Notification, Collection
 from app.auth import (
     generate_user_api_token, resolve_api_user, api_token_valid,
     admin_token, get_current_user, login_required, AuthService,
@@ -310,7 +310,14 @@ def user_profile(username):
     if is_self and tab == "following":
         following_list = UserFollow.get_following(user["id"])
 
-    return render_template("user_profile.html", profile_user=dict(user), cards=cards, favorite_cards=favorite_cards, is_self=is_self, tab=tab, status_filter=status_filter, status_counts=status_counts, is_admin=is_admin, follower_count=follower_count, following_count=following_count, is_following=is_following, following_list=following_list)
+    # 合集列表（仅自己查看时传递，用于卡片加入合集功能）
+    collections = []
+    if is_self:
+        collections = Collection.get_by_user(user["id"], include_private=True)
+    elif tab == "collections":
+        collections = Collection.get_by_user(user["id"], include_private=False)
+
+    return render_template("user_profile.html", profile_user=dict(user), cards=cards, favorite_cards=favorite_cards, is_self=is_self, tab=tab, status_filter=status_filter, status_counts=status_counts, is_admin=is_admin, follower_count=follower_count, following_count=following_count, is_following=is_following, following_list=following_list, collections=collections)
 
 
 @server.route("/feed")
@@ -608,12 +615,17 @@ def card_detail(identifier):
     related_cards = CardRelation.get_related_cards(card["id"])
     linked_by_cards = CardRelation.get_linked_by_cards(card["id"])
 
+    # 获取用户的合集列表（用于添加到合集）
+    user_collections = []
+    if is_owner:
+        user_collections = Collection.get_by_user(user_id, include_private=True)
+
     # 检查是否关注了作者
     is_following_author = False
     if user_id and card.get("user_id"):
         is_following_author = UserFollow.is_following(user_id, card["user_id"])
 
-    return render_template("detail.html", card=card, comments=comments, user_liked=user_liked, user_favorited=user_favorited, current_user_id=user_id, related_cards=related_cards, linked_by_cards=linked_by_cards, is_following_author=is_following_author, is_owner=is_owner)
+    return render_template("detail.html", card=card, comments=comments, user_liked=user_liked, user_favorited=user_favorited, current_user_id=user_id, related_cards=related_cards, linked_by_cards=linked_by_cards, is_following_author=is_following_author, is_owner=is_owner, user_collections=user_collections)
 
 
 @server.route("/card/<int:card_id>/relate", methods=["POST"])
@@ -1806,6 +1818,240 @@ def delete_notification(notification_id):
     user_id = session.get("user_id")
     Notification.delete(notification_id, user_id)
     return jsonify({"success": True})
+
+
+@server.route("/collections")
+@login_required
+def collections_list():
+    """合集列表页面"""
+    user_id = session.get("user_id")
+    collections = Collection.get_by_user(user_id, include_private=True)
+    return render_template("collections_list.html", collections=collections)
+
+
+@server.route("/collections/new", methods=["GET", "POST"])
+@login_required
+def create_collection():
+    """创建合集"""
+    if request.method == "GET":
+        return render_template("collection_form.html", collection=None)
+
+    title = (request.form.get("title") or "").strip()
+    description = (request.form.get("description") or "").strip()
+    visibility = request.form.get("visibility", "public")
+
+    if not title:
+        flash("合集名称不能为空", "error")
+        return render_template("collection_form.html", collection=None)
+
+    user_id = session.get("user_id")
+    collection = Collection.create(title=title, description=description, user_id=user_id, visibility=visibility)
+    flash("合集已创建")
+    return redirect(url_for("collection_detail", slug=collection["slug"]))
+
+
+@server.route("/collections/<slug>")
+def collection_detail(slug):
+    """合集详情页"""
+    collection = Collection.get_by_slug(slug)
+    if not collection:
+        abort(404)
+
+    user_id = session.get("user_id")
+    is_owner = user_id and collection["user_id"] == user_id
+    is_admin = is_admin_user(user_id)
+
+    # 权限检查：私有合集只有所有者和管理员可以查看
+    if collection["visibility"] != "public" and not (is_owner or is_admin):
+        abort(404)
+
+    cards = Collection.get_cards(collection["id"])
+    is_following_author = False
+    if user_id and collection["user_id"]:
+        is_following_author = UserFollow.is_following(user_id, collection["user_id"])
+
+    return render_template(
+        "collection_detail.html",
+        collection=collection,
+        cards=cards,
+        is_owner=is_owner,
+        is_following_author=is_following_author,
+    )
+
+
+@server.route("/collections/<slug>/edit", methods=["GET", "POST"])
+@login_required
+def edit_collection(slug):
+    """编辑合集"""
+    collection = Collection.get_by_slug(slug)
+    if not collection:
+        abort(404)
+
+    user_id = session.get("user_id")
+    is_owner = user_id and collection["user_id"] == user_id
+    is_admin = is_admin_user(user_id)
+    if not (is_owner or is_admin):
+        abort(403)
+
+    if request.method == "POST":
+        action = request.form.get("action", "")
+
+        if action == "add_card":
+            card_id = request.form.get("card_id", type=int)
+            if card_id:
+                Collection.add_card(collection["id"], card_id)
+                flash("角色卡已添加到合集")
+            return redirect(url_for("edit_collection", slug=slug))
+
+        if action == "remove_card":
+            card_id = request.form.get("card_id", type=int)
+            if card_id:
+                Collection.remove_card(collection["id"], card_id)
+                flash("角色卡已从合集移除")
+            return redirect(url_for("edit_collection", slug=slug))
+
+        title = (request.form.get("title") or "").strip()
+        description = (request.form.get("description") or "").strip()
+        visibility = request.form.get("visibility", "public")
+
+        if not title:
+            flash("合集名称不能为空", "error")
+            user_cards = RoleCard.get_by_user(user_id)
+            collection_cards = Collection.get_cards(collection["id"])
+            collection_card_ids = {c["id"] for c in collection_cards}
+            return render_template("collection_form.html", collection=collection, user_cards=user_cards, collection_cards=collection_cards, collection_card_ids=collection_card_ids)
+
+        Collection.update(collection["id"], title=title, description=description, visibility=visibility)
+        flash("合集已更新")
+        return redirect(url_for("collection_detail", slug=title.lower().replace(" ", "-") if title != collection["title"] else slug))
+
+    # GET request
+    user_cards = RoleCard.get_by_user(user_id)
+    collection_cards = Collection.get_cards(collection["id"])
+    collection_card_ids = {c["id"] for c in collection_cards}
+    return render_template("collection_form.html", collection=collection, user_cards=user_cards, collection_cards=collection_cards, collection_card_ids=collection_card_ids)
+
+
+@server.route("/collections/<slug>/delete", methods=["POST"])
+@login_required
+def delete_collection(slug):
+    """删除合集"""
+    collection = Collection.get_by_slug(slug)
+    if not collection:
+        abort(404)
+
+    user_id = session.get("user_id")
+    is_owner = user_id and collection["user_id"] == user_id
+    if not (is_owner or is_admin_user(user_id)):
+        abort(403)
+
+    Collection.delete(collection["id"])
+    flash("合集已删除")
+    current_user = get_current_user()
+    username = current_user["username"] if current_user else "me"
+    return redirect(url_for("user_profile", username=username, tab="collections"))
+
+
+@server.route("/collections/<slug>/add-card", methods=["POST"])
+@login_required
+def collection_add_card(slug):
+    """向合集添加角色卡"""
+    collection = Collection.get_by_slug(slug)
+    if not collection:
+        abort(404)
+
+    user_id = session.get("user_id")
+    is_owner = user_id and collection["user_id"] == user_id
+    if not (is_owner or is_admin_user(user_id)):
+        abort(403)
+
+    card_id = request.form.get("card_id")
+    if not card_id:
+        flash("请选择角色卡", "error")
+        return redirect(url_for("collection_detail", slug=slug))
+
+    Collection.add_card(collection["id"], int(card_id))
+    flash("角色卡已添加到合集")
+    return redirect(url_for("collection_detail", slug=slug))
+
+
+@server.route("/collections/<slug>/remove-card/<int:card_id>", methods=["POST"])
+@login_required
+def collection_remove_card(slug, card_id):
+    """从合集移除角色卡"""
+    collection = Collection.get_by_slug(slug)
+    if not collection:
+        abort(404)
+
+    user_id = session.get("user_id")
+    is_owner = user_id and collection["user_id"] == user_id
+    if not (is_owner or is_admin_user(user_id)):
+        abort(403)
+
+    Collection.remove_card(collection["id"], card_id)
+    flash("角色卡已从合集移除")
+    return redirect(url_for("collection_detail", slug=slug))
+
+
+@server.route("/collections/<slug>/download", methods=["GET"])
+def collection_download(slug):
+    """下载合集 ZIP 包"""
+    collection = Collection.get_by_slug(slug)
+    if not collection:
+        abort(404)
+
+    user_id = session.get("user_id")
+    is_owner = user_id and collection["user_id"] == user_id
+    is_admin = is_admin_user(user_id)
+
+    # 权限检查
+    if collection["visibility"] != "public" and not (is_owner or is_admin):
+        abort(404)
+
+    cards = Collection.get_cards(collection["id"])
+    if not cards:
+        flash("合集为空，无法下载", "error")
+        return redirect(url_for("collection_detail", slug=slug))
+
+    import zipfile
+    import io as io_module
+
+    zip_buffer = io_module.BytesIO()
+    with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
+        for card in cards:
+            # 生成角色卡 JSON 文件
+            card_json = {
+                "name": card["name"],
+                "description": card["description"],
+                "personality": card["personality"],
+                "scenario": card["scenario"],
+                "first_message": card["first_message"],
+                "system_prompt": card["system_prompt"],
+                "tags": card["tags"],
+                "creator": card["creator"],
+                "basic_info": card.get("basic_info", ""),
+                "example_dialogues": card.get("example_dialogues", ""),
+                "response_format": card.get("response_format", ""),
+                "rules": card.get("rules", []),
+                "state": card.get("state", {}),
+            }
+            safe_name = re.sub(r'[\\/*?:"<>|]', "", card["name"]) or f"card_{card['id']}"
+            zf.writestr(f"{safe_name}.json", json.dumps(card_json, ensure_ascii=False, indent=2))
+
+            # 包含角色立绘图
+            if card.get("avatar_path"):
+                avatar_path = PROJECT_ROOT / card["avatar_path"]
+                if avatar_path.exists() and avatar_path.resolve().is_relative_to(PROJECT_ROOT):
+                    zf.write(avatar_path, f"{safe_name}_portrait{avatar_path.suffix}")
+
+    zip_buffer.seek(0)
+    safe_filename = re.sub(r'[\\/*?:"<>|]', "", collection["title"]) or "collection"
+    return send_file(
+        zip_buffer,
+        mimetype="application/zip",
+        as_attachment=True,
+        download_name=f"{safe_filename}.zip"
+    )
 
 
 def _format_relative_time(iso_str: str) -> str:

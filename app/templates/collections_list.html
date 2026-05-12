@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}我的合集 - 角色卡平台{% endblock %}
+{% block content %}
+<div class="collections-page">
+    <div class="collections-header">
+        <h1>我的合集</h1>
+        <a href="{{ url_for('create_collection') }}" class="btn-create-collection">+ 新建合集</a>
+    </div>
+
+    {% if collections %}
+    <section class="card-grid">
+        {% for c in collections %}
+        <article class="role-card collection-square-card" data-card-url="{{ url_for('collection_detail', slug=c.slug) }}">
+            <a class="card-media" href="{{ url_for('collection_detail', slug=c.slug) }}">
+                {% if c.cover_avatar %}
+                    <img src="{{ url_for('avatar_file', filename=c.cover_avatar.split('/')[-1]) }}" alt="{{ c.title }}">
+                {% else %}
+                    <span>{{ c.title[:1] }}</span>
+                {% endif %}
+                <span class="collection-card-visibility {% if c.visibility == 'private' %}private{% endif %}">
+                    {% if c.visibility == 'private' %}私有{% else %}公开{% endif %}
+                </span>
+            </a>
+            <div class="card-body">
+                <div class="card-title-row">
+                    <h2><a href="{{ url_for('collection_detail', slug=c.slug) }}">{{ c.title }}</a></h2>
+                </div>
+                <p>{{ c.description or '暂无描述' }}</p>
+                <div class="card-meta">
+                    <span>{{ c.card_count or 0 }} 张角色卡 · {{ format_time(c.updated_at) }}</span>
+                </div>
+            </div>
+        </article>
+        {% endfor %}
+    </section>
+    {% else %}
+    <div class="collection-empty">
+        <svg width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M4 6h16M4 12h16M4 18h7"/>
+        </svg>
+        <p>还没有创建合集</p>
+        <a href="{{ url_for('create_collection') }}" class="btn-create-collection" style="margin-top: 16px;">+ 新建合集</a>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

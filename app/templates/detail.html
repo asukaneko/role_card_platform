@@ -236,6 +236,28 @@
             </div>
         </section>
         {% endif %}
+
+        {% if user_collections %}
+        <section class="collection-add-section">
+            <h2>加入合集</h2>
+            <div class="collection-add-grid">
+                {% for col in user_collections %}
+                <form method="post" action="{{ url_for('collection_add_card', slug=col.slug) }}" class="collection-add-item">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="card_id" value="{{ card.id }}">
+                    <button type="submit" class="collection-add-btn">
+                        <span class="collection-add-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M4 6h16M4 12h16M4 18h7"/>
+                            </svg>
+                        </span>
+                        <span class="collection-add-title">{{ col.title }}</span>
+                    </button>
+                </form>
+                {% endfor %}
+            </div>
+        </section>
+        {% endif %}
         {% endif %}
 
         <section class="comment-section">
