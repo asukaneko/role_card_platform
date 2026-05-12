@@ -32,6 +32,14 @@
     z-index: 0;
 }
 
+/* 深色模式下移除Hero区域黑色背景，仅保留装饰光晕 */
+:root[data-theme="dark"] .landing-hero::before {
+    background:
+        radial-gradient(ellipse 80% 60% at 50% 0%, rgba(98, 185, 191, 0.08) 0%, transparent 60%),
+        radial-gradient(ellipse 60% 50% at 80% 80%, rgba(213, 162, 63, 0.06) 0%, transparent 55%),
+        radial-gradient(ellipse 50% 40% at 20% 70%, rgba(184, 91, 106, 0.05) 0%, transparent 50%);
+}
+
 /* 动态光晕装饰 */
 .landing-hero::after {
     content: "";
@@ -70,11 +78,12 @@
 }
 
 :root[data-theme="dark"] .landing-glass-card {
-    background: rgba(25, 30, 40, 0.55);
-    border-color: rgba(255, 255, 255, 0.12);
+    background: rgba(30, 40, 55, 0.35);
+    border-color: rgba(98, 185, 191, 0.15);
     box-shadow:
-        0 24px 60px rgba(0, 0, 0, 0.35),
-        0 0 0 1px rgba(255, 255, 255, 0.06) inset;
+        0 24px 60px rgba(0, 0, 0, 0.25),
+        0 0 0 1px rgba(98, 185, 191, 0.08) inset,
+        0 -1px 0 rgba(98, 185, 191, 0.1) inset;
 }
 
 .landing-glass-card:hover {
@@ -86,9 +95,11 @@
 }
 
 :root[data-theme="dark"] .landing-glass-card:hover {
+    background: rgba(30, 40, 55, 0.45);
     box-shadow:
-        0 32px 80px rgba(0, 0, 0, 0.45),
-        0 0 0 1px rgba(98, 185, 191, 0.15) inset;
+        0 32px 80px rgba(0, 0, 0, 0.35),
+        0 0 0 1px rgba(98, 185, 191, 0.2) inset,
+        0 -1px 0 rgba(98, 185, 191, 0.15) inset;
 }
 
 /* 标签样式 */
@@ -362,10 +373,13 @@
     position: absolute;
     inset: 0;
     background:
-        radial-gradient(ellipse 60% 50% at 50% 100%, rgba(47, 111, 115, 0.1) 0%, transparent 60%),
-        radial-gradient(ellipse 40% 40% at 20% 0%, rgba(213, 162, 63, 0.08) 0%, transparent 50%),
-        var(--bg);
+        url('/static/png/card_light.png') center / cover no-repeat;
     z-index: 0;
+}
+
+/* 深色模式使用深色背景图 */
+:root[data-theme="dark"] .landing-cta-section::before {
+    background-image: url('/static/png/card_dark.png');
 }
 
 .landing-cta-content {

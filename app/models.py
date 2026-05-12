@@ -1,6 +1,7 @@
 """
 数据库模型 - 包含所有数据库操作和模型函数
 """
+import difflib
 import json
 import sqlite3
 from datetime import datetime
@@ -525,6 +526,23 @@ class CardVersion:
         if not v1 or not v2:
             return None
 
+        def _compute_diff(old_text, new_text):
+            old_text = old_text or ""
+            new_text = new_text or ""
+            sm = difflib.SequenceMatcher(None, old_text, new_text)
+            ops = []
+            for tag, i1, i2, j1, j2 in sm.get_opcodes():
+                if tag == 'equal':
+                    ops.append(('equal', old_text[i1:i2]))
+                elif tag == 'delete':
+                    ops.append(('delete', old_text[i1:i2]))
+                elif tag == 'insert':
+                    ops.append(('insert', new_text[j1:j2]))
+                elif tag == 'replace':
+                    ops.append(('delete', old_text[i1:i2]))
+                    ops.append(('insert', new_text[j1:j2]))
+            return ops
+
         # 对比的字段列表
         compare_fields = [
             ("name", "名称"),
@@ -542,25 +560,29 @@ class CardVersion:
 
         differences = []
         for field, label in compare_fields:
-            old_val = v1.get(field) or ""
-            new_val = v2.get(field) or ""
+            old_val = (v1.get(field) or "").rstrip()
+            new_val = (v2.get(field) or "").rstrip()
             if old_val != new_val:
                 differences.append({
                     "field": field,
                     "label": label,
                     "old": old_val,
                     "new": new_val,
+                    "diff_ops": _compute_diff(old_val, new_val),
                 })
 
         # 对比标签
         tags1 = v1.get("tags", [])
         tags2 = v2.get("tags", [])
         if tags1 != tags2:
+            old_tags = ", ".join(tags1) if tags1 else "(无)"
+            new_tags = ", ".join(tags2) if tags2 else "(无)"
             differences.append({
                 "field": "tags",
                 "label": "标签",
-                "old": ", ".join(tags1) if tags1 else "(无)",
-                "new": ", ".join(tags2) if tags2 else "(无)",
+                "old": old_tags,
+                "new": new_tags,
+                "diff_ops": _compute_diff(old_tags, new_tags),
             })
 
         return {
@@ -1001,7 +1023,10 @@ class RoleCard:
             )
             db.commit()
             row = db.execute("SELECT * FROM role_cards WHERE slug = ?", (slug,)).fetchone()
-        return RoleCard.row_to_card(row)
+            card = RoleCard.row_to_card(row)
+            # 创建初始版本快照 v1
+            CardVersion.create_snapshot(card["id"], user_id)
+        return card
 
     @staticmethod
     def update(card_id: int, card_data: dict, avatar_path: str = None) -> None:

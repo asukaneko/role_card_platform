@@ -4,7 +4,7 @@
 <section class="page-head">
     <p class="eyebrow">版本详情</p>
     <h1>「{{ version.name }}」v{{ version.version_number }}</h1>
-    <p>保存于 {{ version.created_at[:16].replace('T', ' ') }} · 操作者：{{ version.created_by_username or '系统' }}</p>
+    <p class="version-detail-subtitle">保存于 {{ version.created_at[:16].replace('T', ' ') }} · 操作者：{{ version.created_by_username or '系统' }}</p>
 </section>
 
 <section class="version-detail-section">
@@ -104,6 +104,10 @@
     max-width: 800px;
     margin: 0 auto;
     padding: 0 24px 48px;
+}
+
+.version-detail-subtitle {
+    white-space: nowrap;
 }
 
 .version-detail-card {
@@ -224,6 +228,10 @@
 
     .version-meta {
         grid-template-columns: 1fr;
+    }
+
+    .version-detail-subtitle {
+        white-space: normal;
     }
 }
 </style>

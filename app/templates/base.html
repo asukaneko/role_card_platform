@@ -39,16 +39,25 @@
                 排行榜
             </a>
             {% if current_user %}
-            {# 更多下拉菜单 #}
-            <div class="nav-dropdown" id="nav-more-dropdown">
-                <button type="button" class="nav-dropdown-trigger">
-                    <svg style="width:16px;height:16px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <circle cx="12" cy="12" r="1"/>
-                        <circle cx="19" cy="12" r="1"/>
-                        <circle cx="5" cy="12" r="1"/>
+            <div class="nav-divider"></div>
+            {# 用户下拉菜单 #}
+            <div class="nav-dropdown" id="nav-user-dropdown">
+                <button type="button" class="nav-dropdown-trigger nav-user-trigger">
+                    <span class="nav-user-avatar">{{ (current_user.display_name or current_user.username)[:1] }}</span>
+                    <span class="nav-user-name">{{ current_user.display_name or current_user.username }}</span>
+                    <svg class="nav-dropdown-arrow" style="width:12px;height:12px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="6 9 12 15 18 9"/>
                     </svg>
                 </button>
-                <div class="nav-dropdown-menu">
+                <div class="nav-dropdown-menu nav-user-menu">
+                    <a href="{{ url_for('user_profile', username=current_user.username) }}">
+                        <svg style="width:16px;height:16px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                            <circle cx="12" cy="7" r="4"/>
+                        </svg>
+                        个人主页
+                    </a>
+                    <div class="nav-dropdown-divider"></div>
                     <a href="{{ url_for('upload') }}">
                         <svg style="width:16px;height:16px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
@@ -89,29 +98,8 @@
                         </svg>
                         合集
                     </a>
-                </div>
-            </div>
-            {% endif %}
-            <div class="nav-divider"></div>
-            {% if current_user %}
-            {# 用户下拉菜单 #}
-            <div class="nav-dropdown" id="nav-user-dropdown">
-                <button type="button" class="nav-dropdown-trigger nav-user-trigger">
-                    <span class="nav-user-avatar">{{ (current_user.display_name or current_user.username)[:1] }}</span>
-                    <span class="nav-user-name">{{ current_user.display_name or current_user.username }}</span>
-                    <svg class="nav-dropdown-arrow" style="width:12px;height:12px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <polyline points="6 9 12 15 18 9"/>
-                    </svg>
-                </button>
-                <div class="nav-dropdown-menu nav-user-menu">
-                    <a href="{{ url_for('user_profile', username=current_user.username) }}">
-                        <svg style="width:16px;height:16px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
-                            <circle cx="12" cy="7" r="4"/>
-                        </svg>
-                        个人主页
-                    </a>
                     {% if is_admin %}
+                    <div class="nav-dropdown-divider"></div>
                     <a href="{{ url_for('admin') }}" class="nav-admin-link">
                         <svg style="width:16px;height:16px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>

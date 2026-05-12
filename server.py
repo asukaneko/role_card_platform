@@ -946,10 +946,6 @@ def edit_card(card_id):
         return render_template("edit.html", card=card)
 
     try:
-        # 更新前先保存快照
-        user_id = session.get("user_id")
-        CardVersion.create_snapshot(card_id, user_id)
-
         updated = card_from_form(request.form)
         avatar_path = save_avatar(request.files.get("avatar"))
 
@@ -1010,6 +1006,9 @@ def edit_card(card_id):
                 params,
             )
             db.commit()
+            # 编辑后保存快照，捕获编辑后的新状态
+            user_id = session.get("user_id")
+            CardVersion.create_snapshot(card_id, user_id)
             # 获取更新后的 slug 用于跳转
             new_row = db.execute("SELECT slug FROM role_cards WHERE id = ?", (card_id,)).fetchone()
             new_slug = new_row["slug"] if new_row else card["slug"]
@@ -1186,7 +1185,11 @@ def upload():
                 ),
             )
             db.commit()
-        
+            # 创建初始版本快照 v1
+            new_card = db.execute("SELECT id FROM role_cards WHERE slug = ?", (slug,)).fetchone()
+            if new_card:
+                CardVersion.create_snapshot(new_card["id"], user_id)
+
         if card_status == "draft":
             flash("草稿已保存")
         else:

@@ -73,8 +73,16 @@ body {
         linear-gradient(130deg, var(--bg-wash-a), transparent 34%),
         linear-gradient(210deg, var(--bg-wash-b), transparent 30%),
         var(--bg);
+    background-image: url('/static/png/bg_light.png');
+    background-size: cover;
+    background-position: center;
+    background-attachment: fixed;
     color: var(--ink);
     font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+:root[data-theme="dark"] body {
+    background-image: url('/static/png/bg_dark.png');
 }
 
 a {
@@ -678,7 +686,7 @@ textarea:focus {
 .card-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-    gap: 18px;
+    gap: 58px;
 }
 
 /* ========== Role Card Theme Tokens ========== */
@@ -753,7 +761,7 @@ textarea:focus {
 :root[data-theme="dark"] .role-card {
     display: flex;
     flex-direction: column;
-    min-height: 420px;
+    min-height: 450px;
     aspect-ratio: 2 / 3;
     overflow: hidden;
     border-radius: 18px;
@@ -791,12 +799,12 @@ textarea:focus {
 
 :root[data-theme="dark"] .card-body {
     position: relative;
-    inset: auto;
     z-index: 2;
     flex: 1;
-    display: grid;
-    gap: 10px;
-    padding: 18px 20px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 14px 18px 14px;
     background: rgba(30, 33, 40, 0.98);
     color: var(--ink);
 }
@@ -807,7 +815,7 @@ textarea:focus {
 
 :root[data-theme="dark"] .card-body h2 {
     color: rgba(255, 255, 255, 0.95);
-    font-size: 24px;
+    font-size: 22px;
     text-shadow: none;
 }
 
@@ -855,7 +863,7 @@ textarea:focus {
 :root:not([data-theme="dark"]) .role-card {
     display: flex;
     flex-direction: column;
-    min-height: 420px;
+    min-height: 450px;
     aspect-ratio: 2 / 3;
     overflow: hidden;
     border-radius: 18px;
@@ -893,12 +901,12 @@ textarea:focus {
 
 :root:not([data-theme="dark"]) .card-body {
     position: relative;
-    inset: auto;
     z-index: 2;
     flex: 1;
-    display: grid;
-    gap: 10px;
-    padding: 18px 20px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 14px 18px 14px;
     background: rgba(255, 253, 245, 0.96);
     color: var(--ink);
     backdrop-filter: none;
@@ -910,7 +918,7 @@ textarea:focus {
 
 :root:not([data-theme="dark"]) .card-body h2 {
     color: var(--ink);
-    font-size: 25px;
+    font-size: 22px;
     text-shadow: none;
 }
 
@@ -947,9 +955,10 @@ textarea:focus {
 /* ========== Role Card ========== */
 .role-card {
     position: relative;
+    display: flex;
+    flex-direction: column;
+    min-height: 450px;
     overflow: hidden;
-    min-height: 420px;
-    aspect-ratio: 2 / 3;
     border: 1px solid var(--role-card-border);
     border-radius: 16px;
     background: var(--role-card-bg);
@@ -974,10 +983,10 @@ textarea:focus {
 }
 
 .card-media {
-    position: absolute;
-    inset: 0;
+    position: relative;
+    height: 210px;
+    flex-shrink: 0;
     display: grid;
-    height: 100%;
     place-items: center;
     background: linear-gradient(135deg, #1f3f42, #d5a23f);
     color: white;
@@ -1004,12 +1013,13 @@ textarea:focus {
 }
 
 .card-body {
-    position: absolute;
-    inset: auto 0 0;
+    position: relative;
     z-index: 2;
-    display: grid;
-    gap: 10px;
-    padding: 64px 20px 20px;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 14px 18px 14px;
     background: var(--role-card-panel);
     color: var(--role-card-title);
     backdrop-filter: blur(14px);
@@ -1024,22 +1034,26 @@ textarea:focus {
 
 .card-body h2 {
     margin: 0;
-    font-size: 25px;
-    line-height: 1.18;
+    font-size: 22px;
+    line-height: 1.25;
     color: var(--role-card-title);
     font-weight: 900;
     text-shadow: var(--role-card-title-shadow);
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
 }
 
 .card-body p {
     display: -webkit-box;
-    min-height: 0;
+    min-height: 44px;
+    flex-shrink: 0;
     margin: 0;
     overflow: hidden;
     color: var(--role-card-text);
     -webkit-box-orient: vertical;
-    -webkit-line-clamp: 3;
-    line-height: 1.55;
+    -webkit-line-clamp: 2;
+    line-height: 1.5;
     font-weight: 650;
     text-shadow: var(--role-card-text-shadow);
 }
@@ -1060,9 +1074,11 @@ textarea:focus {
     flex-wrap: wrap;
 }
 
+/* 标签区域固定高度，确保底部信息对齐 */
 .role-card .tags {
-    max-height: 30px;
+    height: 30px;
     overflow: hidden;
+    flex-shrink: 0;
 }
 
 .role-card .tags a {
@@ -1075,8 +1091,11 @@ textarea:focus {
 }
 
 .card-meta {
+    display: flex;
     justify-content: space-between;
-    margin-top: 2px;
+    margin-top: auto;
+    padding-top: 8px;
+    flex-shrink: 0;
     color: var(--role-card-meta);
     font-size: 13px;
     font-weight: 700;
@@ -2421,7 +2440,18 @@ pre {
     }
 
     .nav {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
         margin-top: 16px;
+    }
+
+    /* 移动端导航链接防止文字换行 */
+    .nav a {
+        white-space: nowrap;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
     }
 
     .hero {

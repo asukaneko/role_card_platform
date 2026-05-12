@@ -10,6 +10,7 @@
 <section class="history-section">
     {% if versions %}
     <div class="history-list">
+        <div class="history-table-wrap">
         <table class="history-table">
             <thead>
                 <tr>
@@ -30,7 +31,7 @@
                     <td class="version-actions">
                         <a href="{{ url_for('card_version_detail', version_id=version.id) }}" class="btn-small">查看</a>
                         {% if not loop.first %}
-                        <a href="{{ url_for('card_version_compare', v1=versions[loop.index0 - 1].id, v2=version.id) }}" class="btn-small btn-secondary">对比上一版本</a>
+                        <a href="{{ url_for('card_version_compare', v1=version.id, v2=versions[loop.index0 - 1].id) }}" class="btn-small btn-secondary">对比上一版本</a>
                         {% endif %}
                         <form method="post" action="{{ url_for('card_rollback', card_id=card.id, version_id=version.id) }}" style="display:inline" onsubmit="return confirm('确定要回滚到 v{{ version.version_number }} 吗？当前内容将被覆盖。')">
                             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -41,6 +42,7 @@
                 {% endfor %}
             </tbody>
         </table>
+        </div>
     </div>
     {% else %}
     <div class="empty-state">
@@ -70,6 +72,11 @@
     overflow: hidden;
     box-shadow: var(--card-shadow);
     margin-bottom: 32px;
+}
+
+.history-table-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
 }
 
 .history-table thead {
