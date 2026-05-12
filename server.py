@@ -539,18 +539,23 @@ def index():
         where.append("rc.tags_json LIKE ?")
         params.append(f"%{tag}%")
 
-    order_by = {
-        "popular": "rc.downloads DESC, rc.likes DESC, rc.created_at DESC",
-        "liked": "rc.likes DESC, rc.created_at DESC",
-        "latest": "rc.created_at DESC",
-        "views": "rc.views DESC, rc.created_at DESC",
-        "comments": "rc.comments DESC, rc.created_at DESC",
-    }.get(sort, "rc.created_at DESC")
+    # 构建排序子句
+    if sort == "comments":
+        order_by = "comment_count DESC, rc.created_at DESC"
+    elif sort == "popular":
+        order_by = "rc.downloads DESC, rc.likes DESC, rc.created_at DESC"
+    elif sort == "liked":
+        order_by = "rc.likes DESC, rc.created_at DESC"
+    elif sort == "views":
+        order_by = "rc.views DESC, rc.created_at DESC"
+    else:
+        order_by = "rc.created_at DESC"
 
     with get_db() as db:
         rows = db.execute(
             f"""
-            SELECT rc.*, u.username as owner_username
+            SELECT rc.*, u.username as owner_username,
+                   (SELECT COUNT(*) FROM comments WHERE card_id = rc.id AND status = 'approved') as comment_count
             FROM role_cards rc
             LEFT JOIN users u ON rc.user_id = u.id
             WHERE {' AND '.join(where)}
