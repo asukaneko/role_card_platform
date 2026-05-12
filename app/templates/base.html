@@ -27,19 +27,19 @@
         </a>
         <nav class="nav">
             <a href="{{ url_for('index') }}">广场</a>
-            <a href="{{ url_for('search') }}">
+            <a href="{{ url_for('search') }}" class="nav-icon-link" title="搜索">
                 <svg style="width:16px;height:16px;vertical-align:middle;margin-right:4px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <circle cx="11" cy="11" r="8"/>
                     <line x1="21" y1="21" x2="16.65" y2="16.65"/>
                 </svg>
-                搜索
+                <span class="nav-link-text">搜索</span>
             </a>
-            <a href="{{ url_for('leaderboard') }}">
+            <a href="{{ url_for('leaderboard') }}" class="nav-icon-link" title="排行榜">
                 <svg style="width:16px;height:16px;vertical-align:middle;margin-right:4px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M8 21h8M12 17v4M7 4h10l2 6H5L7 4z"/>
                     <path d="M12 17l-3-6h6l-3 6z"/>
                 </svg>
-                排行榜
+                <span class="nav-link-text">排行榜</span>
             </a>
             {% if current_user %}
             <div class="nav-divider"></div>

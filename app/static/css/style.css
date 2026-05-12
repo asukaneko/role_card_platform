@@ -2766,6 +2766,70 @@ pre {
     .detail-main h1 {
         font-size: 38px;
     }
+
+    /* 移动端导航优化 */
+    .nav-icon-link .nav-link-text {
+        display: none;
+    }
+
+    .nav-icon-link svg {
+        margin-right: 0 !important;
+        width: 18px !important;
+        height: 18px !important;
+    }
+
+    .nav a {
+        padding: 8px 10px;
+    }
+
+    /* 移动端用户下拉菜单适配 - 全屏覆盖式 */
+    .nav-dropdown-menu {
+        position: fixed;
+        top: 60px;
+        left: 12px;
+        right: 12px;
+        min-width: auto;
+        width: auto;
+        max-height: calc(100vh - 80px);
+        overflow-y: auto;
+        border-radius: 16px;
+        padding: 12px;
+        transform: translateY(-10px) scale(0.98);
+        z-index: 1000;
+    }
+
+    .nav-dropdown-menu.show {
+        transform: translateY(0) scale(1);
+    }
+
+    /* 遮罩层 */
+    .nav-dropdown.show::before {
+        content: '';
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.4);
+        z-index: 999;
+    }
+
+    .nav-dropdown-menu a {
+        padding: 14px 16px;
+        font-size: 15px;
+        border-radius: 10px;
+    }
+
+    .nav-dropdown-menu a:not(:last-child) {
+        margin-bottom: 4px;
+    }
+
+    .nav-user-name {
+        max-width: 60px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
 }
 
 /* 审核状态标签 */
