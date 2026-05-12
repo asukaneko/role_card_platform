@@ -9,15 +9,13 @@
     </div>
     <form class="search-panel" method="get" action="{{ url_for('index') }}">
         <label>
-            <span>搜索</span>
-            <input name="q" value="{{ q }}" placeholder="角色名、简介、作者">
-        </label>
-        <label>
             <span>排序</span>
             <select name="sort">
                 <option value="latest" {% if sort == "latest" %}selected{% endif %}>最新发布</option>
                 <option value="popular" {% if sort == "popular" %}selected{% endif %}>下载最多</option>
                 <option value="liked" {% if sort == "liked" %}selected{% endif %}>喜欢最多</option>
+                <option value="views" {% if sort == "views" %}selected{% endif %}>浏览最多</option>
+                <option value="comments" {% if sort == "comments" %}selected{% endif %}>评论最多</option>
             </select>
         </label>
         {% if tag %}
@@ -28,11 +26,21 @@
 </section>
 
 {% if all_tags %}
-<section class="tag-strip">
-    <a class="tag-pill {% if not tag %}active{% endif %}" href="{{ url_for('index', q=q, sort=sort) }}">全部</a>
-    {% for item in all_tags %}
-        <a class="tag-pill {% if tag == item %}active{% endif %}" href="{{ url_for('index', q=q, tag=item, sort=sort) }}">{{ item }}</a>
+<section class="tag-strip" id="tag-strip">
+    <a class="tag-pill {% if not tag %}active{% endif %}" href="{{ url_for('index', sort=sort) }}">全部</a>
+    {% for item in all_tags[:15] %}
+        <a class="tag-pill {% if tag == item %}active{% endif %}" href="{{ url_for('index', tag=item, sort=sort) }}">{{ item }}</a>
     {% endfor %}
+    {% if all_tags|length > 15 %}
+        <button type="button" class="tag-pill tag-more-btn" id="tag-more-btn" onclick="toggleMoreTags()">
+            <span id="tag-more-text">更多标签...</span>
+        </button>
+        <span id="extra-tags" style="display:none;">
+            {% for item in all_tags[15:] %}
+                <a class="tag-pill {% if tag == item %}active{% endif %}" href="{{ url_for('index', tag=item, sort=sort) }}">{{ item }}</a>
+            {% endfor %}
+        </span>
+    {% endif %}
 </section>
 {% endif %}
 
@@ -89,4 +97,18 @@
     {% endif %}
 </section>
 {% endif %}
+
+<script>
+function toggleMoreTags() {
+    const extraTags = document.getElementById('extra-tags');
+    const btnText = document.getElementById('tag-more-text');
+    if (extraTags.style.display === 'none') {
+        extraTags.style.display = 'inline';
+        btnText.textContent = '收起标签';
+    } else {
+        extraTags.style.display = 'none';
+        btnText.textContent = '更多标签...';
+    }
+}
+</script>
 {% endblock %}

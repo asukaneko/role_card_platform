@@ -541,6 +541,48 @@ main {
     padding: 18px;
 }
 
+/* 广场筛选面板 - 多列布局 */
+.search-panel.plaza-filters {
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    align-items: end;
+}
+
+.search-panel.plaza-filters label {
+    margin-bottom: 0;
+}
+
+.search-panel.plaza-filters .filter-actions {
+    display: flex;
+    gap: 10px;
+    align-items: end;
+}
+
+.search-panel.plaza-filters button {
+    flex: 1;
+}
+
+.search-reset {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 10px 14px;
+    border: 1px solid var(--line);
+    border-radius: 7px;
+    background: var(--paper);
+    color: var(--muted);
+    text-decoration: none;
+    font-size: 14px;
+    font-weight: 600;
+    transition: all 0.2s ease;
+    flex: 1;
+}
+
+.search-reset:hover {
+    border-color: var(--rose);
+    color: var(--rose);
+    background: rgba(184, 91, 106, 0.08);
+}
+
 label {
     display: grid;
     gap: 8px;
@@ -611,6 +653,21 @@ textarea:focus {
     border-color: var(--accent);
     color: white;
     background: var(--accent);
+}
+
+/* 更多标签按钮 */
+.tag-more-btn {
+    background: transparent;
+    border-style: dashed;
+    cursor: pointer;
+    font: inherit;
+    transition: all 0.2s ease;
+}
+
+.tag-more-btn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: var(--bg-wash-a);
 }
 
 .toolbar {
@@ -3558,6 +3615,154 @@ pre {
 
 .confirm-btn.confirm.info:hover {
     background: linear-gradient(135deg, #62b9bf, #38bdf8);
+}
+
+/* ===== 搜索页面样式 ===== */
+.search-page {
+    max-width: 900px;
+    margin: 0 auto;
+}
+
+.search-header {
+    text-align: center;
+    margin-bottom: 32px;
+}
+
+.search-header h1 {
+    margin: 0 0 8px;
+    font-size: clamp(28px, 5vw, 42px);
+    background: linear-gradient(135deg, var(--accent), var(--gold));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.search-header p {
+    margin: 0;
+    color: var(--muted);
+    font-size: 16px;
+}
+
+.search-form-large {
+    background: var(--paper-soft);
+    border: 1px solid var(--line-soft);
+    border-radius: 16px;
+    padding: 24px;
+    box-shadow: var(--shadow);
+    margin-bottom: 28px;
+}
+
+.search-input-wrap {
+    position: relative;
+    margin-bottom: 16px;
+}
+
+.search-icon {
+    position: absolute;
+    left: 16px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 22px;
+    height: 22px;
+    color: var(--muted);
+    pointer-events: none;
+}
+
+.search-input-wrap input {
+    width: 100%;
+    padding: 16px 48px 16px 50px;
+    font-size: 18px;
+    border: 2px solid var(--line);
+    border-radius: 12px;
+    background: var(--field-bg);
+    color: var(--ink);
+    transition: all 0.2s ease;
+}
+
+.search-input-wrap input:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 4px rgba(47, 111, 115, 0.15);
+}
+
+.search-clear {
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 28px;
+    height: 28px;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    color: var(--muted);
+    transition: all 0.2s ease;
+}
+
+.search-clear:hover {
+    background: rgba(184, 91, 106, 0.1);
+    color: var(--rose);
+}
+
+.search-clear svg {
+    width: 18px;
+    height: 18px;
+}
+
+.search-options {
+    display: flex;
+    gap: 12px;
+    align-items: end;
+    flex-wrap: wrap;
+}
+
+.search-options label {
+    flex: 1;
+    min-width: 140px;
+}
+
+.search-options select {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--field-bg);
+    color: var(--ink);
+    font-size: 14px;
+    cursor: pointer;
+}
+
+.search-options button {
+    padding: 10px 28px;
+    border: none;
+    border-radius: 8px;
+    background: linear-gradient(135deg, var(--accent), #0ea5e9);
+    color: white;
+    font-size: 15px;
+    font-weight: 700;
+    cursor: pointer;
+    box-shadow: 0 4px 14px rgba(47, 111, 115, 0.3);
+    transition: all 0.2s ease;
+}
+
+.search-options button:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(47, 111, 115, 0.4);
+}
+
+.search-tags-section {
+    margin-bottom: 28px;
+}
+
+.search-tags-section h3 {
+    margin: 0 0 12px;
+    font-size: 14px;
+    color: var(--muted);
+    font-weight: 600;
+}
+
+.search-results {
+    margin-top: 32px;
 }
 
 :root[data-theme="dark"] .confirm-btn.cancel {

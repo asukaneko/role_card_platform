@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+{% block title %}{% if q %}「{{ q }}」的搜索结果{% else %}搜索角色卡{% endif %} - 角色卡平台{% endblock %}
+{% block content %}
+<section class="search-page">
+    <div class="search-header">
+        <h1>搜索角色卡</h1>
+        <p>通过关键词或标签找到你想要的角色</p>
+    </div>
+
+    <form class="search-form-large" method="get" action="{{ url_for('search') }}">
+        <div class="search-input-wrap">
+            <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="11" cy="11" r="8"/>
+                <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+            </svg>
+            <input type="text" name="q" value="{{ q }}" placeholder="输入角色名、作者或关键词..." autocomplete="off" autofocus>
+            {% if q %}
+                <a href="{{ url_for('search') }}" class="search-clear" title="清除搜索">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"/>
+                        <line x1="6" y1="6" x2="18" y2="18"/>
+                    </svg>
+                </a>
+            {% endif %}
+        </div>
+        <div class="search-options">
+            <label class="search-type-label">
+                <span>搜索范围</span>
+                <select name="type">
+                    <option value="all" {% if search_type == 'all' %}selected{% endif %}>全部</option>
+                    <option value="name" {% if search_type == 'name' %}selected{% endif %}>角色名</option>
+                    <option value="creator" {% if search_type == 'creator' %}selected{% endif %}>作者</option>
+                    <option value="description" {% if search_type == 'description' %}selected{% endif %}>简介</option>
+                </select>
+            </label>
+            <label class="search-sort-label">
+                <span>排序</span>
+                <select name="sort">
+                    <option value="latest" {% if sort == 'latest' %}selected{% endif %}>最新发布</option>
+                    <option value="popular" {% if sort == 'popular' %}selected{% endif %}>下载最多</option>
+                    <option value="liked" {% if sort == 'liked' %}selected{% endif %}>喜欢最多</option>
+                    <option value="views" {% if sort == 'views' %}selected{% endif %}>浏览最多</option>
+                </select>
+            </label>
+            {% if tag %}
+                <input type="hidden" name="tag" value="{{ tag }}">
+            {% endif %}
+            <button type="submit">搜索</button>
+        </div>
+    </form>
+
+    {% if all_tags %}
+    <section class="search-tags-section">
+        <h3>热门标签</h3>
+        <div class="tag-strip">
+            {% for item in all_tags[:20] %}
+                <a class="tag-pill {% if tag == item %}active{% endif %}" href="{{ url_for('search', tag=item, sort=sort) }}">{{ item }}</a>
+            {% endfor %}
+        </div>
+    </section>
+    {% endif %}
+
+    {% if q or tag %}
+        <section class="search-results">
+            <div class="toolbar">
+                <div>
+                    <strong>{{ cards|length }}</strong>
+                    <span>个结果{% if q %} for 「{{ q }}」{% endif %}{% if tag %} in #{{ tag }}{% endif %}</span>
+                </div>
+            </div>
+
+            {% if cards %}
+            <section class="card-grid">
+                {% for card in cards %}
+                    <article class="role-card" data-card-url="{{ url_for('card_detail', identifier=card.slug) }}">
+                        <a class="card-media" href="{{ url_for('card_detail', identifier=card.slug) }}">
+                            {% if card.avatar_path %}
+                                <img src="{{ url_for('avatar_file', filename=card.avatar_path.split('/')[-1]) }}" alt="{{ card.name }}">
+                            {% else %}
+                                <span>{{ card.name[:1] }}</span>
+                            {% endif %}
+                        </a>
+                        <div class="card-body">
+                            <div class="card-title-row">
+                                <h2><a href="{{ url_for('card_detail', identifier=card.slug) }}">{{ card.name }}</a></h2>
+                                <span class="visibility">{{ card.visibility }}</span>
+                            </div>
+                            <p>{{ card.description or card.personality }}</p>
+                            <div class="tags">
+                                {% for item in card.tags %}
+                                    <a href="{{ url_for('search', tag=item) }}">#{{ item }}</a>
+                                {% endfor %}
+                            </div>
+                            <div class="card-meta">
+                                <span>{% if card.owner_username %}<a href="{{ url_for('user_profile', username=card.owner_username) }}">{{ card.owner_username }}</a>{% else %}{{ card.creator or "匿名作者" }}{% endif %}</span>
+                                <span>{{ card.downloads }} 下载 · {{ card.likes }} 喜欢</span>
+                            </div>
+                        </div>
+                    </article>
+                {% endfor %}
+            </section>
+            {% else %}
+            <section class="empty-state">
+                <svg style="width:64px;height:64px;margin-bottom:16px;opacity:0.4;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                    <circle cx="11" cy="11" r="8"/>
+                    <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                </svg>
+                <h2>没有找到结果</h2>
+                <p>尝试更换关键词或标签进行搜索</p>
+            </section>
+            {% endif %}
+        </section>
+    {% endif %}
+</section>
+{% endblock %}

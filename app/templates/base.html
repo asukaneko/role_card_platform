@@ -15,7 +15,7 @@
 </head>
 <body>
     <header class="site-header">
-        <a class="brand" href="{{ url_for('index') }}">
+        <a class="brand" href="{{ url_for('landing') }}">
             <span class="brand-mark">RC</span>
             <span>
                 <strong>角色卡平台</strong>
@@ -24,6 +24,13 @@
         </a>
         <nav class="nav">
             <a href="{{ url_for('index') }}">广场</a>
+            <a href="{{ url_for('search') }}">
+                <svg style="width:16px;height:16px;vertical-align:middle;margin-right:4px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="11" cy="11" r="8"/>
+                    <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                </svg>
+                搜索
+            </a>
             <a href="{{ url_for('leaderboard') }}">
                 <svg style="width:16px;height:16px;vertical-align:middle;margin-right:4px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M8 21h8M12 17v4M7 4h10l2 6H5L7 4z"/>

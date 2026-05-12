@@ -454,30 +454,70 @@ def card_asset_file(filename):
 
 
 @server.route("/")
+def landing():
+    """首页着陆页"""
+    # 获取统计数据
+    with get_db() as db:
+        total_cards = db.execute(
+            "SELECT COUNT(*) as count FROM role_cards WHERE visibility = 'public' AND status = 'approved'"
+        ).fetchone()["count"]
+        total_authors = db.execute(
+            "SELECT COUNT(DISTINCT user_id) as count FROM role_cards WHERE visibility = 'public' AND status = 'approved'"
+        ).fetchone()["count"]
+        total_downloads = db.execute(
+            "SELECT COALESCE(SUM(downloads), 0) as count FROM role_cards WHERE visibility = 'public' AND status = 'approved'"
+        ).fetchone()["count"]
+        # 获取最近角色卡 - 最多12个（6列x2行）
+        recent_rows = db.execute(
+            """
+            SELECT rc.*, u.username as owner_username
+            FROM role_cards rc
+            LEFT JOIN users u ON rc.user_id = u.id
+            WHERE rc.visibility = 'public' AND rc.status = 'approved'
+            ORDER BY rc.created_at DESC
+            LIMIT 12
+            """
+        ).fetchall()
+
+    recent_cards = [RoleCard.row_to_card(row) for row in recent_rows]
+
+    return render_template(
+        "landing.html",
+        total_cards=total_cards,
+        total_authors=total_authors,
+        total_downloads=total_downloads,
+        recent_cards=recent_cards,
+    )
+
+
+@server.route("/plaza")
 def index():
-    query = request.args.get("q", "").strip()
     tag = request.args.get("tag", "").strip()
     sort = request.args.get("sort", "latest")
 
-    where = ["visibility = 'public'", "status = 'approved'"]
+    where = ["rc.visibility = 'public'", "rc.status = 'approved'"]
     params = []
-    if query:
-        where.append("(name LIKE ? OR description LIKE ? OR creator LIKE ?)")
-        term = f"%{query}%"
-        params.extend([term, term, term])
     if tag:
-        where.append("tags_json LIKE ?")
+        where.append("rc.tags_json LIKE ?")
         params.append(f"%{tag}%")
 
     order_by = {
-        "popular": "downloads DESC, likes DESC, created_at DESC",
-        "liked": "likes DESC, created_at DESC",
-        "latest": "created_at DESC",
-    }.get(sort, "created_at DESC")
+        "popular": "rc.downloads DESC, rc.likes DESC, rc.created_at DESC",
+        "liked": "rc.likes DESC, rc.created_at DESC",
+        "latest": "rc.created_at DESC",
+        "views": "rc.views DESC, rc.created_at DESC",
+        "comments": "rc.comments DESC, rc.created_at DESC",
+    }.get(sort, "rc.created_at DESC")
 
     with get_db() as db:
         rows = db.execute(
-            f"SELECT * FROM role_cards WHERE {' AND '.join(where)} ORDER BY {order_by}",
+            f"""
+            SELECT rc.*, u.username as owner_username
+            FROM role_cards rc
+            LEFT JOIN users u ON rc.user_id = u.id
+            WHERE {' AND '.join(where)}
+            ORDER BY {order_by}
+            """,
             params,
         ).fetchall()
         tag_rows = db.execute(
@@ -494,9 +534,81 @@ def index():
     return render_template(
         "index.html",
         cards=cards,
+        tag=tag,
+        sort=sort,
+        all_tags=all_tags,
+    )
+
+
+@server.route("/search")
+def search():
+    """搜索页面"""
+    query = request.args.get("q", "").strip()
+    tag = request.args.get("tag", "").strip()
+    sort = request.args.get("sort", "latest")
+    search_type = request.args.get("type", "all")  # all, name, creator, description
+
+    cards = []
+    all_tags = []
+    
+    if query or tag:
+        where = ["rc.visibility = 'public'", "rc.status = 'approved'"]
+        params = []
+        
+        if query:
+            if search_type == "name":
+                where.append("rc.name LIKE ?")
+                params.append(f"%{query}%")
+            elif search_type == "creator":
+                where.append("(rc.creator LIKE ? OR u.username LIKE ?)")
+                params.extend([f"%{query}%", f"%{query}%"])
+            elif search_type == "description":
+                where.append("(rc.description LIKE ? OR rc.personality LIKE ?)")
+                params.extend([f"%{query}%", f"%{query}%"])
+            else:
+                where.append("(rc.name LIKE ? OR rc.description LIKE ? OR rc.creator LIKE ? OR u.username LIKE ?)")
+                term = f"%{query}%"
+                params.extend([term, term, term, term])
+        
+        if tag:
+            where.append("rc.tags_json LIKE ?")
+            params.append(f"%{tag}%")
+
+        order_by = {
+            "popular": "rc.downloads DESC, rc.likes DESC, rc.created_at DESC",
+            "liked": "rc.likes DESC, rc.created_at DESC",
+            "latest": "rc.created_at DESC",
+            "views": "rc.views DESC, rc.created_at DESC",
+        }.get(sort, "rc.created_at DESC")
+
+        with get_db() as db:
+            rows = db.execute(
+                f"""
+                SELECT rc.*, u.username as owner_username
+                FROM role_cards rc
+                LEFT JOIN users u ON rc.user_id = u.id
+                WHERE {' AND '.join(where)}
+                ORDER BY {order_by}
+                """,
+                params,
+            ).fetchall()
+            tag_rows = db.execute(
+                "SELECT tags_json FROM role_cards WHERE visibility = 'public' AND status = 'approved'"
+            ).fetchall()
+
+        cards = [RoleCard.row_to_card(row) for row in rows]
+        for row in tag_rows:
+            for item in normalize_tags(json.loads(row["tags_json"] or "[]")):
+                if item not in all_tags:
+                    all_tags.append(item)
+
+    return render_template(
+        "search.html",
+        cards=cards,
         q=query,
         tag=tag,
         sort=sort,
+        search_type=search_type,
         all_tags=all_tags,
     )
 
