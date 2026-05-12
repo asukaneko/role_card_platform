@@ -1,0 +1,182 @@
+{% extends "base.html" %}
+{% block title %}{{ card.name }} - 版本对比 - 角色卡平台{% endblock %}
+{% block content %}
+<section class="page-head">
+    <p class="eyebrow">版本对比</p>
+    <h1>「{{ card.name }}」版本差异</h1>
+    <p>
+        v{{ comparison.version1.version_number }} ({{ comparison.version1.created_at[:16].replace('T', ' ') }})
+        <span class="compare-arrow">→</span>
+        v{{ comparison.version2.version_number }} ({{ comparison.version2.created_at[:16].replace('T', ' ') }})
+    </p>
+</section>
+
+<section class="compare-section">
+    {% if comparison.differences %}
+    <div class="compare-list">
+        {% for diff in comparison.differences %}
+        <div class="compare-item">
+            <div class="compare-field-header">
+                <span class="compare-field-label">{{ diff.label }}</span>
+            </div>
+            <div class="compare-diff-body">
+                <div class="compare-side compare-old">
+                    <div class="compare-side-label">v{{ comparison.version1.version_number }}</div>
+                    <div class="compare-content">
+                        {% if diff.old %}
+                            <pre>{{ diff.old }}</pre>
+                        {% else %}
+                            <span class="compare-empty">（无内容）</span>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="compare-divider"></div>
+                <div class="compare-side compare-new">
+                    <div class="compare-side-label">v{{ comparison.version2.version_number }}</div>
+                    <div class="compare-content">
+                        {% if diff.new %}
+                            <pre>{{ diff.new }}</pre>
+                        {% else %}
+                            <span class="compare-empty">（无内容）</span>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <p>两个版本内容完全相同</p>
+    </div>
+    {% endif %}
+
+    <div class="form-actions">
+        <a href="{{ url_for('card_history', card_id=card.id) }}" class="btn-secondary">返回历史列表</a>
+        <a href="{{ url_for('card_detail', identifier=card.slug) }}" class="btn-save">返回角色卡</a>
+    </div>
+</section>
+
+<style>
+.compare-section {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 0 24px 48px;
+}
+
+.compare-arrow {
+    margin: 0 8px;
+    color: var(--accent);
+    font-weight: 700;
+}
+
+.compare-list {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+    margin-bottom: 32px;
+}
+
+.compare-item {
+    background: var(--paper);
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: var(--card-shadow);
+}
+
+.compare-field-header {
+    padding: 14px 20px;
+    background: var(--accent);
+    color: #fff;
+}
+
+.compare-field-label {
+    font-size: 14px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.compare-diff-body {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+}
+
+.compare-side {
+    padding: 20px;
+    min-height: 80px;
+}
+
+.compare-side-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--muted);
+    margin-bottom: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.compare-old .compare-side-label {
+    color: var(--rose);
+}
+
+.compare-new .compare-side-label {
+    color: #4a9e5c;
+}
+
+.compare-content pre {
+    margin: 0;
+    padding: 0;
+    background: none;
+    font-size: 13px;
+    line-height: 1.7;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    color: var(--ink);
+    font-family: inherit;
+}
+
+.compare-empty {
+    color: var(--muted);
+    font-style: italic;
+    font-size: 13px;
+}
+
+.compare-divider {
+    width: 1px;
+    background: var(--line);
+}
+
+.empty-state {
+    text-align: center;
+    padding: 64px 24px;
+    color: var(--muted);
+    background: var(--paper);
+    border-radius: 12px;
+    box-shadow: var(--card-shadow);
+    margin-bottom: 32px;
+}
+
+.empty-state p {
+    font-size: 18px;
+    font-weight: 500;
+    margin: 0;
+    color: var(--ink);
+}
+
+@media (max-width: 768px) {
+    .compare-diff-body {
+        grid-template-columns: 1fr;
+    }
+
+    .compare-divider {
+        width: 100%;
+        height: 1px;
+    }
+
+    .compare-side {
+        padding: 16px;
+    }
+}
+</style>
+{% endblock %}

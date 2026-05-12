@@ -1,0 +1,230 @@
+{% extends "base.html" %}
+{% block title %}{{ card.name }} - v{{ version.version_number }} - 角色卡平台{% endblock %}
+{% block content %}
+<section class="page-head">
+    <p class="eyebrow">版本详情</p>
+    <h1>「{{ version.name }}」v{{ version.version_number }}</h1>
+    <p>保存于 {{ version.created_at[:16].replace('T', ' ') }} · 操作者：{{ version.created_by_username or '系统' }}</p>
+</section>
+
+<section class="version-detail-section">
+    <div class="version-detail-card">
+        <div class="version-meta">
+            <div class="meta-item">
+                <span class="meta-label">作者</span>
+                <span class="meta-value">{{ version.creator or '未填写' }}</span>
+            </div>
+            <div class="meta-item">
+                <span class="meta-label">可见性</span>
+                <span class="meta-value">{{ '公开' if version.visibility == 'public' else '私有' }}</span>
+            </div>
+            <div class="meta-item">
+                <span class="meta-label">标签</span>
+                <span class="meta-value">
+                    {% if version.tags %}
+                        {% for tag in version.tags %}
+                            <span class="version-tag">#{{ tag }}</span>
+                        {% endfor %}
+                    {% else %}
+                        无标签
+                    {% endif %}
+                </span>
+            </div>
+        </div>
+
+        {% if version.description %}
+        <div class="version-block">
+            <h3>描述</h3>
+            <p>{{ version.description }}</p>
+        </div>
+        {% endif %}
+
+        {% if version.basic_info %}
+        <div class="version-block">
+            <h3>基本信息</h3>
+            <pre>{{ version.basic_info }}</pre>
+        </div>
+        {% endif %}
+
+        {% if version.personality %}
+        <div class="version-block">
+            <h3>性格特点</h3>
+            <p>{{ version.personality }}</p>
+        </div>
+        {% endif %}
+
+        {% if version.scenario %}
+        <div class="version-block">
+            <h3>背景设定</h3>
+            <p>{{ version.scenario }}</p>
+        </div>
+        {% endif %}
+
+        {% if version.first_message %}
+        <div class="version-block">
+            <h3>开场白</h3>
+            <blockquote>{{ version.first_message }}</blockquote>
+        </div>
+        {% endif %}
+
+        {% if version.example_dialogues %}
+        <div class="version-block">
+            <h3>示例对话</h3>
+            <pre>{{ version.example_dialogues }}</pre>
+        </div>
+        {% endif %}
+
+        {% if version.response_format %}
+        <div class="version-block">
+            <h3>回复格式</h3>
+            <p>{{ version.response_format }}</p>
+        </div>
+        {% endif %}
+
+        {% if version.system_prompt %}
+        <div class="version-block">
+            <h3>系统提示词</h3>
+            <pre>{{ version.system_prompt }}</pre>
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="form-actions">
+        <a href="{{ url_for('card_history', card_id=card.id) }}" class="btn-secondary">返回历史列表</a>
+        <a href="{{ url_for('card_detail', identifier=card.slug) }}" class="btn-save">返回角色卡</a>
+        <form method="post" action="{{ url_for('card_rollback', card_id=card.id, version_id=version.id) }}" style="display:inline" onsubmit="return confirm('确定要回滚到此版本吗？当前内容将被覆盖。')">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="btn-danger">回滚到此版本</button>
+        </form>
+    </div>
+</section>
+
+<style>
+.version-detail-section {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 0 24px 48px;
+}
+
+.version-detail-card {
+    background: var(--paper);
+    border-radius: 16px;
+    padding: 32px;
+    box-shadow: var(--card-shadow);
+    margin-bottom: 32px;
+}
+
+.version-meta {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 16px;
+    padding-bottom: 24px;
+    margin-bottom: 24px;
+    border-bottom: 1px solid var(--line);
+}
+
+.meta-item {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.meta-label {
+    font-size: 12px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.meta-value {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--ink);
+}
+
+.version-tag {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    background: var(--bg-wash-a);
+    color: var(--accent);
+    font-size: 12px;
+    margin-right: 6px;
+    margin-bottom: 4px;
+}
+
+.version-block {
+    margin-bottom: 24px;
+}
+
+.version-block:last-child {
+    margin-bottom: 0;
+}
+
+.version-block h3 {
+    font-size: 14px;
+    color: var(--muted);
+    margin: 0 0 10px 0;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.version-block p {
+    margin: 0;
+    line-height: 1.7;
+    color: var(--ink);
+    white-space: pre-wrap;
+}
+
+.version-block pre {
+    margin: 0;
+    padding: 16px;
+    background: var(--field-bg);
+    border-radius: 8px;
+    font-size: 13px;
+    line-height: 1.6;
+    overflow-x: auto;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+}
+
+.version-block blockquote {
+    margin: 0;
+    padding: 16px 20px;
+    border-left: 3px solid var(--accent);
+    background: var(--field-bg);
+    border-radius: 0 8px 8px 0;
+    font-style: italic;
+    color: var(--ink);
+    line-height: 1.7;
+}
+
+.form-actions .btn-danger {
+    display: inline-block;
+    padding: 12px 24px;
+    border-radius: 10px;
+    font-size: 14px;
+    font-weight: 600;
+    background: rgba(164, 52, 52, 0.12);
+    color: var(--danger);
+    border: none;
+    cursor: pointer;
+    text-decoration: none;
+}
+
+.form-actions .btn-danger:hover {
+    background: var(--danger);
+    color: #fff;
+}
+
+@media (max-width: 768px) {
+    .version-detail-card {
+        padding: 20px;
+    }
+
+    .version-meta {
+        grid-template-columns: 1fr;
+    }
+}
+</style>
+{% endblock %}

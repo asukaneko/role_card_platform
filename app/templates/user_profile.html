@@ -29,6 +29,7 @@
                 {% else %}
                     <button class="follow-profile-btn" data-follow-url="{{ url_for('follow_user', user_id=profile_user.id) }}">关注</button>
                 {% endif %}
+                <button class="report-profile-btn" id="report-user-btn" data-target-type="user" data-target-id="{{ profile_user.id }}" data-target-name="{{ profile_user.username }}">⚠️ 举报</button>
             {% endif %}
         </div>
     </div>
@@ -120,6 +121,7 @@
     <a href="{{ url_for('user_profile', username=profile_user.username, tab='collections') }}" class="profile-tab{% if tab == 'collections' %} active{% endif %}">我的合集</a>
     <a href="{{ url_for('user_profile', username=profile_user.username, tab='favorites') }}" class="profile-tab{% if tab == 'favorites' %} active{% endif %}">我的收藏</a>
     <a href="{{ url_for('user_profile', username=profile_user.username, tab='following') }}" class="profile-tab{% if tab == 'following' %} active{% endif %}">我的关注</a>
+    <a href="{{ url_for('creator_stats', username=profile_user.username) }}" class="profile-tab">数据</a>
     {% endif %}
 </div>
 
@@ -553,4 +555,6 @@ document.addEventListener("DOMContentLoaded", function() {
     background: rgba(255, 255, 255, 0.1);
 }
 </style>
+
+{% include "report_modal.html" %}
 {% endblock %}

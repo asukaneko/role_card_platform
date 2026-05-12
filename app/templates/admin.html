@@ -9,15 +9,35 @@
 
 <!-- 标签切换 -->
 <div class="admin-tabs">
-    <a href="{{ url_for('admin', tab='cards') }}" class="admin-tab {% if tab != 'users' and tab != 'review' and tab != 'settings' %}active{% endif %}">角色卡</a>
+    <a href="{{ url_for('admin', tab='cards') }}" class="admin-tab {% if tab != 'users' and tab != 'review' and tab != 'settings' and tab != 'reports' %}active{% endif %}">角色卡</a>
     {% if is_admin %}
     <a href="{{ url_for('admin', tab='users') }}" class="admin-tab {% if tab == 'users' %}active{% endif %}">用户管理</a>
     <a href="{{ url_for('admin', tab='review') }}" class="admin-tab {% if tab == 'review' %}active{% endif %}">审核管理</a>
+    <a href="{{ url_for('admin', tab='reports') }}" class="admin-tab {% if tab == 'reports' %}active{% endif %}">
+        举报管理
+        {% if pending_reports > 0 %}
+        <span class="nav-dropdown-badge">{{ pending_reports if pending_reports < 100 else '99+' }}</span>
+        {% endif %}
+    </a>
     <a href="{{ url_for('admin', tab='settings') }}" class="admin-tab {% if tab == 'settings' %}active{% endif %}">系统设置</a>
     {% endif %}
 </div>
 
-{% if tab == 'review' and is_admin %}
+{% if tab == 'reports' and is_admin %}
+<!-- 举报管理 -->
+<section class="admin-table">
+    <div class="admin-row">
+        <div class="admin-info">
+            <strong>举报处理队列</strong>
+            <span>查看和处理用户提交的举报</span>
+        </div>
+        <div class="admin-actions">
+            <a href="{{ url_for('admin_reports') }}">进入</a>
+        </div>
+    </div>
+</section>
+
+{% elif tab == 'review' and is_admin %}
 <!-- 审核管理 -->
 <section class="admin-table">
     <div class="admin-row">

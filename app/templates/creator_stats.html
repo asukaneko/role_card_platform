@@ -1,0 +1,451 @@
+{% extends "base.html" %}
+{% block title %}{{ profile_user.display_name or profile_user.username }} - 创作者数据{% endblock %}
+{% block content %}
+<section class="user-profile-page">
+    <div class="user-profile-header">
+        <div class="user-avatar-large">
+            {% if profile_user.avatar_path %}
+                <img src="{{ url_for('avatar_file', filename=profile_user.avatar_path.split('/')[-1]) }}" alt="{{ profile_user.display_name or profile_user.username }}">
+            {% else %}
+                <span>{{ (profile_user.display_name or profile_user.username)[:1] }}</span>
+            {% endif %}
+        </div>
+        <div class="user-info">
+            <h1>{{ profile_user.display_name or profile_user.username }}</h1>
+            <p class="user-username">@{{ profile_user.username }}</p>
+            <p class="user-meta">
+                注册于 {{ profile_user.created_at[:10] }}
+                · {{ summary.card_count }} 张角色卡
+            </p>
+        </div>
+    </div>
+</section>
+
+<div class="profile-tabs">
+    <a href="{{ url_for('user_profile', username=profile_user.username, tab='cards') }}" class="profile-tab">我的角色卡</a>
+    <a href="{{ url_for('user_profile', username=profile_user.username, tab='collections') }}" class="profile-tab">我的合集</a>
+    <a href="{{ url_for('user_profile', username=profile_user.username, tab='favorites') }}" class="profile-tab">我的收藏</a>
+    <a href="{{ url_for('user_profile', username=profile_user.username, tab='following') }}" class="profile-tab">我的关注</a>
+    <a href="{{ url_for('creator_stats', username=profile_user.username) }}" class="profile-tab active">数据</a>
+</div>
+
+<section class="creator-stats-page">
+    <!-- 数据概览卡片 -->
+    <div class="stats-overview">
+        <div class="overview-card">
+            <div class="overview-icon">👁️</div>
+            <div class="overview-value">{{ summary.total_views }}</div>
+            <div class="overview-label">总浏览量</div>
+            <div class="overview-today">+{{ summary.today_views }} 今日</div>
+        </div>
+        <div class="overview-card">
+            <div class="overview-icon">⬇️</div>
+            <div class="overview-value">{{ summary.total_downloads }}</div>
+            <div class="overview-label">总下载量</div>
+            <div class="overview-today">+{{ summary.today_downloads }} 今日</div>
+        </div>
+        <div class="overview-card">
+            <div class="overview-icon">👍</div>
+            <div class="overview-value">{{ summary.total_likes }}</div>
+            <div class="overview-label">总点赞数</div>
+            <div class="overview-today">+{{ summary.today_likes }} 今日</div>
+        </div>
+        <div class="overview-card">
+            <div class="overview-icon">📈</div>
+            <div class="overview-value">{{ summary.conversion_rate }}%</div>
+            <div class="overview-label">下载/浏览转化率</div>
+        </div>
+    </div>
+
+    <!-- 趋势折线图 -->
+    <div class="stats-section">
+        <h2 class="stats-section-title">📊 最近30天趋势</h2>
+        <div class="chart-container">
+            <div class="chart-legend">
+                <span class="legend-item"><span class="legend-dot views"></span>浏览量</span>
+                <span class="legend-item"><span class="legend-dot downloads"></span>下载量</span>
+                <span class="legend-item"><span class="legend-dot likes"></span>点赞数</span>
+            </div>
+            <div class="line-chart" id="trend-chart">
+                {% set max_val = namespace(value=1) %}
+                {% for day in trend_data %}
+                    {% set day_max = [day.views, day.downloads, day.likes]|max %}
+                    {% if day_max > max_val.value %}{% set max_val.value = day_max %}{% endif %}
+                {% endfor %}
+                {% set max_val.value = [max_val.value, 1]|max %}
+
+                <svg viewBox="0 0 {{ trend_data|length * 30 + 40 }} 200" preserveAspectRatio="none" class="chart-svg">
+                    <!-- 网格线 -->
+                    {% for i in range(5) %}
+                        {% set y = 180 - i * 40 %}
+                        <line x1="30" y1="{{ y }}" x2="{{ trend_data|length * 30 + 20 }}" y2="{{ y }}" stroke="rgba(128,128,128,0.15)" stroke-width="1"/>
+                        <text x="25" y="{{ y + 4 }}" font-size="10" fill="var(--muted)" text-anchor="end">{{ (max_val.value * i / 4)|int }}</text>
+                    {% endfor %}
+
+                    <!-- 浏览量折线 -->
+                    <polyline fill="none" stroke="#4a90d9" stroke-width="2"
+                        points="{% for day in trend_data %}{{ 30 + loop.index0 * 30 }},{{ 180 - (day.views / max_val.value * 160) if max_val.value > 0 else 180 }} {% endfor %}"/>
+                    <!-- 浏览量数据点 -->
+                    {% for day in trend_data %}
+                        {% set cy = 180 - (day.views / max_val.value * 160) if max_val.value > 0 else 180 %}
+                        <circle cx="{{ 30 + loop.index0 * 30 }}" cy="{{ cy }}" r="3" fill="#4a90d9"/>
+                    {% endfor %}
+
+                    <!-- 下载量折线 -->
+                    <polyline fill="none" stroke="#5cb85c" stroke-width="2"
+                        points="{% for day in trend_data %}{{ 30 + loop.index0 * 30 }},{{ 180 - (day.downloads / max_val.value * 160) if max_val.value > 0 else 180 }} {% endfor %}"/>
+                    <!-- 下载量数据点 -->
+                    {% for day in trend_data %}
+                        {% set cy = 180 - (day.downloads / max_val.value * 160) if max_val.value > 0 else 180 %}
+                        <circle cx="{{ 30 + loop.index0 * 30 }}" cy="{{ cy }}" r="3" fill="#5cb85c"/>
+                    {% endfor %}
+
+                    <!-- 点赞数折线 -->
+                    <polyline fill="none" stroke="#e94560" stroke-width="2"
+                        points="{% for day in trend_data %}{{ 30 + loop.index0 * 30 }},{{ 180 - (day.likes / max_val.value * 160) if max_val.value > 0 else 180 }} {% endfor %}"/>
+                    <!-- 点赞数数据点 -->
+                    {% for day in trend_data %}
+                        {% set cy = 180 - (day.likes / max_val.value * 160) if max_val.value > 0 else 180 %}
+                        <circle cx="{{ 30 + loop.index0 * 30 }}" cy="{{ cy }}" r="3" fill="#e94560"/>
+                    {% endfor %}
+
+                    <!-- X轴日期标签（每隔5天显示） -->
+                    {% for day in trend_data %}
+                        {% if loop.index0 % 5 == 0 or loop.last %}
+                            <text x="{{ 30 + loop.index0 * 30 }}" y="195" font-size="9" fill="var(--muted)" text-anchor="middle">{{ day.date[5:] }}</text>
+                        {% endif %}
+                    {% endfor %}
+                </svg>
+            </div>
+        </div>
+    </div>
+
+    <!-- 粉丝增长曲线 -->
+    <div class="stats-section">
+        <h2 class="stats-section-title">👥 粉丝增长曲线</h2>
+        <div class="chart-container">
+            <div class="line-chart" id="follower-chart">
+                {% set f_max = namespace(value=1) %}
+                {% for day in follower_trend %}
+                    {% if day.followers_count > f_max.value %}{% set f_max.value = day.followers_count %}{% endif %}
+                {% endfor %}
+                {% set f_max.value = [f_max.value, 1]|max %}
+
+                <svg viewBox="0 0 {{ follower_trend|length * 30 + 40 }} 200" preserveAspectRatio="none" class="chart-svg">
+                    <!-- 网格线 -->
+                    {% for i in range(5) %}
+                        {% set y = 180 - i * 40 %}
+                        <line x1="30" y1="{{ y }}" x2="{{ follower_trend|length * 30 + 20 }}" y2="{{ y }}" stroke="rgba(128,128,128,0.15)" stroke-width="1"/>
+                        <text x="25" y="{{ y + 4 }}" font-size="10" fill="var(--muted)" text-anchor="end">{{ (f_max.value * i / 4)|int }}</text>
+                    {% endfor %}
+
+                    <!-- 粉丝数折线 -->
+                    <polyline fill="none" stroke="#9b59b6" stroke-width="2"
+                        points="{% for day in follower_trend %}{{ 30 + loop.index0 * 30 }},{{ 180 - (day.followers_count / f_max.value * 160) if f_max.value > 0 else 180 }} {% endfor %}"/>
+                    <!-- 粉丝数数据点 -->
+                    {% for day in follower_trend %}
+                        {% set cy = 180 - (day.followers_count / f_max.value * 160) if f_max.value > 0 else 180 %}
+                        <circle cx="{{ 30 + loop.index0 * 30 }}" cy="{{ cy }}" r="3" fill="#9b59b6"/>
+                    {% endfor %}
+
+                    <!-- X轴日期标签 -->
+                    {% for day in follower_trend %}
+                        {% if loop.index0 % 5 == 0 or loop.last %}
+                            <text x="{{ 30 + loop.index0 * 30 }}" y="195" font-size="9" fill="var(--muted)" text-anchor="middle">{{ day.date[5:] }}</text>
+                        {% endif %}
+                    {% endfor %}
+                </svg>
+            </div>
+        </div>
+    </div>
+
+    <!-- 最受欢迎角色卡排行 -->
+    <div class="stats-section">
+        <h2 class="stats-section-title">🏆 最受欢迎角色卡 Top 5</h2>
+        {% if top_cards %}
+        <div class="top-cards-list">
+            {% for card in top_cards %}
+            <div class="top-card-item">
+                <div class="top-card-rank">{{ loop.index }}</div>
+                <div class="top-card-avatar">
+                    {% if card.avatar_path %}
+                        <img src="{{ url_for('avatar_file', filename=card.avatar_path.split('/')[-1]) }}" alt="{{ card.name }}">
+                    {% else %}
+                        <span>{{ card.name[:1] }}</span>
+                    {% endif %}
+                </div>
+                <div class="top-card-info">
+                    <a href="{{ url_for('card_detail', identifier=card.slug) }}" class="top-card-name">{{ card.name }}</a>
+                    <div class="top-card-metrics">
+                        <span>👁️ {{ card.views }}</span>
+                        <span>⬇️ {{ card.downloads }}</span>
+                        <span>👍 {{ card.likes }}</span>
+                    </div>
+                </div>
+                <div class="top-card-score">
+                    {{ card.views + card.downloads * 2 + card.likes * 3 }}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <p>还没有公开的角色卡数据</p>
+        </div>
+        {% endif %}
+    </div>
+</section>
+
+<style>
+.creator-stats-page {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 1.5rem;
+}
+
+/* 数据概览卡片 */
+.stats-overview {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 1rem;
+    margin-bottom: 2rem;
+}
+
+.overview-card {
+    background: rgba(47, 111, 115, 0.08);
+    border: 1px solid rgba(47, 111, 115, 0.15);
+    border-radius: 16px;
+    padding: 1.5rem;
+    text-align: center;
+    transition: all 0.2s;
+}
+
+.overview-card:hover {
+    background: rgba(47, 111, 115, 0.12);
+    transform: translateY(-2px);
+}
+
+.overview-icon {
+    font-size: 2rem;
+    margin-bottom: 0.5rem;
+}
+
+.overview-value {
+    font-size: 2rem;
+    font-weight: 700;
+    color: var(--accent);
+    margin-bottom: 0.25rem;
+}
+
+.overview-label {
+    font-size: 0.875rem;
+    color: var(--muted);
+    margin-bottom: 0.25rem;
+}
+
+.overview-today {
+    font-size: 0.75rem;
+    color: var(--accent-light);
+}
+
+/* 统计区块 */
+.stats-section {
+    margin-bottom: 2.5rem;
+}
+
+.stats-section-title {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--ink);
+    margin-bottom: 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid rgba(47, 111, 115, 0.1);
+}
+
+/* 图表容器 */
+.chart-container {
+    background: rgba(47, 111, 115, 0.04);
+    border: 1px solid rgba(47, 111, 115, 0.1);
+    border-radius: 12px;
+    padding: 1rem;
+}
+
+.chart-legend {
+    display: flex;
+    gap: 1.5rem;
+    margin-bottom: 0.75rem;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+.legend-item {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 0.8125rem;
+    color: var(--muted);
+}
+
+.legend-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    display: inline-block;
+}
+
+.legend-dot.views { background: #4a90d9; }
+.legend-dot.downloads { background: #5cb85c; }
+.legend-dot.likes { background: #e94560; }
+
+.line-chart {
+    width: 100%;
+    height: 260px;
+    position: relative;
+}
+
+.chart-svg {
+    width: 100%;
+    height: 100%;
+}
+
+/* Top 5 排行 */
+.top-cards-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.top-card-item {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 1rem;
+    background: rgba(47, 111, 115, 0.04);
+    border: 1px solid rgba(47, 111, 115, 0.1);
+    border-radius: 12px;
+    transition: all 0.2s;
+}
+
+.top-card-item:hover {
+    background: rgba(47, 111, 115, 0.08);
+    transform: translateX(4px);
+}
+
+.top-card-rank {
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    font-weight: 700;
+    font-size: 0.875rem;
+    background: rgba(47, 111, 115, 0.1);
+    color: var(--accent);
+    flex-shrink: 0;
+}
+
+.top-card-item:nth-child(1) .top-card-rank {
+    background: linear-gradient(135deg, #ffd700, #ffaa00);
+    color: white;
+}
+
+.top-card-item:nth-child(2) .top-card-rank {
+    background: linear-gradient(135deg, #c0c0c0, #a0a0a0);
+    color: white;
+}
+
+.top-card-item:nth-child(3) .top-card-rank {
+    background: linear-gradient(135deg, #cd7f32, #b87333);
+    color: white;
+}
+
+.top-card-avatar {
+    width: 48px;
+    height: 48px;
+    border-radius: 10px;
+    overflow: hidden;
+    flex-shrink: 0;
+    background: rgba(47, 111, 115, 0.1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: var(--accent);
+}
+
+.top-card-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.top-card-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.top-card-name {
+    font-weight: 600;
+    color: var(--ink);
+    text-decoration: none;
+    display: block;
+    margin-bottom: 0.25rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.top-card-name:hover {
+    color: var(--accent);
+}
+
+.top-card-metrics {
+    display: flex;
+    gap: 1rem;
+    font-size: 0.8125rem;
+    color: var(--muted);
+}
+
+.top-card-score {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: var(--accent);
+    padding: 0.25rem 0.75rem;
+    background: rgba(47, 111, 115, 0.08);
+    border-radius: 8px;
+    flex-shrink: 0;
+}
+
+/* 深色模式适配 */
+:root[data-theme="dark"] .overview-card,
+:root[data-theme="dark"] .chart-container,
+:root[data-theme="dark"] .top-card-item {
+    background: rgba(0, 0, 0, 0.2);
+    border-color: rgba(255, 255, 255, 0.1);
+}
+
+:root[data-theme="dark"] .overview-card:hover {
+    background: rgba(98, 185, 191, 0.15);
+}
+
+:root[data-theme="dark"] .top-card-item:hover {
+    background: rgba(98, 185, 191, 0.1);
+}
+
+:root[data-theme="dark"] .stats-section-title {
+    border-color: rgba(255, 255, 255, 0.1);
+}
+
+@media (max-width: 640px) {
+    .stats-overview {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    .top-card-metrics {
+        flex-wrap: wrap;
+        gap: 0.5rem;
+    }
+}
+</style>
+{% endblock %}

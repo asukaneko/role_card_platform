@@ -1,0 +1,199 @@
+{% extends "base.html" %}
+{% block title %}{{ card.name }} - 版本历史 - 角色卡平台{% endblock %}
+{% block content %}
+<section class="page-head">
+    <p class="eyebrow">版本历史</p>
+    <h1>「{{ card.name }}」的版本记录</h1>
+    <p>共 {{ versions|length }} 个历史版本</p>
+</section>
+
+<section class="history-section">
+    {% if versions %}
+    <div class="history-list">
+        <table class="history-table">
+            <thead>
+                <tr>
+                    <th>版本号</th>
+                    <th>名称</th>
+                    <th>保存时间</th>
+                    <th>操作者</th>
+                    <th>操作</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for version in versions %}
+                <tr>
+                    <td class="version-number">v{{ version.version_number }}</td>
+                    <td class="version-name">{{ version.name }}</td>
+                    <td class="version-time">{{ version.created_at[:16].replace('T', ' ') }}</td>
+                    <td class="version-author">{{ version.created_by_username or '系统' }}</td>
+                    <td class="version-actions">
+                        <a href="{{ url_for('card_version_detail', version_id=version.id) }}" class="btn-small">查看</a>
+                        {% if not loop.first %}
+                        <a href="{{ url_for('card_version_compare', v1=versions[loop.index0 - 1].id, v2=version.id) }}" class="btn-small btn-secondary">对比上一版本</a>
+                        {% endif %}
+                        <form method="post" action="{{ url_for('card_rollback', card_id=card.id, version_id=version.id) }}" style="display:inline" onsubmit="return confirm('确定要回滚到 v{{ version.version_number }} 吗？当前内容将被覆盖。')">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <button type="submit" class="btn-small btn-danger">回滚</button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <p>暂无历史版本记录</p>
+        <p class="empty-hint">每次编辑保存后，系统会自动创建版本快照</p>
+    </div>
+    {% endif %}
+
+    <div class="form-actions">
+        <a href="{{ url_for('card_detail', identifier=card.slug) }}" class="btn-secondary">返回角色卡</a>
+        <a href="{{ url_for('edit_card', card_id=card.id) }}" class="btn-save">继续编辑</a>
+    </div>
+</section>
+
+<style>
+.history-section {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 0 24px 48px;
+}
+
+.history-table {
+    width: 100%;
+    border-collapse: collapse;
+    background: var(--paper);
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: var(--card-shadow);
+    margin-bottom: 32px;
+}
+
+.history-table thead {
+    background: var(--accent);
+    color: #fff;
+}
+
+.history-table th,
+.history-table td {
+    padding: 14px 18px;
+    text-align: left;
+    font-size: 14px;
+}
+
+.history-table tbody tr {
+    border-bottom: 1px solid var(--line);
+}
+
+.history-table tbody tr:last-child {
+    border-bottom: none;
+}
+
+.history-table tbody tr:hover {
+    background: var(--bg-wash-a);
+}
+
+.version-number {
+    font-weight: 700;
+    color: var(--accent);
+    font-family: monospace;
+    font-size: 15px;
+}
+
+.version-name {
+    font-weight: 500;
+    max-width: 240px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.version-time {
+    color: var(--muted);
+    font-size: 13px;
+    white-space: nowrap;
+}
+
+.version-author {
+    color: var(--muted);
+    font-size: 13px;
+}
+
+.version-actions {
+    white-space: nowrap;
+}
+
+.version-actions .btn-small {
+    display: inline-block;
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 500;
+    margin-right: 6px;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    cursor: pointer;
+    text-decoration: none;
+}
+
+.version-actions .btn-secondary {
+    background: var(--bg-wash-a);
+    color: var(--accent);
+}
+
+.version-actions .btn-danger {
+    background: rgba(164, 52, 52, 0.12);
+    color: var(--danger);
+}
+
+.version-actions .btn-danger:hover {
+    background: var(--danger);
+    color: #fff;
+}
+
+.version-actions form {
+    display: inline;
+}
+
+.empty-state {
+    text-align: center;
+    padding: 64px 24px;
+    color: var(--muted);
+}
+
+.empty-state p:first-child {
+    font-size: 18px;
+    font-weight: 500;
+    margin-bottom: 8px;
+    color: var(--ink);
+}
+
+.empty-hint {
+    font-size: 14px;
+}
+
+@media (max-width: 768px) {
+    .history-table {
+        display: block;
+        overflow-x: auto;
+    }
+
+    .history-table th,
+    .history-table td {
+        padding: 10px 12px;
+        font-size: 13px;
+    }
+
+    .version-actions .btn-small {
+        padding: 5px 8px;
+        font-size: 11px;
+        margin-right: 3px;
+        margin-bottom: 3px;
+    }
+}
+</style>
+{% endblock %}

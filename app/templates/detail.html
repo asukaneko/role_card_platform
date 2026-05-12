@@ -26,6 +26,9 @@
             {% else %}
                 <button class="favorite-button" data-favorite-url="{{ url_for('toggle_favorite', card_id=card.id) }}">☆ 收藏</button>
             {% endif %}
+            {% if current_user and card.user_id != current_user.id %}
+            <button class="report-button" id="report-card-btn" data-target-type="card" data-target-id="{{ card.id }}" data-target-name="{{ card.name }}">⚠️ 举报此内容</button>
+            {% endif %}
         {% else %}
             <button class="like-button" disabled title="请登录后喜欢">喜欢这个角色（请登录）</button>
             <button class="favorite-button" disabled title="请登录后收藏">☆ 收藏（请登录）</button>
@@ -43,6 +46,7 @@
         {% if current_user and card.user_id == current_user.id %}
         <div class="owner-actions">
             <a class="owner-btn edit-btn" href="{{ url_for('edit_card', card_id=card.id) }}">编辑角色卡</a>
+            <a class="owner-btn history-btn" href="{{ url_for('card_history', card_id=card.id) }}">查看历史版本</a>
             <form method="post" action="{{ url_for('toggle_visibility', card_id=card.id) }}">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <input type="hidden" name="source" value="detail">
@@ -334,4 +338,6 @@
         </div>
     </div>
 </div>
+
+{% include "report_modal.html" %}
 {% endblock %}

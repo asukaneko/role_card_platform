@@ -2565,6 +2565,30 @@ pre {
     padding: 8px 20px;
 }
 
+/* 用户主页举报按钮 */
+.report-profile-btn {
+    display: inline-block;
+    width: auto;
+    margin-top: 12px;
+    margin-left: 8px;
+    padding: 8px 20px;
+    border: 1px solid var(--line);
+    border-radius: 7px;
+    background: var(--field-bg);
+    color: var(--muted);
+    cursor: pointer;
+    font: inherit;
+    font-weight: 600;
+    font-size: 14px;
+    transition: all 0.2s ease;
+}
+
+.report-profile-btn:hover {
+    border-color: var(--rose);
+    color: var(--rose);
+    background: rgba(184, 91, 106, 0.08);
+}
+
 /* 分享按钮 */
 .share-button {
     background: var(--gold) !important;
@@ -2574,6 +2598,30 @@ pre {
 
 .share-button:hover {
     opacity: 0.9;
+}
+
+/* 举报按钮 */
+.report-button {
+    width: 100%;
+    display: block;
+    text-align: center;
+    margin-top: 10px;
+    border: 1px solid var(--line);
+    border-radius: 7px;
+    padding: 10px 14px;
+    background: var(--field-bg);
+    color: var(--muted);
+    cursor: pointer;
+    font: inherit;
+    font-weight: 600;
+    font-size: 14px;
+    transition: all 0.2s ease;
+}
+
+.report-button:hover {
+    border-color: var(--rose);
+    color: var(--rose);
+    background: rgba(184, 91, 106, 0.08);
 }
 
 /* 关联角色卡 */

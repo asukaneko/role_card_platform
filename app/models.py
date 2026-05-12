@@ -326,7 +326,290 @@ def init_db() -> None:
             )
             """
         )
+
+        # 角色卡每日统计表
+        db.execute(
+            """
+            CREATE TABLE IF NOT EXISTS card_stats (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                card_id INTEGER NOT NULL,
+                date TEXT NOT NULL,
+                views INTEGER DEFAULT 0,
+                downloads INTEGER DEFAULT 0,
+                likes INTEGER DEFAULT 0,
+                FOREIGN KEY (card_id) REFERENCES role_cards(id) ON DELETE CASCADE,
+                UNIQUE(card_id, date)
+            )
+            """
+        )
+
+        # 用户每日粉丝统计表
+        db.execute(
+            """
+            CREATE TABLE IF NOT EXISTS user_stats (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                date TEXT NOT NULL,
+                followers_count INTEGER DEFAULT 0,
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+                UNIQUE(user_id, date)
+            )
+            """
+        )
         db.commit()
+
+        # 角色卡版本历史表
+        db.execute(
+            """
+            CREATE TABLE IF NOT EXISTS card_versions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                card_id INTEGER NOT NULL,
+                version_number INTEGER NOT NULL,
+                name TEXT NOT NULL,
+                description TEXT DEFAULT '',
+                personality TEXT DEFAULT '',
+                scenario TEXT DEFAULT '',
+                first_message TEXT DEFAULT '',
+                system_prompt TEXT DEFAULT '',
+                tags_json TEXT DEFAULT '[]',
+                creator TEXT DEFAULT '',
+                visibility TEXT DEFAULT 'public',
+                avatar_path TEXT DEFAULT '',
+                basic_info TEXT DEFAULT '',
+                example_dialogues TEXT DEFAULT '',
+                response_format TEXT DEFAULT '',
+                rules_json TEXT DEFAULT '[]',
+                state_json TEXT DEFAULT '{}',
+                created_at TEXT NOT NULL,
+                created_by INTEGER DEFAULT NULL,
+                FOREIGN KEY (card_id) REFERENCES role_cards(id) ON DELETE CASCADE,
+                FOREIGN KEY (created_by) REFERENCES users(id),
+                UNIQUE(card_id, version_number)
+            )
+            """
+        )
+        db.commit()
+
+        # 举报表
+        db.execute(
+            """
+            CREATE TABLE IF NOT EXISTS reports (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                target_type TEXT NOT NULL,
+                target_id INTEGER NOT NULL,
+                reporter_id INTEGER NOT NULL,
+                reason TEXT NOT NULL,
+                description TEXT DEFAULT '',
+                status TEXT DEFAULT 'pending',
+                created_at TEXT NOT NULL,
+                resolved_at TEXT DEFAULT NULL,
+                resolved_by INTEGER DEFAULT NULL,
+                FOREIGN KEY (reporter_id) REFERENCES users(id) ON DELETE CASCADE,
+                FOREIGN KEY (resolved_by) REFERENCES users(id)
+            )
+            """
+        )
+        db.commit()
+
+
+class CardVersion:
+    """角色卡版本历史模型"""
+
+    @staticmethod
+    def create_snapshot(card_id: int, user_id: int = None) -> dict:
+        """编辑前保存快照"""
+        now = datetime.now().isoformat(timespec="seconds")
+        with get_db() as db:
+            # 获取当前卡片数据
+            row = db.execute("SELECT * FROM role_cards WHERE id = ?", (card_id,)).fetchone()
+            if not row:
+                return None
+
+            # 计算新版本号
+            version_row = db.execute(
+                "SELECT COALESCE(MAX(version_number), 0) + 1 as next_version FROM card_versions WHERE card_id = ?",
+                (card_id,)
+            ).fetchone()
+            version_number = version_row["next_version"] if version_row else 1
+
+            db.execute(
+                """
+                INSERT INTO card_versions (
+                    card_id, version_number, name, description, personality, scenario,
+                    first_message, system_prompt, tags_json, creator, visibility,
+                    avatar_path, basic_info, example_dialogues, response_format,
+                    rules_json, state_json, created_at, created_by
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    card_id,
+                    version_number,
+                    row["name"],
+                    row["description"] or "",
+                    row["personality"] or "",
+                    row["scenario"] or "",
+                    row["first_message"] or "",
+                    row["system_prompt"] or "",
+                    row["tags_json"] or "[]",
+                    row["creator"] or "",
+                    row["visibility"] or "public",
+                    row["avatar_path"] or "",
+                    row["basic_info"] or "",
+                    row["example_dialogues"] or "",
+                    row["response_format"] or "",
+                    row["rules_json"] or "[]",
+                    row["state_json"] or "{}",
+                    now,
+                    user_id,
+                ),
+            )
+            db.commit()
+
+            new_row = db.execute(
+                "SELECT * FROM card_versions WHERE card_id = ? AND version_number = ?",
+                (card_id, version_number)
+            ).fetchone()
+        return dict(new_row) if new_row else None
+
+    @staticmethod
+    def get_versions(card_id: int) -> list:
+        """获取历史版本列表"""
+        with get_db() as db:
+            rows = db.execute(
+                """
+                SELECT cv.*, u.username as created_by_username
+                FROM card_versions cv
+                LEFT JOIN users u ON cv.created_by = u.id
+                WHERE cv.card_id = ?
+                ORDER BY cv.version_number DESC
+                """,
+                (card_id,)
+            ).fetchall()
+        result = []
+        for row in rows:
+            item = dict(row)
+            try:
+                item["tags"] = json.loads(item.pop("tags_json", "[]") or "[]")
+            except Exception:
+                item["tags"] = []
+            result.append(item)
+        return result
+
+    @staticmethod
+    def get_version(version_id: int) -> Optional[dict]:
+        """获取单个版本"""
+        with get_db() as db:
+            row = db.execute(
+                """
+                SELECT cv.*, u.username as created_by_username
+                FROM card_versions cv
+                LEFT JOIN users u ON cv.created_by = u.id
+                WHERE cv.id = ?
+                """,
+                (version_id,)
+            ).fetchone()
+        if not row:
+            return None
+        item = dict(row)
+        try:
+            item["tags"] = json.loads(item.pop("tags_json", "[]") or "[]")
+        except Exception:
+            item["tags"] = []
+        return item
+
+    @staticmethod
+    def compare_versions(version_id1: int, version_id2: int) -> dict:
+        """对比两个版本差异"""
+        v1 = CardVersion.get_version(version_id1)
+        v2 = CardVersion.get_version(version_id2)
+        if not v1 or not v2:
+            return None
+
+        # 对比的字段列表
+        compare_fields = [
+            ("name", "名称"),
+            ("description", "描述"),
+            ("personality", "性格特点"),
+            ("scenario", "背景设定"),
+            ("first_message", "开场白"),
+            ("system_prompt", "系统提示词"),
+            ("creator", "作者"),
+            ("visibility", "可见性"),
+            ("basic_info", "基本信息"),
+            ("example_dialogues", "示例对话"),
+            ("response_format", "回复格式"),
+        ]
+
+        differences = []
+        for field, label in compare_fields:
+            old_val = v1.get(field) or ""
+            new_val = v2.get(field) or ""
+            if old_val != new_val:
+                differences.append({
+                    "field": field,
+                    "label": label,
+                    "old": old_val,
+                    "new": new_val,
+                })
+
+        # 对比标签
+        tags1 = v1.get("tags", [])
+        tags2 = v2.get("tags", [])
+        if tags1 != tags2:
+            differences.append({
+                "field": "tags",
+                "label": "标签",
+                "old": ", ".join(tags1) if tags1 else "(无)",
+                "new": ", ".join(tags2) if tags2 else "(无)",
+            })
+
+        return {
+            "version1": v1,
+            "version2": v2,
+            "differences": differences,
+        }
+
+    @staticmethod
+    def rollback(card_id: int, version_id: int) -> bool:
+        """回滚到指定版本"""
+        version = CardVersion.get_version(version_id)
+        if not version or version.get("card_id") != card_id:
+            return False
+
+        now = datetime.now().isoformat(timespec="seconds")
+        with get_db() as db:
+            db.execute(
+                """
+                UPDATE role_cards SET
+                    name = ?, description = ?, personality = ?, scenario = ?,
+                    first_message = ?, system_prompt = ?, tags_json = ?,
+                    creator = ?, visibility = ?, avatar_path = ?,
+                    basic_info = ?, example_dialogues = ?, response_format = ?,
+                    rules_json = ?, state_json = ?, updated_at = ?
+                WHERE id = ?
+                """,
+                (
+                    version["name"],
+                    version.get("description", ""),
+                    version.get("personality", ""),
+                    version.get("scenario", ""),
+                    version.get("first_message", ""),
+                    version.get("system_prompt", ""),
+                    json.dumps(version.get("tags", []), ensure_ascii=False),
+                    version.get("creator", ""),
+                    version.get("visibility", "public"),
+                    version.get("avatar_path", ""),
+                    version.get("basic_info", ""),
+                    version.get("example_dialogues", ""),
+                    version.get("response_format", ""),
+                    version.get("rules_json", "[]") or "[]",
+                    version.get("state_json", "{}") or "{}",
+                    now,
+                    card_id,
+                ),
+            )
+            db.commit()
+        return True
 
 
 class User:
@@ -1964,3 +2247,466 @@ class Collection:
                 (collection_id, card_id)
             ).fetchone()
         return row is not None
+
+
+class CreatorStats:
+    """创作者数据统计模型"""
+
+    @staticmethod
+    def record_card_view(card_id: int) -> None:
+        """记录角色卡浏览量（按日期聚合）"""
+        today = datetime.now().strftime("%Y-%m-%d")
+        with get_db() as db:
+            db.execute(
+                """
+                INSERT INTO card_stats (card_id, date, views, downloads, likes)
+                VALUES (?, ?, 1, 0, 0)
+                ON CONFLICT(card_id, date) DO UPDATE SET
+                    views = views + 1
+                """,
+                (card_id, today)
+            )
+            db.commit()
+
+    @staticmethod
+    def record_card_download(card_id: int) -> None:
+        """记录角色卡下载量（按日期聚合）"""
+        today = datetime.now().strftime("%Y-%m-%d")
+        with get_db() as db:
+            db.execute(
+                """
+                INSERT INTO card_stats (card_id, date, views, downloads, likes)
+                VALUES (?, ?, 0, 1, 0)
+                ON CONFLICT(card_id, date) DO UPDATE SET
+                    downloads = downloads + 1
+                """,
+                (card_id, today)
+            )
+            db.commit()
+
+    @staticmethod
+    def record_card_like(card_id: int) -> None:
+        """记录角色卡点赞量（按日期聚合）"""
+        today = datetime.now().strftime("%Y-%m-%d")
+        with get_db() as db:
+            db.execute(
+                """
+                INSERT INTO card_stats (card_id, date, views, downloads, likes)
+                VALUES (?, ?, 0, 0, 1)
+                ON CONFLICT(card_id, date) DO UPDATE SET
+                    likes = likes + 1
+                """,
+                (card_id, today)
+            )
+            db.commit()
+
+    @staticmethod
+    def record_followers(user_id: int) -> None:
+        """记录用户当日粉丝数"""
+        today = datetime.now().strftime("%Y-%m-%d")
+        follower_count = UserFollow.get_follower_count(user_id)
+        with get_db() as db:
+            db.execute(
+                """
+                INSERT INTO user_stats (user_id, date, followers_count)
+                VALUES (?, ?, ?)
+                ON CONFLICT(user_id, date) DO UPDATE SET
+                    followers_count = excluded.followers_count
+                """,
+                (user_id, today, follower_count)
+            )
+            db.commit()
+
+    @staticmethod
+    def get_card_trend(card_id: int, days: int = 30) -> list:
+        """获取角色卡最近 N 天的趋势数据"""
+        from datetime import timedelta
+        end_date = datetime.now()
+        start_date = end_date - timedelta(days=days - 1)
+        dates = []
+        with get_db() as db:
+            rows = db.execute(
+                """
+                SELECT date, views, downloads, likes
+                FROM card_stats
+                WHERE card_id = ? AND date >= ? AND date <= ?
+                ORDER BY date ASC
+                """,
+                (card_id, start_date.strftime("%Y-%m-%d"), end_date.strftime("%Y-%m-%d"))
+            ).fetchall()
+        data_map = {row["date"]: dict(row) for row in rows}
+        for i in range(days):
+            d = (start_date + timedelta(days=i)).strftime("%Y-%m-%d")
+            entry = data_map.get(d, {"date": d, "views": 0, "downloads": 0, "likes": 0})
+            dates.append(entry)
+        return dates
+
+    @staticmethod
+    def get_user_cards_trend(user_id: int, days: int = 30) -> list:
+        """获取用户所有角色卡的汇总趋势数据"""
+        from datetime import timedelta
+        end_date = datetime.now()
+        start_date = end_date - timedelta(days=days - 1)
+        with get_db() as db:
+            rows = db.execute(
+                """
+                SELECT date, SUM(views) as views, SUM(downloads) as downloads, SUM(likes) as likes
+                FROM card_stats
+                WHERE card_id IN (SELECT id FROM role_cards WHERE user_id = ?)
+                AND date >= ? AND date <= ?
+                GROUP BY date
+                ORDER BY date ASC
+                """,
+                (user_id, start_date.strftime("%Y-%m-%d"), end_date.strftime("%Y-%m-%d"))
+            ).fetchall()
+        data_map = {row["date"]: dict(row) for row in rows}
+        result = []
+        for i in range(days):
+            d = (start_date + timedelta(days=i)).strftime("%Y-%m-%d")
+            entry = data_map.get(d, {"date": d, "views": 0, "downloads": 0, "likes": 0})
+            result.append(entry)
+        return result
+
+    @staticmethod
+    def get_user_follower_trend(user_id: int, days: int = 30) -> list:
+        """获取用户粉丝增长趋势"""
+        from datetime import timedelta
+        end_date = datetime.now()
+        start_date = end_date - timedelta(days=days - 1)
+        with get_db() as db:
+            rows = db.execute(
+                """
+                SELECT date, followers_count
+                FROM user_stats
+                WHERE user_id = ? AND date >= ? AND date <= ?
+                ORDER BY date ASC
+                """,
+                (user_id, start_date.strftime("%Y-%m-%d"), end_date.strftime("%Y-%m-%d"))
+            ).fetchall()
+        data_map = {row["date"]: row["followers_count"] for row in rows}
+        result = []
+        for i in range(days):
+            d = (start_date + timedelta(days=i)).strftime("%Y-%m-%d")
+            result.append({"date": d, "followers_count": data_map.get(d, 0)})
+        return result
+
+    @staticmethod
+    def get_top_cards(user_id: int, limit: int = 5) -> list:
+        """获取用户最受欢迎的角色卡排行"""
+        with get_db() as db:
+            rows = db.execute(
+                """
+                SELECT id, name, slug, avatar_path, views, downloads, likes
+                FROM role_cards
+                WHERE user_id = ? AND status = 'approved'
+                ORDER BY (views * 1 + downloads * 2 + likes * 3) DESC
+                LIMIT ?
+                """,
+                (user_id, limit)
+            ).fetchall()
+        return [dict(row) for row in rows]
+
+    @staticmethod
+    def get_creator_summary(user_id: int) -> dict:
+        """获取创作者数据汇总"""
+        with get_db() as db:
+            # 总浏览量、下载量、点赞数
+            total_stats = db.execute(
+                """
+                SELECT 
+                    COALESCE(SUM(views), 0) as total_views,
+                    COALESCE(SUM(downloads), 0) as total_downloads,
+                    COALESCE(SUM(likes), 0) as total_likes
+                FROM card_stats
+                WHERE card_id IN (SELECT id FROM role_cards WHERE user_id = ?)
+                """,
+                (user_id,)
+            ).fetchone()
+
+            # 角色卡总数
+            card_count = db.execute(
+                "SELECT COUNT(*) FROM role_cards WHERE user_id = ? AND status = 'approved'",
+                (user_id,)
+            ).fetchone()[0]
+
+            # 今日数据
+            today = datetime.now().strftime("%Y-%m-%d")
+            today_stats = db.execute(
+                """
+                SELECT 
+                    COALESCE(SUM(views), 0) as today_views,
+                    COALESCE(SUM(downloads), 0) as today_downloads,
+                    COALESCE(SUM(likes), 0) as today_likes
+                FROM card_stats
+                WHERE card_id IN (SELECT id FROM role_cards WHERE user_id = ?) AND date = ?
+                """,
+                (user_id, today)
+            ).fetchone()
+
+        total_views = total_stats["total_views"] or 0
+        total_downloads = total_stats["total_downloads"] or 0
+        conversion_rate = (total_downloads / total_views * 100) if total_views > 0 else 0
+
+        return {
+            "total_views": total_views,
+            "total_downloads": total_downloads,
+            "total_likes": total_stats["total_likes"] or 0,
+            "card_count": card_count,
+            "today_views": today_stats["today_views"] or 0,
+            "today_downloads": today_stats["today_downloads"] or 0,
+            "today_likes": today_stats["today_likes"] or 0,
+            "conversion_rate": round(conversion_rate, 2),
+        }
+
+
+class Report:
+    """举报模型"""
+
+    # 举报目标类型
+    TARGET_CARD = "card"
+    TARGET_COMMENT = "comment"
+    TARGET_USER = "user"
+
+    # 举报原因
+    REASON_INFRINGEMENT = "infringement"
+    REASON_VIOLATION = "violation"
+    REASON_SPAM = "spam"
+    REASON_OTHER = "other"
+
+    REASON_LABELS = {
+        REASON_INFRINGEMENT: "侵权",
+        REASON_VIOLATION: "违规内容",
+        REASON_SPAM: "垃圾信息",
+        REASON_OTHER: "其他原因",
+    }
+
+    # 自动隐藏阈值：同一目标被举报次数达到此值时自动隐藏
+    AUTO_HIDE_THRESHOLD = 5
+
+    @staticmethod
+    def create(target_type: str, target_id: int, reporter_id: int, reason: str, description: str = "") -> dict:
+        """创建举报，如果同一目标被举报次数超过阈值则自动隐藏"""
+        now = datetime.now().isoformat(timespec="seconds")
+        with get_db() as db:
+            cursor = db.execute(
+                """
+                INSERT INTO reports (target_type, target_id, reporter_id, reason, description, status, created_at)
+                VALUES (?, ?, ?, ?, ?, 'pending', ?)
+                """,
+                (target_type, target_id, reporter_id, reason, description, now)
+            )
+            db.commit()
+            row = db.execute("SELECT * FROM reports WHERE id = ?", (cursor.lastrowid,)).fetchone()
+            
+            # 检查该目标的待处理举报数量
+            if target_type == Report.TARGET_CARD:
+                count_row = db.execute(
+                    """
+                    SELECT COUNT(*) as cnt FROM reports 
+                    WHERE target_type = ? AND target_id = ? AND status = 'pending'
+                    """,
+                    (target_type, target_id)
+                ).fetchone()
+                
+                if count_row and count_row["cnt"] >= Report.AUTO_HIDE_THRESHOLD:
+                    # 获取角色卡信息
+                    card = db.execute(
+                        "SELECT id, name, user_id FROM role_cards WHERE id = ?",
+                        (target_id,)
+                    ).fetchone()
+                    
+                    if card:
+                        # 自动将角色卡设为已拒绝状态
+                        db.execute(
+                            """
+                            UPDATE role_cards 
+                            SET status = 'rejected', reviewed_by = NULL, reviewed_at = ?, review_result = ?
+                            WHERE id = ?
+                            """,
+                            (now, f"因被多次举报（{count_row['cnt']}次）自动隐藏", target_id)
+                        )
+                        db.commit()
+                        
+                        # 通知角色卡作者
+                        if card["user_id"]:
+                            Notification.create(
+                                user_id=card["user_id"],
+                                type=Notification.TYPE_CARD_REJECTED,
+                                card_id=card["id"],
+                                message=f"你的角色卡「{card['name']}」因被多次举报（{count_row['cnt']}次）已自动隐藏"
+                            )
+        return dict(row) if row else None
+
+    @staticmethod
+    def get_by_id(report_id: int) -> Optional[dict]:
+        """通过 ID 获取举报"""
+        with get_db() as db:
+            row = db.execute(
+                """
+                SELECT r.*, u.username as reporter_username, u.display_name as reporter_display_name,
+                       ru.username as resolver_username
+                FROM reports r
+                JOIN users u ON r.reporter_id = u.id
+                LEFT JOIN users ru ON r.resolved_by = ru.id
+                WHERE r.id = ?
+                """,
+                (report_id,)
+            ).fetchone()
+        return dict(row) if row else None
+
+    @staticmethod
+    def get_list(status: str = None, limit: int = 50, offset: int = 0) -> list:
+        """获取举报列表"""
+        with get_db() as db:
+            if status:
+                rows = db.execute(
+                    """
+                    SELECT r.*, u.username as reporter_username, u.display_name as reporter_display_name
+                    FROM reports r
+                    JOIN users u ON r.reporter_id = u.id
+                    WHERE r.status = ?
+                    ORDER BY r.created_at DESC
+                    LIMIT ? OFFSET ?
+                    """,
+                    (status, limit, offset)
+                ).fetchall()
+            else:
+                rows = db.execute(
+                    """
+                    SELECT r.*, u.username as reporter_username, u.display_name as reporter_display_name
+                    FROM reports r
+                    JOIN users u ON r.reporter_id = u.id
+                    ORDER BY r.created_at DESC
+                    LIMIT ? OFFSET ?
+                    """,
+                    (limit, offset)
+                ).fetchall()
+        return [dict(row) for row in rows]
+
+    @staticmethod
+    def get_pending_count() -> int:
+        """获取待处理举报数量"""
+        with get_db() as db:
+            row = db.execute(
+                "SELECT COUNT(*) as cnt FROM reports WHERE status = 'pending'"
+            ).fetchone()
+        return row["cnt"] if row else 0
+
+    @staticmethod
+    def resolve(report_id: int, resolver_id: int) -> dict:
+        """处理举报 - 将目标角色卡设为已拒绝状态，并通知相关用户"""
+        now = datetime.now().isoformat(timespec="seconds")
+        with get_db() as db:
+            # 获取举报信息
+            report = db.execute(
+                "SELECT * FROM reports WHERE id = ?", (report_id,)
+            ).fetchone()
+            
+            if not report:
+                return None
+            
+            # 更新举报状态为已处理
+            db.execute(
+                """
+                UPDATE reports SET status = 'resolved', resolved_at = ?, resolved_by = ?
+                WHERE id = ?
+                """,
+                (now, resolver_id, report_id)
+            )
+            
+            # 如果目标是角色卡，将其设为已拒绝状态
+            card_info = None
+            if report["target_type"] == Report.TARGET_CARD:
+                reason_label = Report.REASON_LABELS.get(report["reason"], report["reason"])
+                review_result = f"因举报被处理：{reason_label}"
+                if report["description"]:
+                    review_result += f" - {report['description'][:100]}"
+                
+                # 获取角色卡信息
+                card = db.execute(
+                    "SELECT id, name, user_id FROM role_cards WHERE id = ?",
+                    (report["target_id"],)
+                ).fetchone()
+                
+                if card:
+                    card_info = dict(card)
+                
+                db.execute(
+                    """
+                    UPDATE role_cards 
+                    SET status = 'rejected', reviewed_by = ?, reviewed_at = ?, review_result = ?
+                    WHERE id = ?
+                    """,
+                    (resolver_id, now, review_result, report["target_id"])
+                )
+            
+            db.commit()
+        
+        # 在数据库连接关闭后发送通知，避免锁冲突
+        if report and report["target_type"] == Report.TARGET_CARD and card_info and card_info.get("user_id"):
+            reason_label = Report.REASON_LABELS.get(report["reason"], report["reason"])
+            Notification.create(
+                user_id=card_info["user_id"],
+                type=Notification.TYPE_CARD_REJECTED,
+                actor_id=resolver_id,
+                card_id=card_info["id"],
+                message=f"你的角色卡「{card_info['name']}」因被举报（{reason_label}）已被处理"
+            )
+        
+        return dict(report) if report else None
+
+    @staticmethod
+    def reject(report_id: int, resolver_id: int) -> dict:
+        """拒绝举报 - 通知举报者"""
+        now = datetime.now().isoformat(timespec="seconds")
+        with get_db() as db:
+            report = db.execute(
+                "SELECT * FROM reports WHERE id = ?", (report_id,)
+            ).fetchone()
+            
+            if not report:
+                return None
+                
+            db.execute(
+                """
+                UPDATE reports SET status = 'rejected', resolved_at = ?, resolved_by = ?
+                WHERE id = ?
+                """,
+                (now, resolver_id, report_id)
+            )
+            db.commit()
+        
+        # 在数据库连接关闭后发送通知，避免锁冲突
+        if report:
+            reason_label = Report.REASON_LABELS.get(report["reason"], report["reason"])
+            target_type_label = {"card": "角色卡", "comment": "评论", "user": "用户"}.get(
+                report["target_type"], report["target_type"]
+            )
+            
+            Notification.create(
+                user_id=report["reporter_id"],
+                type="report_rejected",
+                actor_id=resolver_id,
+                message=f"你对{target_type_label}的举报（{reason_label}）已被管理员拒绝"
+            )
+        
+        return dict(report) if report else None
+
+    @staticmethod
+    def get_stats() -> dict:
+        """获取举报统计"""
+        with get_db() as db:
+            stats = db.execute(
+                """
+                SELECT 
+                    COUNT(CASE WHEN status = 'pending' THEN 1 END) as pending,
+                    COUNT(CASE WHEN status = 'resolved' THEN 1 END) as resolved,
+                    COUNT(CASE WHEN status = 'rejected' THEN 1 END) as rejected
+                FROM reports
+                """
+            ).fetchone()
+        return {
+            "pending": stats["pending"],
+            "resolved": stats["resolved"],
+            "rejected": stats["rejected"],
+        }

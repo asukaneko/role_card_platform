@@ -1,0 +1,402 @@
+<!-- 举报弹窗模板 -->
+<div id="report-modal" class="report-modal">
+    <div class="report-modal-overlay" id="report-modal-overlay"></div>
+    <div class="report-modal-content">
+        <div class="report-modal-header">
+            <div class="report-modal-icon">⚠️</div>
+            <h3>举报内容</h3>
+            <button type="button" class="report-modal-close" id="report-modal-close">&times;</button>
+        </div>
+        <div class="report-modal-body">
+            <form id="report-form" method="post" action="{{ url_for('submit_report') }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="target_type" id="report-target-type" value="">
+                <input type="hidden" name="target_id" id="report-target-id" value="">
+                
+                <!-- 举报对象信息卡片 -->
+                <div class="report-target-info">
+                    <span class="report-target-label">举报对象</span>
+                    <span class="report-target-name" id="report-target-name"></span>
+                </div>
+                
+                <!-- 举报原因选择 -->
+                <div class="report-form-group">
+                    <label class="report-label">
+                        举报原因
+                        <span class="report-required">*</span>
+                    </label>
+                    <div class="report-reason-options">
+                        <label class="report-reason-option">
+                            <input type="radio" name="reason" value="infringement" required>
+                            <span class="report-reason-card">
+                                <span class="report-reason-icon">©️</span>
+                                <span class="report-reason-text">侵权</span>
+                            </span>
+                        </label>
+                        <label class="report-reason-option">
+                            <input type="radio" name="reason" value="violation">
+                            <span class="report-reason-card">
+                                <span class="report-reason-icon">🚫</span>
+                                <span class="report-reason-text">违规内容</span>
+                            </span>
+                        </label>
+                        <label class="report-reason-option">
+                            <input type="radio" name="reason" value="spam">
+                            <span class="report-reason-card">
+                                <span class="report-reason-icon">📢</span>
+                                <span class="report-reason-text">垃圾信息</span>
+                            </span>
+                        </label>
+                        <label class="report-reason-option">
+                            <input type="radio" name="reason" value="other">
+                            <span class="report-reason-card">
+                                <span class="report-reason-icon">📝</span>
+                                <span class="report-reason-text">其他原因</span>
+                            </span>
+                        </label>
+                    </div>
+                </div>
+                
+                <!-- 补充说明 -->
+                <div class="report-form-group">
+                    <label class="report-label">补充说明</label>
+                    <textarea name="description" rows="3" placeholder="请简要描述举报原因，有助于管理员更快处理..." maxlength="500" class="report-textarea"></textarea>
+                    <span class="report-hint">最多 500 字</span>
+                </div>
+                
+                <button type="submit" class="report-submit-btn">提交举报</button>
+            </form>
+        </div>
+    </div>
+</div>
+
+<style>
+/* 举报弹窗样式 */
+.report-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    display: none;
+    align-items: center;
+    justify-content: center;
+}
+
+.report-modal.active {
+    display: flex;
+}
+
+.report-modal-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(4px);
+}
+
+.report-modal-content {
+    position: relative;
+    width: min(480px, calc(100% - 40px));
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 20px;
+    overflow: hidden;
+    animation: report-modal-in 0.3s ease;
+}
+
+@keyframes report-modal-in {
+    from {
+        opacity: 0;
+        transform: scale(0.95) translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+    }
+}
+
+.report-modal-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 20px 24px 16px;
+    border-bottom: 1px solid var(--line);
+}
+
+.report-modal-icon {
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(239, 68, 68, 0.1);
+    border-radius: 12px;
+    font-size: 20px;
+}
+
+.report-modal-header h3 {
+    flex: 1;
+    margin: 0;
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--ink);
+}
+
+.report-modal-close {
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    background: var(--bg-wash-a);
+    border-radius: 8px;
+    color: var(--muted);
+    font-size: 20px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.report-modal-close:hover {
+    background: var(--line);
+    color: var(--ink);
+}
+
+.report-modal-body {
+    padding: 20px 24px 24px;
+}
+
+/* 举报对象信息 */
+.report-target-info {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 14px 16px;
+    background: var(--bg-wash-a);
+    border-radius: 12px;
+    margin-bottom: 20px;
+}
+
+.report-target-label {
+    font-size: 12px;
+    color: var(--muted);
+    font-weight: 500;
+}
+
+.report-target-name {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--ink);
+}
+
+/* 表单组 */
+.report-form-group {
+    margin-bottom: 20px;
+}
+
+.report-label {
+    display: block;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--ink);
+    margin-bottom: 10px;
+}
+
+.report-required {
+    color: var(--danger);
+    margin-left: 2px;
+}
+
+/* 原因选项网格 */
+.report-reason-options {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+}
+
+.report-reason-option {
+    cursor: pointer;
+}
+
+.report-reason-option input {
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.report-reason-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 16px 12px;
+    border: 2px solid var(--line);
+    border-radius: 12px;
+    background: var(--paper);
+    transition: all 0.2s ease;
+    text-align: center;
+}
+
+.report-reason-option:hover .report-reason-card {
+    border-color: var(--accent);
+    background: rgba(47, 111, 115, 0.04);
+}
+
+.report-reason-option input:checked + .report-reason-card {
+    border-color: var(--accent);
+    background: rgba(47, 111, 115, 0.08);
+    box-shadow: 0 0 0 3px rgba(47, 111, 115, 0.1);
+}
+
+.report-reason-icon {
+    font-size: 24px;
+    line-height: 1;
+}
+
+.report-reason-text {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--ink);
+}
+
+/* 文本框 */
+.report-textarea {
+    width: 100%;
+    padding: 12px 14px;
+    border-radius: 12px;
+    border: 2px solid var(--line);
+    background: var(--paper);
+    color: var(--ink);
+    font-size: 14px;
+    line-height: 1.6;
+    resize: vertical;
+    transition: border-color 0.2s;
+    font-family: inherit;
+}
+
+.report-textarea:focus {
+    outline: none;
+    border-color: var(--accent);
+}
+
+.report-textarea::placeholder {
+    color: var(--muted);
+}
+
+.report-hint {
+    display: block;
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 6px;
+    text-align: right;
+}
+
+/* 提交按钮 */
+.report-submit-btn {
+    width: 100%;
+    padding: 14px;
+    border-radius: 12px;
+    border: none;
+    background: var(--accent);
+    color: white;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-family: inherit;
+}
+
+.report-submit-btn:hover {
+    background: var(--accent-strong);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(47, 111, 115, 0.3);
+}
+
+/* 深色模式适配 */
+:root[data-theme="dark"] .report-reason-option:hover .report-reason-card {
+    background: rgba(98, 185, 191, 0.06);
+}
+
+:root[data-theme="dark"] .report-reason-option input:checked + .report-reason-card {
+    background: rgba(98, 185, 191, 0.1);
+    box-shadow: 0 0 0 3px rgba(98, 185, 191, 0.15);
+}
+
+:root[data-theme="dark"] .report-submit-btn:hover {
+    box-shadow: 0 4px 12px rgba(98, 185, 191, 0.25);
+}
+</style>
+
+<script>
+// 举报弹窗逻辑
+(function() {
+    const reportModal = document.getElementById('report-modal');
+    const reportOverlay = document.getElementById('report-modal-overlay');
+    const reportClose = document.getElementById('report-modal-close');
+    const reportForm = document.getElementById('report-form');
+
+    function openReportModal(targetType, targetId, targetName) {
+        document.getElementById('report-target-type').value = targetType;
+        document.getElementById('report-target-id').value = targetId;
+        document.getElementById('report-target-name').textContent = targetName;
+        // 重置表单
+        reportForm.reset();
+        reportModal.classList.add('active');
+        document.body.style.overflow = 'hidden';
+    }
+
+    function closeReportModal() {
+        reportModal.classList.remove('active');
+        document.body.style.overflow = '';
+    }
+
+    // 角色卡举报按钮
+    const reportCardBtn = document.getElementById('report-card-btn');
+    if (reportCardBtn) {
+        reportCardBtn.addEventListener('click', function() {
+            openReportModal(
+                reportCardBtn.dataset.targetType,
+                reportCardBtn.dataset.targetId,
+                reportCardBtn.dataset.targetName
+            );
+        });
+    }
+
+    // 用户举报按钮
+    const reportUserBtn = document.getElementById('report-user-btn');
+    if (reportUserBtn) {
+        reportUserBtn.addEventListener('click', function() {
+            openReportModal(
+                reportUserBtn.dataset.targetType,
+                reportUserBtn.dataset.targetId,
+                reportUserBtn.dataset.targetName
+            );
+        });
+    }
+
+    if (reportOverlay) reportOverlay.addEventListener('click', closeReportModal);
+    if (reportClose) reportClose.addEventListener('click', closeReportModal);
+
+    // 提交举报
+    if (reportForm) {
+        reportForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            const formData = new FormData(reportForm);
+            fetch(reportForm.action, {
+                method: 'POST',
+                body: formData,
+                headers: { 'X-CSRFToken': window.csrfToken }
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    alert(data.message);
+                    closeReportModal();
+                } else {
+                    alert(data.error || '举报失败');
+                }
+            })
+            .catch(() => alert('举报提交失败，请重试'));
+        });
+    }
+})();
+</script>

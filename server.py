@@ -40,7 +40,7 @@ from app.config import (
     MAX_CARD_BYTES, MAX_AVATAR_BYTES, MAX_ZIP_BYTES,
     ALLOWED_AVATAR_EXTENSIONS, IMAGE_SIGNATURES, Config
 )
-from app.models import init_db, get_db, User, RoleCard, Comment, UserLike, UserFavorite, Reviewer, ReviewQueue, AIReviewConfig, EmailConfig, CardRelation, UserFollow, Notification, Collection
+from app.models import init_db, get_db, User, RoleCard, Comment, UserLike, UserFavorite, Reviewer, ReviewQueue, AIReviewConfig, EmailConfig, CardRelation, UserFollow, Notification, Collection, CreatorStats, CardVersion, Report
 from app.auth import (
     generate_user_api_token, resolve_api_user, api_token_valid,
     admin_token, get_current_user, login_required, AuthService,
@@ -367,6 +367,11 @@ def follow_user(user_id):
     if current["id"] == user_id:
         return jsonify({"error": "不能关注自己"}), 400
     UserFollow.follow(current["id"], user_id)
+    # 异步记录粉丝变化
+    try:
+        CreatorStats.record_followers(user_id)
+    except Exception:
+        pass
     return jsonify({"following": True})
 
 
@@ -378,6 +383,11 @@ def unfollow_user(user_id):
     if not current:
         return jsonify({"error": "请先登录"}), 401
     UserFollow.unfollow(current["id"], user_id)
+    # 异步记录粉丝变化
+    try:
+        CreatorStats.record_followers(user_id)
+    except Exception:
+        pass
     return jsonify({"following": False})
 
 
@@ -393,6 +403,34 @@ def regen_api_token(username):
         db.commit()
     flash("API Token 已重新生成", "success")
     return redirect(url_for("user_profile", username=username))
+
+
+@server.route("/user/<username>/stats")
+@login_required
+def creator_stats(username):
+    """创作者数据面板页面"""
+    current = get_current_user()
+    if not current or current["username"] != username:
+        abort(403)
+
+    user = User.get_by_username(username)
+    if not user:
+        abort(404)
+
+    # 获取创作者统计数据
+    summary = CreatorStats.get_creator_summary(user["id"])
+    trend_data = CreatorStats.get_user_cards_trend(user["id"], days=30)
+    follower_trend = CreatorStats.get_user_follower_trend(user["id"], days=30)
+    top_cards = CreatorStats.get_top_cards(user["id"], limit=5)
+
+    return render_template(
+        "creator_stats.html",
+        profile_user=user,
+        summary=summary,
+        trend_data=trend_data,
+        follower_trend=follower_trend,
+        top_cards=top_cards,
+    )
 
 
 @server.route("/user/<username>/edit", methods=["GET", "POST"])
@@ -678,10 +716,14 @@ def card_detail(identifier):
         if not (is_owner or is_admin):
             abort(404)
 
-    # 增加浏览量（仅已审核的公开卡片）
+    # 增加浏览量（仅已审核的公开卡片），并异步记录到每日统计
     if card_status == "approved" and card.get("visibility") == "public":
         RoleCard.increment_views(card["id"])
         card["views"] = card.get("views", 0) + 1
+        try:
+            CreatorStats.record_card_view(card["id"])
+        except Exception:
+            pass
 
     user_liked = False
     user_favorited = False
@@ -904,9 +946,13 @@ def edit_card(card_id):
         return render_template("edit.html", card=card)
 
     try:
+        # 更新前先保存快照
+        user_id = session.get("user_id")
+        CardVersion.create_snapshot(card_id, user_id)
+
         updated = card_from_form(request.form)
         avatar_path = save_avatar(request.files.get("avatar"))
-        
+
         # 检查是否需要重新提交审核
         action = request.form.get("action", "update")
         resubmit = action == "submit" and card["status"] in ("draft", "rejected")
@@ -976,6 +1022,57 @@ def edit_card(card_id):
     except ValueError as exc:
         flash(str(exc), "error")
         return redirect(url_for("edit_card", card_id=card_id))
+
+
+@server.route("/card/<int:card_id>/history")
+@login_required
+def card_history(card_id):
+    """查看角色卡版本历史"""
+    card = owner_required(card_id)
+    versions = CardVersion.get_versions(card_id)
+    return render_template("card_history.html", card=card, versions=versions)
+
+
+@server.route("/card/version/<int:version_id>")
+@login_required
+def card_version_detail(version_id):
+    """查看单个版本详情"""
+    version = CardVersion.get_version(version_id)
+    if not version:
+        abort(404)
+    card = owner_required(version["card_id"])
+    return render_template("card_version_detail.html", card=card, version=version)
+
+
+@server.route("/card/version/compare")
+@login_required
+def card_version_compare():
+    """对比两个版本"""
+    v1_id = request.args.get("v1", type=int)
+    v2_id = request.args.get("v2", type=int)
+    if not v1_id or not v2_id:
+        flash("请选择两个版本进行对比", "error")
+        return redirect(url_for("index"))
+
+    comparison = CardVersion.compare_versions(v1_id, v2_id)
+    if not comparison:
+        abort(404)
+
+    card = owner_required(comparison["version1"]["card_id"])
+    return render_template("card_version_compare.html", card=card, comparison=comparison)
+
+
+@server.route("/card/<int:card_id>/rollback/<int:version_id>", methods=["POST"])
+@login_required
+def card_rollback(card_id, version_id):
+    """回滚到指定版本"""
+    card = owner_required(card_id)
+    success = CardVersion.rollback(card_id, version_id)
+    if success:
+        flash("角色卡已回滚到指定版本")
+    else:
+        flash("回滚失败", "error")
+    return redirect(url_for("card_detail", identifier=card["slug"]))
 
 
 @server.route("/card/<int:card_id>/delete", methods=["POST"])
@@ -1190,6 +1287,12 @@ def download_card(card_id):
         db.execute("UPDATE role_cards SET downloads = downloads + 1 WHERE id = ?", (card_id,))
         db.commit()
 
+    # 异步记录到每日统计
+    try:
+        CreatorStats.record_card_download(card_id)
+    except Exception:
+        pass
+
     export_path = CARD_DIR / f"{card['slug']}.json"
     export_path.write_text(
         json.dumps(to_export_json(card), ensure_ascii=False, indent=2),
@@ -1204,6 +1307,12 @@ def download_nekozip(card_id):
     with get_db() as db:
         db.execute("UPDATE role_cards SET downloads = downloads + 1 WHERE id = ?", (card_id,))
         db.commit()
+
+    # 异步记录到每日统计
+    try:
+        CreatorStats.record_card_download(card_id)
+    except Exception:
+        pass
 
     memory_file = io.BytesIO()
     with zipfile.ZipFile(memory_file, "w", zipfile.ZIP_DEFLATED) as zf:
@@ -1433,9 +1542,15 @@ def like_card(card_id):
         # 更新角色卡的喜欢数
         db.execute("UPDATE role_cards SET likes = likes + 1 WHERE id = ?", (card_id,))
         db.commit()
-        
+
+        # 异步记录到每日统计
+        try:
+            CreatorStats.record_card_like(card_id)
+        except Exception:
+            pass
+
         row = db.execute("SELECT likes FROM role_cards WHERE id = ?", (card_id,)).fetchone()
-    
+
     if not row:
         abort(404)
     return jsonify({"likes": row["likes"], "liked": True})
@@ -2204,6 +2319,100 @@ def _get_notification_url(n: dict) -> str:
     return url_for("notifications")
 
 
+@server.route("/report", methods=["POST"])
+@login_required
+def submit_report():
+    """提交举报"""
+    current = get_current_user()
+    if not current:
+        return jsonify({"error": "请先登录"}), 401
+
+    target_type = request.form.get("target_type", "").strip()
+    target_id = request.form.get("target_id", type=int)
+    reason = request.form.get("reason", "").strip()
+    description = request.form.get("description", "").strip()
+
+    if not target_type or not target_id or not reason:
+        return jsonify({"error": "请填写完整的举报信息"}), 400
+
+    if target_type not in (Report.TARGET_CARD, Report.TARGET_COMMENT, Report.TARGET_USER):
+        return jsonify({"error": "无效的举报类型"}), 400
+
+    if reason not in Report.REASON_LABELS:
+        return jsonify({"error": "无效的举报原因"}), 400
+
+    report = Report.create(
+        target_type=target_type,
+        target_id=target_id,
+        reporter_id=current["id"],
+        reason=reason,
+        description=description
+    )
+
+    if report:
+        return jsonify({"success": True, "message": "举报已提交，管理员会尽快处理"})
+    else:
+        return jsonify({"error": "举报提交失败"}), 500
+
+
+@server.route("/admin/reports")
+@login_required
+def admin_reports():
+    """管理后台举报处理队列"""
+    if not is_admin_user(session.get("user_id")):
+        abort(403)
+
+    status = request.args.get("status", "pending")
+    page = request.args.get("page", 1, type=int)
+    per_page = 20
+
+    reports = Report.get_list(status=status, limit=per_page, offset=(page - 1) * per_page)
+    stats = Report.get_stats()
+
+    # 获取举报目标信息
+    for r in reports:
+        if r["target_type"] == Report.TARGET_CARD:
+            card = RoleCard.get_by_id(r["target_id"], include_pending=True)
+            r["target_name"] = card["name"] if card else "未知角色卡"
+            r["target_url"] = url_for("card_detail", identifier=card["slug"]) if card else ""
+        elif r["target_type"] == Report.TARGET_COMMENT:
+            comment = Comment.get_by_id(r["target_id"])
+            r["target_name"] = (comment["content"][:30] + "...") if comment and comment.get("content") else "未知评论"
+            r["target_url"] = ""
+        elif r["target_type"] == Report.TARGET_USER:
+            user = User.get_by_id(r["target_id"])
+            r["target_name"] = user["username"] if user else "未知用户"
+            r["target_url"] = url_for("user_profile", username=user["username"]) if user else ""
+
+    return render_template("admin_reports.html", reports=reports, status=status, stats=stats, Report=Report)
+
+
+@server.route("/admin/report/<int:report_id>/resolve", methods=["POST"])
+@login_required
+def admin_resolve_report(report_id):
+    """处理举报"""
+    if not is_admin_user(session.get("user_id")):
+        abort(403)
+
+    resolver_id = session.get("user_id")
+    Report.resolve(report_id, resolver_id)
+    flash("举报已处理")
+    return redirect(url_for("admin_reports"))
+
+
+@server.route("/admin/report/<int:report_id>/reject", methods=["POST"])
+@login_required
+def admin_reject_report(report_id):
+    """拒绝举报"""
+    if not is_admin_user(session.get("user_id")):
+        abort(403)
+
+    resolver_id = session.get("user_id")
+    Report.reject(report_id, resolver_id)
+    flash("举报已拒绝")
+    return redirect(url_for("admin_reports"))
+
+
 @server.context_processor
 def inject_globals():
     from app.models import Reviewer
@@ -2211,16 +2420,20 @@ def inject_globals():
     is_reviewer = False
     is_admin = False
     unread_notifications = 0
+    pending_reports = 0
     if user:
         is_reviewer = Reviewer.is_reviewer(user["id"])
         is_admin = is_admin_user(user["id"])
         unread_notifications = Notification.get_unread_count(user["id"])
+        if is_admin:
+            pending_reports = Report.get_pending_count()
     return {
         "admin_token": admin_token,
         "current_user": user,
         "is_reviewer": is_reviewer,
         "is_admin": is_admin,
         "unread_notifications": unread_notifications,
+        "pending_reports": pending_reports,
         "format_time": _format_relative_time,
         "get_notification_url": _get_notification_url
     }
