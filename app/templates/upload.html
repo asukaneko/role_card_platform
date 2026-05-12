@@ -18,20 +18,79 @@
         <div class="form-grid two">
             <label>
                 <span>角色卡文件</span>
-                <input type="file" name="card_file" accept="application/json,application/zip,.json,.zip">
+                <input type="file" name="card_file" id="cardFileInput" accept="application/json,application/zip,.json,.zip">
             </label>
             <label>
                 <span>单独头像（仅 JSON 导入时可选）</span>
-                <input type="file" name="avatar" accept="image/png,image/jpeg,image/webp,image/gif">
+                <input type="file" name="avatar" id="avatarFileInput" accept="image/png,image/jpeg,image/webp,image/gif">
             </label>
         </div>
+        
+        <!-- 导入预览区域 -->
+        <div id="importPreview" class="import-preview" style="display: none;">
+            <h3>导入预览</h3>
+            <div class="preview-content">
+                <div class="preview-card">
+                    <div class="preview-avatar" onclick="openImageModal()" title="点击放大查看">
+                        <img id="previewAvatar" src="" alt="角色立绘">
+                        <div class="avatar-placeholder">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                                <circle cx="12" cy="7" r="4"/>
+                            </svg>
+                        </div>
+                        <div class="zoom-hint">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="11" cy="11" r="8"/>
+                                <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                                <line x1="11" y1="8" x2="11" y2="14"/>
+                                <line x1="8" y1="11" x2="14" y2="11"/>
+                            </svg>
+                        </div>
+                    </div>
+                    <div class="preview-info">
+                        <h4 id="previewName">角色名</h4>
+                        <p id="previewCreator" class="preview-creator">作者</p>
+                        <p id="previewDescription" class="preview-desc">描述</p>
+                        <div id="previewTags" class="preview-tags"></div>
+                    </div>
+                </div>
+                <div class="preview-details">
+                    <div class="preview-stat">
+                        <span class="stat-label">基本信息</span>
+                        <p id="previewBasicInfo" class="stat-content">-</p>
+                    </div>
+                    <div class="preview-stat">
+                        <span class="stat-label">性格特点</span>
+                        <p id="previewPersonality" class="stat-content">-</p>
+                    </div>
+                </div>
+            </div>
+            <div class="preview-actions">
+                <button type="button" class="btn-secondary" onclick="clearImport()">清除导入</button>
+                <span class="preview-hint">确认信息无误后，点击下方按钮上传</span>
+            </div>
+        </div>
     </section>
+    
+    <!-- 图片放大弹窗 -->
+    <div id="imageModal" class="image-modal" onclick="closeImageModal()">
+        <div class="modal-content" onclick="event.stopPropagation()">
+            <button type="button" class="modal-close" onclick="event.stopPropagation(); closeImageModal();">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="18" y1="6" x2="6" y2="18"/>
+                    <line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+            </button>
+            <img id="modalImage" src="" alt="角色立绘" onclick="event.stopPropagation()">
+        </div>
+    </div>
 
-    <div class="upload-divider">
+    <div class="upload-divider" id="manualDivider">
         <span>或者</span>
     </div>
 
-    <section class="form-band">
+    <section class="form-band" id="manualFormSection">
         <p class="eyebrow">方式二</p>
         <h2>手动填写角色信息</h2>
         <p class="form-hint">适合从零创建一张公开展示的角色卡。</p>
@@ -159,5 +218,416 @@ function addRule() {
     div.innerHTML = `<input name="rules" placeholder="规则 ${count}">`;
     container.appendChild(div);
 }
+
+// 图片放大弹窗
+function openImageModal() {
+    const previewAvatar = document.getElementById('previewAvatar');
+    const modal = document.getElementById('imageModal');
+    const modalImage = document.getElementById('modalImage');
+    
+    if (previewAvatar.src && previewAvatar.style.display !== 'none') {
+        modalImage.src = previewAvatar.src;
+        modal.style.display = 'flex';
+        document.body.style.overflow = 'hidden';
+    }
+}
+
+function closeImageModal() {
+    const modal = document.getElementById('imageModal');
+    modal.style.display = 'none';
+    document.body.style.overflow = '';
+}
+
+// ESC 键关闭弹窗
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+        closeImageModal();
+    }
+});
+
+// 文件导入预览功能 - 等待 DOM 加载完成
+document.addEventListener('DOMContentLoaded', function() {
+    const cardFileInput = document.getElementById('cardFileInput');
+    const avatarFileInput = document.getElementById('avatarFileInput');
+    const importPreview = document.getElementById('importPreview');
+
+    // 预览元素
+    const previewAvatar = document.getElementById('previewAvatar');
+    const avatarPlaceholder = document.querySelector('.avatar-placeholder');
+    const previewName = document.getElementById('previewName');
+    const previewCreator = document.getElementById('previewCreator');
+    const previewDescription = document.getElementById('previewDescription');
+    const previewTags = document.getElementById('previewTags');
+    const previewBasicInfo = document.getElementById('previewBasicInfo');
+    const previewPersonality = document.getElementById('previewPersonality');
+
+    // 存储导入的数据
+    let importedCardData = null;
+
+    // 处理角色卡文件选择
+    if (cardFileInput) {
+        cardFileInput.addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            
+            console.log('Selected file:', file.name);
+            
+            const reader = new FileReader();
+            
+            if (file.name.toLowerCase().endsWith('.json')) {
+                // 处理 JSON 文件
+                reader.onload = function(event) {
+                    try {
+                        console.log('File content loaded');
+                        const data = JSON.parse(event.target.result);
+                        console.log('Parsed data:', data);
+                        importedCardData = data;
+                        showPreview(data);
+                    } catch (err) {
+                        console.error('JSON parse error:', err);
+                        alert('JSON 文件解析失败：' + err.message);
+                    }
+                };
+                reader.readAsText(file);
+            } else if (file.name.toLowerCase().endsWith('.zip')) {
+                // ZIP 文件提示
+                console.log('ZIP file selected');
+                importPreview.style.display = 'block';
+                previewName.textContent = 'ZIP 文件';
+                previewCreator.textContent = file.name;
+                previewDescription.textContent = 'ZIP 文件将在服务器端解压处理，无法预览具体内容';
+                previewTags.innerHTML = '';
+                avatarPlaceholder.style.display = 'flex';
+                previewAvatar.style.display = 'none';
+                previewBasicInfo.textContent = '-';
+                previewPersonality.textContent = '-';
+            }
+        });
+    }
+    
+    // 处理头像文件选择
+    if (avatarFileInput) {
+        avatarFileInput.addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                previewAvatar.src = event.target.result;
+                previewAvatar.style.display = 'block';
+                avatarPlaceholder.style.display = 'none';
+            };
+            reader.readAsDataURL(file);
+        });
+    }
+    
+    // 显示预览
+    function showPreview(data) {
+        console.log('Showing preview for:', data);
+        importPreview.style.display = 'block';
+        
+        // 隐藏"方式二"的手动填写表单
+        const manualDivider = document.getElementById('manualDivider');
+        const manualFormSection = document.getElementById('manualFormSection');
+        if (manualDivider) manualDivider.style.display = 'none';
+        if (manualFormSection) manualFormSection.style.display = 'none';
+        
+        // 填充基本信息
+        previewName.textContent = data.name || data.Name || '未命名角色';
+        previewCreator.textContent = data.creator || data.Creator || data.author || data.Author || '未知作者';
+        previewDescription.textContent = data.description || data.Description || data.desc || data.Desc || '暂无描述';
+        
+        // 填充标签
+        if (data.tags || data.Tags) {
+            const tagsData = data.tags || data.Tags;
+            if (Array.isArray(tagsData)) {
+                previewTags.innerHTML = tagsData.map(tag => `<span class="tag">${tag}</span>`).join('');
+            } else if (typeof tagsData === 'string') {
+                const tagList = tagsData.split(/[,，]/).map(t => t.trim()).filter(t => t);
+                previewTags.innerHTML = tagList.map(tag => `<span class="tag">${tag}</span>`).join('');
+            } else {
+                previewTags.innerHTML = '';
+            }
+        } else {
+            previewTags.innerHTML = '';
+        }
+        
+        // 填充详细信息
+        previewBasicInfo.textContent = data.basic_info || data.basicInfo || data.BasicInfo || data.basic || data.Basic || '-';
+        previewPersonality.textContent = data.personality || data.Personality || data.persona || data.Persona || '-';
+        
+        // 处理头像
+        const avatarData = data.avatar || data.Avatar || data.avatarUrl || data.AvatarUrl || data.image || data.Image;
+        if (avatarData) {
+            if (avatarData.startsWith('data:')) {
+                previewAvatar.src = avatarData;
+                previewAvatar.style.display = 'block';
+                avatarPlaceholder.style.display = 'none';
+            } else {
+                // 如果是 URL，尝试加载
+                previewAvatar.src = avatarData;
+                previewAvatar.style.display = 'block';
+                avatarPlaceholder.style.display = 'none';
+                previewAvatar.onerror = function() {
+                    previewAvatar.style.display = 'none';
+                    avatarPlaceholder.style.display = 'flex';
+                };
+            }
+        } else {
+            previewAvatar.style.display = 'none';
+            avatarPlaceholder.style.display = 'flex';
+        }
+        
+        // 自动填充表单字段
+        if (data.name || data.Name) document.querySelector('input[name="name"]').value = data.name || data.Name;
+        if (data.creator || data.Creator || data.author || data.Author) document.querySelector('input[name="creator"]').value = data.creator || data.Creator || data.author || data.Author;
+        if (data.description || data.Description || data.desc || data.Desc) document.querySelector('textarea[name="description"]').value = data.description || data.Description || data.desc || data.Desc;
+        if (data.tags || data.Tags) {
+            const tagsStr = Array.isArray(data.tags || data.Tags) ? (data.tags || data.Tags).join(', ') : (data.tags || data.Tags);
+            document.querySelector('input[name="tags"]').value = tagsStr;
+        }
+        if (data.basic_info || data.basicInfo || data.BasicInfo || data.basic || data.Basic) document.querySelector('textarea[name="basic_info"]').value = data.basic_info || data.basicInfo || data.BasicInfo || data.basic || data.Basic;
+        if (data.personality || data.Personality || data.persona || data.Persona) document.querySelector('textarea[name="personality"]').value = data.personality || data.Personality || data.persona || data.Persona;
+        if (data.scenario || data.Scenario || data.scene || data.Scene) document.querySelector('textarea[name="scenario"]').value = data.scenario || data.Scenario || data.scene || data.Scene;
+        if (data.first_message || data.firstMessage || data.FirstMessage || data.firstMsg || data.FirstMsg) document.querySelector('textarea[name="first_message"]').value = data.first_message || data.firstMessage || data.FirstMessage || data.firstMsg || data.FirstMsg;
+        if (data.example_dialogues || data.exampleDialogues || data.ExampleDialogues || data.examples || data.Examples) document.querySelector('textarea[name="example_dialogues"]').value = data.example_dialogues || data.exampleDialogues || data.ExampleDialogues || data.examples || data.Examples;
+        if (data.response_format || data.responseFormat || data.ResponseFormat || data.format || data.Format) document.querySelector('input[name="response_format"]').value = data.response_format || data.responseFormat || data.ResponseFormat || data.format || data.Format;
+        if (data.system_prompt || data.systemPrompt || data.SystemPrompt || data.system || data.System) document.querySelector('textarea[name="system_prompt"]').value = data.system_prompt || data.systemPrompt || data.SystemPrompt || data.system || data.System;
+        
+        // 填充规则
+        const rulesData = data.rules || data.Rules || data.rule || data.Rule;
+        if (rulesData && Array.isArray(rulesData)) {
+            const rulesContainer = document.getElementById('rules-container');
+            rulesContainer.innerHTML = '';
+            rulesData.forEach((rule, index) => {
+                const div = document.createElement('div');
+                div.className = 'rule-item';
+                div.innerHTML = `<input name="rules" value="${rule}" placeholder="规则 ${index + 1}">`;
+                rulesContainer.appendChild(div);
+            });
+        }
+    }
+    
+    // 清除导入
+    window.clearImport = function() {
+        cardFileInput.value = '';
+        avatarFileInput.value = '';
+        importPreview.style.display = 'none';
+        importedCardData = null;
+        
+        // 重置预览
+        previewAvatar.src = '';
+        previewAvatar.style.display = 'none';
+        avatarPlaceholder.style.display = 'flex';
+        previewName.textContent = '角色名';
+        previewCreator.textContent = '作者';
+        previewDescription.textContent = '描述';
+        previewTags.innerHTML = '';
+        previewBasicInfo.textContent = '-';
+        previewPersonality.textContent = '-';
+        
+        // 恢复显示"方式二"的手动填写表单
+        const manualDivider = document.getElementById('manualDivider');
+        const manualFormSection = document.getElementById('manualFormSection');
+        if (manualDivider) manualDivider.style.display = '';
+        if (manualFormSection) manualFormSection.style.display = '';
+    };
+});
+
+</script>
+
+<!-- JSZip 库用于本地解压 ZIP 文件 -->
+<script src="{{ url_for('static', filename='js/jszip.min.js') }}"></script>
+
+<script>
+// ZIP 文件本地解压预览功能
+document.addEventListener('DOMContentLoaded', function() {
+    const cardFileInput = document.getElementById('cardFileInput');
+    const importPreview = document.getElementById('importPreview');
+    
+    // 预览元素
+    const previewAvatar = document.getElementById('previewAvatar');
+    const avatarPlaceholder = document.querySelector('.avatar-placeholder');
+    const previewName = document.getElementById('previewName');
+    const previewCreator = document.getElementById('previewCreator');
+    const previewDescription = document.getElementById('previewDescription');
+    const previewTags = document.getElementById('previewTags');
+    const previewBasicInfo = document.getElementById('previewBasicInfo');
+    const previewPersonality = document.getElementById('previewPersonality');
+    
+    // 处理 ZIP 文件选择
+    if (cardFileInput) {
+        cardFileInput.addEventListener('change', async function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            
+            console.log('Selected file:', file.name);
+            
+            // 如果是 ZIP 文件，使用 JSZip 解压
+            if (file.name.toLowerCase().endsWith('.zip')) {
+                try {
+                    console.log('Processing ZIP file...');
+                    
+                    // 读取 ZIP 文件
+                    const zipData = await file.arrayBuffer();
+                    const zip = await JSZip.loadAsync(zipData);
+                    
+                    console.log('ZIP contents:', Object.keys(zip.files));
+                    
+                    // 查找 JSON 文件
+                    let jsonFile = null;
+                    let avatarFile = null;
+                    
+                    for (const [filename, zipEntry] of Object.entries(zip.files)) {
+                        if (zipEntry.dir) continue;
+                        
+                        const lowerName = filename.toLowerCase();
+                        if (lowerName.endsWith('.json') && !jsonFile) {
+                            jsonFile = zipEntry;
+                        } else if ((lowerName.endsWith('.png') || lowerName.endsWith('.jpg') || lowerName.endsWith('.jpeg') || lowerName.endsWith('.webp')) && !avatarFile) {
+                            avatarFile = zipEntry;
+                        }
+                    }
+                    
+                    if (!jsonFile) {
+                        alert('ZIP 文件中未找到 JSON 角色卡文件');
+                        return;
+                    }
+                    
+                    // 读取 JSON 内容
+                    const jsonContent = await jsonFile.async('text');
+                    const data = JSON.parse(jsonContent);
+                    console.log('Parsed JSON:', data);
+                    
+                    // 显示预览
+                    showZipPreview(data, zip, avatarFile);
+                    
+                } catch (err) {
+                    console.error('ZIP processing error:', err);
+                    alert('ZIP 文件处理失败：' + err.message);
+                }
+            }
+        });
+    }
+    
+    // 显示 ZIP 预览
+    async function showZipPreview(data, zip, avatarFile) {
+        importPreview.style.display = 'block';
+        
+        // 隐藏"方式二"的手动填写表单
+        const manualDivider = document.getElementById('manualDivider');
+        const manualFormSection = document.getElementById('manualFormSection');
+        if (manualDivider) manualDivider.style.display = 'none';
+        if (manualFormSection) manualFormSection.style.display = 'none';
+        
+        // 填充基本信息
+        previewName.textContent = data.name || data.Name || '未命名角色';
+        previewCreator.textContent = data.creator || data.Creator || data.author || data.Author || '未知作者';
+        previewDescription.textContent = data.description || data.Description || data.desc || data.Desc || '暂无描述';
+        
+        // 填充标签
+        if (data.tags || data.Tags) {
+            const tagsData = data.tags || data.Tags;
+            if (Array.isArray(tagsData)) {
+                previewTags.innerHTML = tagsData.map(tag => `<span class="tag">${tag}</span>`).join('');
+            } else if (typeof tagsData === 'string') {
+                const tagList = tagsData.split(/[,，]/).map(t => t.trim()).filter(t => t);
+                previewTags.innerHTML = tagList.map(tag => `<span class="tag">${tag}</span>`).join('');
+            } else {
+                previewTags.innerHTML = '';
+            }
+        } else {
+            previewTags.innerHTML = '';
+        }
+        
+        // 填充详细信息
+        previewBasicInfo.textContent = data.basic_info || data.basicInfo || data.BasicInfo || data.basic || data.Basic || '-';
+        previewPersonality.textContent = data.personality || data.Personality || data.persona || data.Persona || '-';
+        
+        // 处理头像 - 优先从 ZIP 中读取
+        try {
+            let avatarDataUrl = null;
+            
+            // 1. 首先尝试从 ZIP 中读取头像文件
+            if (avatarFile) {
+                console.log('Found avatar in ZIP:', avatarFile.name);
+                const avatarData = await avatarFile.async('base64');
+                const ext = avatarFile.name.split('.').pop().toLowerCase();
+                const mimeType = ext === 'png' ? 'image/png' : 
+                                ext === 'jpg' || ext === 'jpeg' ? 'image/jpeg' : 
+                                ext === 'webp' ? 'image/webp' : 'image/png';
+                avatarDataUrl = `data:${mimeType};base64,${avatarData}`;
+            }
+            // 2. 如果 ZIP 中没有，尝试从 JSON 中读取
+            else {
+                const avatarField = data.avatar || data.Avatar || data.avatarUrl || data.AvatarUrl || data.image || data.Image;
+                if (avatarField) {
+                    if (avatarField.startsWith('data:')) {
+                        avatarDataUrl = avatarField;
+                    } else {
+                        // 尝试在 ZIP 中查找对应的头像文件
+                        const possibleNames = ['avatar.png', 'avatar.jpg', 'avatar.jpeg', 'avatar.webp', 
+                                              'character.png', 'character.jpg', 'image.png', 'image.jpg'];
+                        for (const name of possibleNames) {
+                            const fileInZip = zip.file(name);
+                            if (fileInZip) {
+                                const avatarData = await fileInZip.async('base64');
+                                const ext = name.split('.').pop().toLowerCase();
+                                const mimeType = ext === 'png' ? 'image/png' : 
+                                                ext === 'jpg' || ext === 'jpeg' ? 'image/jpeg' : 
+                                                ext === 'webp' ? 'image/webp' : 'image/png';
+                                avatarDataUrl = `data:${mimeType};base64,${avatarData}`;
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+            
+            // 显示头像
+            if (avatarDataUrl) {
+                previewAvatar.src = avatarDataUrl;
+                previewAvatar.style.display = 'block';
+                avatarPlaceholder.style.display = 'none';
+            } else {
+                previewAvatar.style.display = 'none';
+                avatarPlaceholder.style.display = 'flex';
+            }
+        } catch (err) {
+            console.error('Avatar loading error:', err);
+            previewAvatar.style.display = 'none';
+            avatarPlaceholder.style.display = 'flex';
+        }
+        
+        // 自动填充表单字段
+        if (data.name || data.Name) document.querySelector('input[name="name"]').value = data.name || data.Name;
+        if (data.creator || data.Creator || data.author || data.Author) document.querySelector('input[name="creator"]').value = data.creator || data.Creator || data.author || data.Author;
+        if (data.description || data.Description || data.desc || data.Desc) document.querySelector('textarea[name="description"]').value = data.description || data.Description || data.desc || data.Desc;
+        if (data.tags || data.Tags) {
+            const tagsStr = Array.isArray(data.tags || data.Tags) ? (data.tags || data.Tags).join(', ') : (data.tags || data.Tags);
+            document.querySelector('input[name="tags"]').value = tagsStr;
+        }
+        if (data.basic_info || data.basicInfo || data.BasicInfo || data.basic || data.Basic) document.querySelector('textarea[name="basic_info"]').value = data.basic_info || data.basicInfo || data.BasicInfo || data.basic || data.Basic;
+        if (data.personality || data.Personality || data.persona || data.Persona) document.querySelector('textarea[name="personality"]').value = data.personality || data.Personality || data.persona || data.Persona;
+        if (data.scenario || data.Scenario || data.scene || data.Scene) document.querySelector('textarea[name="scenario"]').value = data.scenario || data.Scenario || data.scene || data.Scene;
+        if (data.first_message || data.firstMessage || data.FirstMessage || data.firstMsg || data.FirstMsg) document.querySelector('textarea[name="first_message"]').value = data.first_message || data.firstMessage || data.FirstMessage || data.firstMsg || data.FirstMsg;
+        if (data.example_dialogues || data.exampleDialogues || data.ExampleDialogues || data.examples || data.Examples) document.querySelector('textarea[name="example_dialogues"]').value = data.example_dialogues || data.exampleDialogues || data.ExampleDialogues || data.examples || data.Examples;
+        if (data.response_format || data.responseFormat || data.ResponseFormat || data.format || data.Format) document.querySelector('input[name="response_format"]').value = data.response_format || data.responseFormat || data.ResponseFormat || data.format || data.Format;
+        if (data.system_prompt || data.systemPrompt || data.SystemPrompt || data.system || data.System) document.querySelector('textarea[name="system_prompt"]').value = data.system_prompt || data.systemPrompt || data.SystemPrompt || data.system || data.System;
+        
+        // 填充规则
+        const rulesData = data.rules || data.Rules || data.rule || data.Rule;
+        if (rulesData && Array.isArray(rulesData)) {
+            const rulesContainer = document.getElementById('rules-container');
+            rulesContainer.innerHTML = '';
+            rulesData.forEach((rule, index) => {
+                const div = document.createElement('div');
+                div.className = 'rule-item';
+                div.innerHTML = `<input name="rules" value="${rule}" placeholder="规则 ${index + 1}">`;
+                rulesContainer.appendChild(div);
+            });
+        }
+    }
+});
 </script>
 {% endblock %}
