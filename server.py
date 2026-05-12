@@ -59,7 +59,7 @@ from app.email_queue import EmailQueue, queue_register_success_email, queue_logi
 # 创建 Flask 应用
 server = Flask(__name__, template_folder="app/templates", static_folder="app/static")
 server.config.from_object(Config)
-
+server.debug = True
 # 初始化邮件队列表并启动工作线程
 EmailQueue.init_db()
 EmailQueue.start_worker()

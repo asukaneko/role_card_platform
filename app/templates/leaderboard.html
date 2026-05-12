@@ -2,87 +2,144 @@
 {% block title %}排行榜 - 角色卡平台{% endblock %}
 {% block content %}
 <section class="leaderboard-section">
-    <h1>
-        <svg class="title-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M8 21h8M12 17v4M7 4h10l2 6H5L7 4z"/>
-            <path d="M12 17l-3-6h6l-3 6z"/>
-        </svg>
-        排行榜
-    </h1>
-    
-    <!-- 排序选项 -->
-    <div class="leaderboard-tabs">
-        <a href="{{ url_for('leaderboard', sort='likes') }}" class="tab {% if sort_by == 'likes' %}active{% endif %}">
-            <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/>
+    <!-- 页面标题区域 -->
+    <div class="leaderboard-header">
+        <div class="title-decoration">
+            <svg class="crown-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <path d="M2 4l3 12h14l3-12-6 7-4-7-4 7-6-7zm3 16h14"/>
             </svg>
-            最多点赞
-        </a>
-        <a href="{{ url_for('leaderboard', sort='views') }}" class="tab {% if sort_by == 'views' %}active{% endif %}">
-            <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-                <circle cx="12" cy="12" r="3"/>
-            </svg>
-            最多浏览
-        </a>
-        <a href="{{ url_for('leaderboard', sort='downloads') }}" class="tab {% if sort_by == 'downloads' %}active{% endif %}">
-            <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                <polyline points="7 10 12 15 17 10"/>
-                <line x1="12" y1="15" x2="12" y2="3"/>
-            </svg>
-            最多下载
-        </a>
-        <a href="{{ url_for('leaderboard', sort='newest') }}" class="tab {% if sort_by == 'newest' %}active{% endif %}">
-            <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <circle cx="12" cy="12" r="10"/>
-                <polyline points="12 6 12 12 16 14"/>
-            </svg>
-            最新发布
-        </a>
+        </div>
+        <h1>排行榜</h1>
+        <p class="subtitle">发现最受欢迎的角色卡与活跃创作者</p>
+        <div class="header-badges">
+            <span class="header-badge">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"/>
+                    <polyline points="12 6 12 12 16 14"/>
+                </svg>
+                Weekly Ranking
+            </span>
+        </div>
     </div>
     
-    <div class="leaderboard-grid">
-        <!-- 角色卡排行榜 -->
-        <div class="leaderboard-column">
-            <h2>
-                <svg class="section-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
-                    <line x1="3" y1="9" x2="21" y2="9"/>
-                    <line x1="9" y1="21" x2="9" y2="9"/>
+    <!-- 排序选项 - Segmented Tabs -->
+    <div class="leaderboard-tabs-container">
+        <div class="leaderboard-tabs">
+            <a href="{{ url_for('leaderboard', sort='likes') }}" class="tab {% if sort_by == 'likes' %}active{% endif %}">
+                <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/>
                 </svg>
-                热门角色卡
-            </h2>
-            <div class="card-list">
-                {% for card in card_leaderboard %}
-                <div class="leaderboard-card">
-                    <div class="rank-badge">{{ loop.index }}</div>
-                    <div class="card-preview">
-                        {% if card.avatar_path %}
-                        <img src="{{ url_for('avatar_file', filename=card.avatar_path.split('/')[-1]) }}" alt="{{ card.name }}">
-                        {% else %}
-                        <div class="no-avatar">{{ card.name[:1] }}</div>
-                        {% endif %}
-                    </div>
-                    <div class="card-info">
-                        <a href="{{ url_for('card_detail', identifier=card.slug) }}" class="card-name">{{ card.name }}</a>
-                        <span class="card-author">@{{ card.creator or '匿名' }}</span>
-                        <div class="card-stats">
-                            <span class="stat">
-                                <svg class="stat-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                最多点赞
+            </a>
+            <a href="{{ url_for('leaderboard', sort='views') }}" class="tab {% if sort_by == 'views' %}active{% endif %}">
+                <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                    <circle cx="12" cy="12" r="3"/>
+                </svg>
+                最多浏览
+            </a>
+            <a href="{{ url_for('leaderboard', sort='downloads') }}" class="tab {% if sort_by == 'downloads' %}active{% endif %}">
+                <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                    <polyline points="7 10 12 15 17 10"/>
+                    <line x1="12" y1="15" x2="12" y2="3"/>
+                </svg>
+                最多下载
+            </a>
+            <a href="{{ url_for('leaderboard', sort='newest') }}" class="tab {% if sort_by == 'newest' %}active{% endif %}">
+                <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"/>
+                    <polyline points="12 6 12 12 16 14"/>
+                </svg>
+                最新发布
+            </a>
+        </div>
+    </div>
+    
+    <!-- 主体内容 - 2栏布局 -->
+    <div class="leaderboard-grid">
+        <!-- 左侧：热门角色卡排行榜 -->
+        <div class="leaderboard-column cards-column">
+            <div class="column-header">
+                <h2>
+                    <span class="section-icon-wrapper">
+                        <svg class="section-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                            <line x1="3" y1="9" x2="21" y2="9"/>
+                            <line x1="9" y1="21" x2="9" y2="9"/>
+                        </svg>
+                    </span>
+                    热门角色卡
+                    <span class="section-badge">Top Cards</span>
+                </h2>
+                <a href="{{ url_for('index') }}" class="view-all-btn">
+                    查看全部
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="9 18 15 12 9 6"/>
+                    </svg>
+                </a>
+            </div>
+            <div class="leaderboard-container">
+                <div class="decorative-line"></div>
+                {% if card_leaderboard %}
+                <div class="card-list">
+                    {% for card in card_leaderboard %}
+                    <div class="leaderboard-item {% if loop.index <= 3 %}top-rank rank-{{ loop.index }}{% endif %}" style="--item-index: {{ loop.index }}">
+                        <div class="rank-badge-wrapper">
+                            {% if loop.index == 1 %}
+                            <div class="rank-badge gold">
+                                <svg viewBox="0 0 24 24" fill="currentColor">
+                                    <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                                </svg>
+                            </div>
+                            {% elif loop.index == 2 %}
+                            <div class="rank-badge silver">
+                                <svg viewBox="0 0 24 24" fill="currentColor">
+                                    <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                                </svg>
+                            </div>
+                            {% elif loop.index == 3 %}
+                            <div class="rank-badge bronze">
+                                <svg viewBox="0 0 24 24" fill="currentColor">
+                                    <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                                </svg>
+                            </div>
+                            {% else %}
+                            <div class="rank-badge normal">{{ loop.index }}</div>
+                            {% endif %}
+                        </div>
+                        <div class="item-preview">
+                            {% if card.avatar_path %}
+                            <img src="{{ url_for('avatar_file', filename=card.avatar_path.split('/')[-1]) }}" alt="{{ card.name }}">
+                            {% else %}
+                            <div class="no-avatar">{{ card.name[:1] }}</div>
+                            {% endif %}
+                        </div>
+                        <div class="item-info">
+                            <a href="{{ url_for('card_detail', identifier=card.slug) }}" class="item-name">{{ card.name }}</a>
+                            <span class="item-meta">@{{ card.creator or '匿名' }}</span>
+                            <div class="item-tags">
+                                {% if card.tags and card.tags|length > 0 %}
+                                <span class="tag">{{ card.tags[0] }}</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="item-stats">
+                            <span class="stat-item">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                     <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/>
                                 </svg>
                                 {{ card.likes }}
                             </span>
-                            <span class="stat">
-                                <svg class="stat-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <span class="stat-item">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                     <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
                                     <circle cx="12" cy="12" r="3"/>
                                 </svg>
                                 {{ card.views }}
                             </span>
-                            <span class="stat">
-                                <svg class="stat-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <span class="stat-item">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                     <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
                                     <polyline points="7 10 12 15 17 10"/>
                                     <line x1="12" y1="15" x2="12" y2="3"/>
@@ -91,239 +148,564 @@
                             </span>
                         </div>
                     </div>
+                    {% endfor %}
                 </div>
-                {% endfor %}
+                {% else %}
+                <div class="empty-state">
+                    <div class="empty-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                            <line x1="9" y1="9" x2="15" y2="15"/>
+                            <line x1="15" y1="9" x2="9" y2="15"/>
+                        </svg>
+                    </div>
+                    <p>暂无角色卡数据</p>
+                    <span>成为第一个上传者吧！</span>
+                </div>
+                {% endif %}
             </div>
         </div>
         
-        <!-- 用户排行榜 -->
-        <div class="leaderboard-column">
-            <h2>
-                <svg class="section-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
-                    <circle cx="9" cy="7" r="4"/>
-                    <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
-                    <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
-                </svg>
-                活跃创作者
-            </h2>
-            <div class="user-list">
-                {% for user in user_leaderboard %}
-                <div class="leaderboard-user">
-                    <div class="rank-badge">{{ user.rank }}</div>
-                    <div class="user-avatar">
-                        {% if user.avatar_path %}
-                        <img src="{{ url_for('avatar_file', filename=user.avatar_path.split('/')[-1]) }}" alt="{{ user.username }}">
-                        {% else %}
-                        <div class="no-avatar">{{ (user.display_name or user.username)[:1] }}</div>
-                        {% endif %}
-                    </div>
-                    <div class="user-info">
-                        <a href="{{ url_for('user_profile', username=user.username) }}" class="user-name">{{ user.display_name or user.username }}</a>
-                        <span class="user-level">Lv{{ user.level }} {{ user.level_title }}</span>
-                        <div class="user-stats">
-                            <span class="stat">
-                                <svg class="stat-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <!-- 右侧：活跃创作者排行榜 -->
+        <div class="leaderboard-column creators-column">
+            <div class="column-header">
+                <h2>
+                    <span class="section-icon-wrapper creator">
+                        <svg class="section-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                            <circle cx="9" cy="7" r="4"/>
+                            <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+                            <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                        </svg>
+                    </span>
+                    活跃创作者
+                    <span class="section-badge">Top Creators</span>
+                </h2>
+                <a href="{{ url_for('index') }}" class="view-all-btn">
+                    查看全部
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="9 18 15 12 9 6"/>
+                    </svg>
+                </a>
+            </div>
+            <div class="leaderboard-container">
+                <div class="decorative-line creator-line"></div>
+                {% if user_leaderboard %}
+                <div class="user-list">
+                    {% for user in user_leaderboard %}
+                    <div class="leaderboard-item {% if user.rank <= 3 %}top-rank rank-{{ user.rank }}{% endif %}" style="--item-index: {{ loop.index }}">
+                        <div class="rank-badge-wrapper">
+                            {% if user.rank == 1 %}
+                            <div class="rank-badge gold">
+                                <svg viewBox="0 0 24 24" fill="currentColor">
+                                    <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                                </svg>
+                            </div>
+                            {% elif user.rank == 2 %}
+                            <div class="rank-badge silver">
+                                <svg viewBox="0 0 24 24" fill="currentColor">
+                                    <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                                </svg>
+                            </div>
+                            {% elif user.rank == 3 %}
+                            <div class="rank-badge bronze">
+                                <svg viewBox="0 0 24 24" fill="currentColor">
+                                    <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                                </svg>
+                            </div>
+                            {% else %}
+                            <div class="rank-badge normal">{{ user.rank }}</div>
+                            {% endif %}
+                        </div>
+                        <div class="item-preview avatar-preview">
+                            {% if user.avatar_path %}
+                            <img src="{{ url_for('avatar_file', filename=user.avatar_path.split('/')[-1]) }}" alt="{{ user.username }}">
+                            {% else %}
+                            <div class="no-avatar">{{ (user.display_name or user.username)[:1] }}</div>
+                            {% endif %}
+                        </div>
+                        <div class="item-info">
+                            <a href="{{ url_for('user_profile', username=user.username) }}" class="item-name">{{ user.display_name or user.username }}</a>
+                            <span class="item-meta level-meta">
+                                <span class="level-badge">Lv{{ user.level }}</span>
+                                {{ user.level_title }}
+                            </span>
+                            <div class="exp-bar">
+                                <div class="exp-fill" style="width: {{ (user.exp % 100) }}%"></div>
+                            </div>
+                        </div>
+                        <div class="item-stats vertical">
+                            <span class="stat-item">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                     <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
                                 </svg>
                                 {{ user.exp }} EXP
                             </span>
-                            <span class="stat">
-                                <svg class="stat-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <span class="stat-item">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                     <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
                                     <polyline points="14 2 14 8 20 8"/>
-                                    <line x1="16" y1="13" x2="8" y2="13"/>
-                                    <line x1="16" y1="17" x2="8" y2="17"/>
-                                    <polyline points="10 9 9 9 8 9"/>
                                 </svg>
                                 {{ user.card_count }} 角色卡
                             </span>
                         </div>
                     </div>
+                    {% endfor %}
                 </div>
-                {% endfor %}
+                {% else %}
+                <div class="empty-state">
+                    <div class="empty-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                            <circle cx="9" cy="7" r="4"/>
+                        </svg>
+                    </div>
+                    <p>暂无创作者数据</p>
+                    <span>开始创作，成为榜单明星！</span>
+                </div>
+                {% endif %}
             </div>
         </div>
     </div>
 </section>
 
 <style>
-.title-icon, .section-icon {
-    width: 28px;
-    height: 28px;
-    vertical-align: middle;
-    margin-right: 0.5rem;
-}
-
-.section-icon {
-    width: 20px;
-    height: 20px;
-}
-
-.tab-icon, .stat-icon {
-    width: 16px;
-    height: 16px;
-    vertical-align: middle;
-    margin-right: 0.25rem;
-}
-
-.stat-icon {
-    stroke-width: 1.5;
-}
-
+/* ========== 页面整体布局 ========== */
 .leaderboard-section {
-    max-width: 1000px;
+    max-width: 1160px;
     margin: 0 auto;
-    padding: 2rem 1rem;
+    padding: 2.5rem 1.5rem 4rem;
+    animation: fadeInUp 0.6s ease-out;
 }
 
-.leaderboard-section h1 {
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* ========== 页面标题区域 ========== */
+.leaderboard-header {
     text-align: center;
-    margin-bottom: 2rem;
-    color: var(--ink);
-    display: flex;
+    margin-bottom: 2.5rem;
+    animation: fadeInUp 0.6s ease-out 0.1s both;
+}
+
+.title-decoration {
+    display: inline-flex;
     align-items: center;
     justify-content: center;
+    width: 64px;
+    height: 64px;
+    margin-bottom: 1rem;
+    background: linear-gradient(135deg, rgba(214, 168, 71, 0.15), rgba(35, 124, 131, 0.15));
+    border-radius: 20px;
+    border: 1px solid rgba(214, 168, 71, 0.3);
+    box-shadow: 0 8px 32px rgba(214, 168, 71, 0.15);
+}
+
+.crown-icon {
+    width: 32px;
+    height: 32px;
+    color: #D6A847;
+}
+
+.leaderboard-header h1 {
+    font-size: 2.5rem;
+    font-weight: 800;
+    color: #1F2A2A;
+    margin: 0 0 0.5rem;
+    letter-spacing: -0.02em;
+}
+
+.subtitle {
+    font-size: 1.125rem;
+    color: #6F746F;
+    margin: 0 0 1rem;
+    font-weight: 500;
+}
+
+.header-badges {
+    display: flex;
+    justify-content: center;
+    gap: 0.75rem;
+}
+
+.header-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.5rem 1rem;
+    background: rgba(35, 124, 131, 0.08);
+    border: 1px solid rgba(35, 124, 131, 0.2);
+    border-radius: 999px;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: #237C83;
+}
+
+.header-badge svg {
+    width: 14px;
+    height: 14px;
+}
+
+/* ========== Segmented Tabs ========== */
+.leaderboard-tabs-container {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 2.5rem;
+    animation: fadeInUp 0.6s ease-out 0.2s both;
 }
 
 .leaderboard-tabs {
-    display: flex;
-    justify-content: center;
-    gap: 0.5rem;
-    margin-bottom: 2rem;
-    flex-wrap: wrap;
+    display: inline-flex;
+    padding: 0.375rem;
+    background: rgba(255, 255, 255, 0.58);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+    border: 1px solid rgba(255, 255, 255, 0.6);
+    border-radius: 16px;
+    box-shadow: 0 18px 50px rgba(80, 70, 50, 0.1);
 }
 
 .leaderboard-tabs .tab {
     display: flex;
     align-items: center;
-    gap: 0.375rem;
-    padding: 0.625rem 1.25rem;
-    background: rgba(47, 111, 115, 0.1);
-    border: 1px solid rgba(47, 111, 115, 0.2);
-    border-radius: 8px;
-    color: var(--ink);
+    gap: 0.5rem;
+    padding: 0.75rem 1.5rem;
+    border-radius: 12px;
+    color: #6F746F;
     text-decoration: none;
-    font-size: 0.875rem;
-    font-weight: 500;
-    transition: all 0.2s;
+    font-size: 0.9375rem;
+    font-weight: 600;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    overflow: hidden;
 }
 
 .leaderboard-tabs .tab:hover {
-    background: rgba(47, 111, 115, 0.2);
-    border-color: rgba(47, 111, 115, 0.4);
+    color: #237C83;
+    background: rgba(35, 124, 131, 0.08);
 }
 
 .leaderboard-tabs .tab.active {
-    background: var(--accent);
     color: white;
-    border-color: var(--accent);
+    background: linear-gradient(135deg, #237C83, #1D9BB0);
+    box-shadow: 0 4px 16px rgba(35, 124, 131, 0.35);
 }
 
-.leaderboard-tabs .tab.active svg {
-    stroke: white;
+.tab-icon {
+    width: 18px;
+    height: 18px;
 }
 
+/* ========== 主体网格布局 ========== */
 .leaderboard-grid {
-    display: flex;
-    justify-content: center;
-    gap: 3rem;
-}
-
-.leaderboard-column {
-    flex: 0 0 420px;
-    max-width: 420px;
+    display: grid;
+    grid-template-columns: 1.5fr 1fr;
+    gap: 2rem;
+    animation: fadeInUp 0.6s ease-out 0.3s both;
 }
 
 @media (max-width: 900px) {
     .leaderboard-grid {
-        flex-direction: column;
-        align-items: center;
-        gap: 2rem;
-    }
-    
-    .leaderboard-column {
-        flex: 0 0 auto;
-        width: 100%;
-        max-width: 500px;
+        grid-template-columns: 1fr;
     }
 }
 
-.leaderboard-column h2 {
-    margin-bottom: 1rem;
-    color: var(--ink);
-    font-size: 1.25rem;
-    display: flex;
-    align-items: center;
-}
-
-.card-list, .user-list {
+/* ========== 榜单列容器 ========== */
+.leaderboard-column {
     display: flex;
     flex-direction: column;
-    gap: 0.75rem;
 }
 
-.leaderboard-card, .leaderboard-user {
+.column-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+    padding: 0 0.5rem;
+}
+
+.column-header h2 {
     display: flex;
     align-items: center;
     gap: 0.75rem;
-    padding: 0.75rem;
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 12px;
-    transition: all 0.2s;
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: #1F2A2A;
+    margin: 0;
 }
 
-.leaderboard-card:hover, .leaderboard-user:hover {
-    background: rgba(47, 111, 115, 0.1);
-    border-color: rgba(47, 111, 115, 0.3);
-    transform: translateX(4px);
-}
-
-.rank-badge {
-    width: 28px;
-    height: 28px;
+.section-icon-wrapper {
     display: flex;
     align-items: center;
     justify-content: center;
-    background: var(--accent);
-    color: white;
+    width: 40px;
+    height: 40px;
+    background: linear-gradient(135deg, rgba(35, 124, 131, 0.12), rgba(29, 155, 176, 0.08));
+    border-radius: 12px;
+    border: 1px solid rgba(35, 124, 131, 0.2);
+}
+
+.section-icon-wrapper.creator {
+    background: linear-gradient(135deg, rgba(214, 168, 71, 0.12), rgba(184, 91, 106, 0.08));
+    border-color: rgba(214, 168, 71, 0.2);
+}
+
+.section-icon {
+    width: 20px;
+    height: 20px;
+    color: #237C83;
+}
+
+.section-icon-wrapper.creator .section-icon {
+    color: #D6A847;
+}
+
+.section-badge {
+    padding: 0.25rem 0.625rem;
+    background: rgba(35, 124, 131, 0.1);
+    border: 1px solid rgba(35, 124, 131, 0.2);
+    border-radius: 6px;
+    font-size: 0.6875rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #237C83;
+}
+
+.creators-column .section-badge {
+    background: rgba(214, 168, 71, 0.1);
+    border-color: rgba(214, 168, 71, 0.2);
+    color: #B8956B;
+}
+
+.view-all-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.5rem 0.875rem;
+    background: rgba(255, 255, 255, 0.5);
+    border: 1px solid rgba(35, 124, 131, 0.2);
+    border-radius: 8px;
+    color: #237C83;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    text-decoration: none;
+    transition: all 0.2s;
+}
+
+.view-all-btn:hover {
+    background: rgba(35, 124, 131, 0.1);
+    border-color: rgba(35, 124, 131, 0.4);
+}
+
+.view-all-btn svg {
+    width: 14px;
+    height: 14px;
+}
+
+/* ========== 玻璃拟态榜单容器 ========== */
+.leaderboard-container {
+    position: relative;
+    background: rgba(255, 255, 255, 0.58);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+    border: 1px solid rgba(255, 255, 255, 0.6);
+    border-radius: 24px;
+    padding: 1.5rem;
+    box-shadow: 0 18px 50px rgba(80, 70, 50, 0.1);
+    overflow: hidden;
+}
+
+.decorative-line {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, 
+        transparent 0%, 
+        rgba(35, 124, 131, 0.3) 20%, 
+        rgba(29, 155, 176, 0.5) 50%, 
+        rgba(35, 124, 131, 0.3) 80%, 
+        transparent 100%
+    );
+}
+
+.decorative-line.creator-line {
+    background: linear-gradient(90deg, 
+        transparent 0%, 
+        rgba(214, 168, 71, 0.3) 20%, 
+        rgba(184, 91, 106, 0.4) 50%, 
+        rgba(214, 168, 71, 0.3) 80%, 
+        transparent 100%
+    );
+}
+
+/* ========== 榜单项样式 ========== */
+.card-list, .user-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.875rem;
+}
+
+.leaderboard-item {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 1rem 1.25rem;
+    background: rgba(255, 255, 255, 0.45);
+    border: 1px solid rgba(255, 255, 255, 0.5);
+    border-radius: 16px;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    animation: slideIn 0.5s ease-out backwards;
+    animation-delay: calc(var(--item-index) * 0.05s);
+    position: relative;
+}
+
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateX(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+.leaderboard-item:hover {
+    transform: translateY(-2px);
+    background: rgba(255, 255, 255, 0.75);
+    box-shadow: 0 8px 24px rgba(35, 124, 131, 0.12);
+    border-color: rgba(35, 124, 131, 0.2);
+}
+
+/* 前三名特殊样式 */
+.leaderboard-item.top-rank {
+    background: rgba(255, 255, 255, 0.65);
+}
+
+.leaderboard-item.rank-1 {
+    border: 1px solid rgba(214, 168, 71, 0.4);
+    background: linear-gradient(135deg, rgba(255, 253, 245, 0.9), rgba(255, 250, 240, 0.8));
+    box-shadow: 0 4px 20px rgba(214, 168, 71, 0.15);
+}
+
+.leaderboard-item.rank-1::before {
+    content: '';
+    position: absolute;
+    top: -1px;
+    left: -1px;
+    right: -1px;
+    height: 3px;
+    background: linear-gradient(90deg, #FFD700, #FFA500, #FFD700);
+    border-radius: 16px 16px 0 0;
+}
+
+.leaderboard-item.rank-2 {
+    border-color: rgba(192, 192, 192, 0.4);
+}
+
+.leaderboard-item.rank-3 {
+    border-color: rgba(205, 127, 50, 0.4);
+}
+
+/* ========== 排名徽章 ========== */
+.rank-badge-wrapper {
+    flex-shrink: 0;
+}
+
+.rank-badge {
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 10px;
     font-weight: 700;
     font-size: 0.875rem;
-    border-radius: 50%;
-    flex-shrink: 0;
 }
 
-.leaderboard-card:nth-child(1) .rank-badge,
-.leaderboard-user:nth-child(1) .rank-badge {
+.rank-badge.gold {
     background: linear-gradient(135deg, #FFD700, #FFA500);
-    box-shadow: 0 2px 8px rgba(255, 215, 0, 0.4);
+    color: white;
+    box-shadow: 0 4px 12px rgba(255, 215, 0, 0.4);
 }
 
-.leaderboard-card:nth-child(2) .rank-badge,
-.leaderboard-user:nth-child(2) .rank-badge {
-    background: linear-gradient(135deg, #C0C0C0, #A0A0A0);
-    box-shadow: 0 2px 8px rgba(192, 192, 192, 0.4);
+.rank-badge.gold svg {
+    width: 20px;
+    height: 20px;
+    filter: drop-shadow(0 1px 2px rgba(0,0,0,0.2));
 }
 
-.leaderboard-card:nth-child(3) .rank-badge,
-.leaderboard-user:nth-child(3) .rank-badge {
-    background: linear-gradient(135deg, #CD7F32, #B87333);
-    box-shadow: 0 2px 8px rgba(205, 127, 50, 0.4);
+.rank-badge.silver {
+    background: linear-gradient(135deg, #E8E8E8, #B8B8B8);
+    color: white;
+    box-shadow: 0 4px 12px rgba(192, 192, 192, 0.4);
 }
 
-.card-preview, .user-avatar {
-    width: 48px;
-    height: 48px;
-    border-radius: 8px;
+.rank-badge.silver svg {
+    width: 20px;
+    height: 20px;
+    filter: drop-shadow(0 1px 2px rgba(0,0,0,0.2));
+}
+
+.rank-badge.bronze {
+    background: linear-gradient(135deg, #E8A87C, #C4714D);
+    color: white;
+    box-shadow: 0 4px 12px rgba(205, 127, 50, 0.4);
+}
+
+.rank-badge.bronze svg {
+    width: 20px;
+    height: 20px;
+    filter: drop-shadow(0 1px 2px rgba(0,0,0,0.2));
+}
+
+.rank-badge.normal {
+    background: rgba(35, 124, 131, 0.1);
+    color: #237C83;
+    border: 1px solid rgba(35, 124, 131, 0.2);
+}
+
+/* ========== 预览图 ========== */
+.item-preview {
+    width: 52px;
+    height: 52px;
+    border-radius: 12px;
     overflow: hidden;
     flex-shrink: 0;
+    border: 2px solid rgba(255, 255, 255, 0.8);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    transition: all 0.3s;
 }
 
-.card-preview img, .user-avatar img {
+.leaderboard-item:hover .item-preview {
+    transform: scale(1.05);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
+}
+
+.item-preview.avatar-preview {
+    border-radius: 50%;
+}
+
+.item-preview img {
     width: 100%;
     height: 100%;
     object-fit: cover;
+    transition: transform 0.3s;
+}
+
+.leaderboard-item:hover .item-preview img {
+    transform: scale(1.1);
 }
 
 .no-avatar {
@@ -332,81 +714,306 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    background: linear-gradient(135deg, var(--accent), var(--accent-light));
+    background: linear-gradient(135deg, #237C83, #1D9BB0);
     color: white;
     font-weight: 700;
     font-size: 1.25rem;
 }
 
-.card-info, .user-info {
+/* ========== 信息区域 ========== */
+.item-info {
     flex: 1;
     min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
 }
 
-.card-name, .user-name {
-    display: block;
-    font-weight: 600;
-    color: var(--ink);
+.item-name {
+    font-weight: 700;
+    font-size: 1rem;
+    color: #1F2A2A;
     text-decoration: none;
-    margin-bottom: 0.25rem;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    transition: color 0.2s;
 }
 
-.card-name:hover, .user-name:hover {
-    color: var(--accent);
+.item-name:hover {
+    color: #237C83;
 }
 
-.card-author, .user-level {
-    display: block;
-    font-size: 0.75rem;
-    color: var(--muted);
-    margin-bottom: 0.25rem;
-}
-
-.card-stats, .user-stats {
-    display: flex;
-    gap: 0.75rem;
-    flex-wrap: wrap;
-}
-
-.stat {
+.item-meta {
+    font-size: 0.8125rem;
+    color: #6F746F;
     display: flex;
     align-items: center;
-    gap: 0.25rem;
-    font-size: 0.75rem;
-    color: var(--muted);
+    gap: 0.5rem;
 }
 
-/* 深色模式适配 - 磨砂玻璃效果 */
-:root[data-theme="dark"] .leaderboard-card,
-:root[data-theme="dark"] .leaderboard-user {
-    background: rgba(30, 30, 35, 0.6);
-    border-color: rgba(255, 255, 255, 0.08);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+.level-badge {
+    padding: 0.125rem 0.5rem;
+    background: linear-gradient(135deg, rgba(214, 168, 71, 0.15), rgba(184, 91, 106, 0.1));
+    border: 1px solid rgba(214, 168, 71, 0.3);
+    border-radius: 4px;
+    font-size: 0.6875rem;
+    font-weight: 700;
+    color: #B8956B;
 }
 
-:root[data-theme="dark"] .leaderboard-card:hover,
-:root[data-theme="dark"] .leaderboard-user:hover {
-    background: rgba(47, 111, 115, 0.25);
+.item-tags {
+    display: flex;
+    gap: 0.375rem;
+    margin-top: 0.25rem;
+}
+
+.tag {
+    padding: 0.25rem 0.625rem;
+    background: rgba(35, 124, 131, 0.08);
+    border: 1px solid rgba(35, 124, 131, 0.15);
+    border-radius: 6px;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    color: #237C83;
+}
+
+/* ========== 统计区域 ========== */
+.item-stats {
+    display: flex;
+    gap: 1rem;
+    flex-shrink: 0;
+}
+
+.item-stats.vertical {
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.stat-item {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: #6F746F;
+}
+
+.stat-item svg {
+    width: 14px;
+    height: 14px;
+    opacity: 0.7;
+}
+
+/* ========== 经验条 ========== */
+.exp-bar {
+    width: 80px;
+    height: 4px;
+    background: rgba(35, 124, 131, 0.1);
+    border-radius: 2px;
+    overflow: hidden;
+    margin-top: 0.25rem;
+}
+
+.exp-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #237C83, #1D9BB0);
+    border-radius: 2px;
+    transition: width 0.5s ease-out;
+}
+
+/* ========== 空状态 ========== */
+.empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 3rem 1.5rem;
+    text-align: center;
+}
+
+.empty-icon {
+    width: 64px;
+    height: 64px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(35, 124, 131, 0.08);
+    border-radius: 20px;
+    margin-bottom: 1rem;
+}
+
+.empty-icon svg {
+    width: 32px;
+    height: 32px;
+    color: #237C83;
+    opacity: 0.5;
+}
+
+.empty-state p {
+    font-size: 1rem;
+    font-weight: 600;
+    color: #1F2A2A;
+    margin: 0 0 0.25rem;
+}
+
+.empty-state span {
+    font-size: 0.875rem;
+    color: #6F746F;
+}
+
+/* ========== 深色模式适配 ========== */
+:root[data-theme="dark"] .leaderboard-header h1 {
+    color: #f5f1e8;
+}
+
+:root[data-theme="dark"] .subtitle {
+    color: #aeb6c5;
+}
+
+:root[data-theme="dark"] .header-badge {
+    background: rgba(98, 185, 191, 0.15);
     border-color: rgba(98, 185, 191, 0.3);
-    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+    color: #62b9bf;
 }
 
-/* 浅色模式磨砂玻璃 */
-.leaderboard-card,
-.leaderboard-user {
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+:root[data-theme="dark"] .leaderboard-tabs {
+    background: rgba(9, 15, 30, 0.72);
+    border-color: rgba(120, 160, 220, 0.18);
 }
 
-.leaderboard-card:hover,
-.leaderboard-user:hover {
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+:root[data-theme="dark"] .leaderboard-tabs .tab {
+    color: #aeb6c5;
+}
+
+:root[data-theme="dark"] .leaderboard-tabs .tab:hover {
+    color: #62b9bf;
+    background: rgba(98, 185, 191, 0.1);
+}
+
+:root[data-theme="dark"] .leaderboard-tabs .tab.active {
+    background: linear-gradient(135deg, #2a8a91, #3ab0c0);
+    box-shadow: 0 4px 16px rgba(98, 185, 191, 0.3);
+}
+
+:root[data-theme="dark"] .column-header h2 {
+    color: #f5f1e8;
+}
+
+:root[data-theme="dark"] .section-icon-wrapper {
+    background: linear-gradient(135deg, rgba(98, 185, 191, 0.15), rgba(45, 121, 126, 0.1));
+    border-color: rgba(98, 185, 191, 0.25);
+}
+
+:root[data-theme="dark"] .section-icon {
+    color: #62b9bf;
+}
+
+:root[data-theme="dark"] .view-all-btn {
+    background: rgba(9, 15, 30, 0.5);
+    border-color: rgba(98, 185, 191, 0.25);
+    color: #62b9bf;
+}
+
+:root[data-theme="dark"] .view-all-btn:hover {
+    background: rgba(98, 185, 191, 0.15);
+    border-color: rgba(98, 185, 191, 0.4);
+}
+
+:root[data-theme="dark"] .leaderboard-container {
+    background: rgba(9, 15, 30, 0.72);
+    border-color: rgba(120, 160, 220, 0.18);
+    box-shadow: 0 18px 50px rgba(0, 0, 0, 0.35);
+}
+
+:root[data-theme="dark"] .decorative-line {
+    background: linear-gradient(90deg, 
+        transparent 0%, 
+        rgba(98, 185, 191, 0.3) 20%, 
+        rgba(45, 121, 126, 0.5) 50%, 
+        rgba(98, 185, 191, 0.3) 80%, 
+        transparent 100%
+    );
+}
+
+:root[data-theme="dark"] .leaderboard-item {
+    background: rgba(16, 23, 34, 0.6);
+    border-color: rgba(120, 160, 220, 0.12);
+}
+
+:root[data-theme="dark"] .leaderboard-item:hover {
+    background: rgba(25, 35, 50, 0.8);
+    border-color: rgba(98, 185, 191, 0.25);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+}
+
+:root[data-theme="dark"] .leaderboard-item.rank-1 {
+    background: linear-gradient(135deg, rgba(214, 168, 71, 0.15), rgba(184, 91, 106, 0.08));
+    border-color: rgba(214, 168, 71, 0.3);
+}
+
+:root[data-theme="dark"] .rank-badge.normal {
+    background: rgba(98, 185, 191, 0.15);
+    color: #62b9bf;
+    border-color: rgba(98, 185, 191, 0.25);
+}
+
+:root[data-theme="dark"] .item-name {
+    color: #f5f1e8;
+}
+
+:root[data-theme="dark"] .item-name:hover {
+    color: #62b9bf;
+}
+
+:root[data-theme="dark"] .item-meta {
+    color: #aeb6c5;
+}
+
+:root[data-theme="dark"] .stat-item {
+    color: #aeb6c5;
+}
+
+:root[data-theme="dark"] .tag {
+    background: rgba(98, 185, 191, 0.12);
+    border-color: rgba(98, 185, 191, 0.2);
+    color: #8bd5da;
+}
+
+:root[data-theme="dark"] .exp-bar {
+    background: rgba(98, 185, 191, 0.15);
+}
+
+:root[data-theme="dark"] .empty-icon {
+    background: rgba(98, 185, 191, 0.1);
+}
+
+:root[data-theme="dark"] .empty-icon svg {
+    color: #62b9bf;
+}
+
+:root[data-theme="dark"] .empty-state p {
+    color: #f5f1e8;
+}
+
+:root[data-theme="dark"] .empty-state span {
+    color: #aeb6c5;
+}
+
+/* 金银铜徽章在深色模式下降低饱和度 */
+:root[data-theme="dark"] .rank-badge.gold {
+    background: linear-gradient(135deg, #B8A050, #9A8030);
+    box-shadow: 0 4px 12px rgba(184, 160, 80, 0.25);
+}
+
+:root[data-theme="dark"] .rank-badge.silver {
+    background: linear-gradient(135deg, #A0A0A0, #808080);
+    box-shadow: 0 4px 12px rgba(160, 160, 160, 0.25);
+}
+
+:root[data-theme="dark"] .rank-badge.bronze {
+    background: linear-gradient(135deg, #A08060, #806040);
+    box-shadow: 0 4px 12px rgba(160, 128, 96, 0.25);
 }
 </style>
 {% endblock %}
