@@ -1115,12 +1115,16 @@ def upload():
         return render_template("upload.html")
 
     try:
+        # 根据表单提交的动作决定状态
+        action = request.form.get("action", "draft")
+        card_status = "draft" if action == "draft" else "pending"
+        
         card_file = request.files.get("card_file")
         if card_file and card_file.filename:
             if card_file.filename.lower().endswith(".zip"):
                 imported_cards = extract_zip_cards(card_file)
                 user_id = session.get("user_id")
-                saved_cards = [RoleCard.create(card, avatar_path, user_id=user_id) for card, avatar_path in imported_cards]
+                saved_cards = [RoleCard.create(card, avatar_path, user_id=user_id, status=card_status) for card, avatar_path in imported_cards]
                 flash(f"Imported {len(saved_cards)} role card(s) from ZIP")
                 if len(saved_cards) == 1:
                     return redirect(url_for("card_detail", identifier=saved_cards[0]["slug"]))
@@ -1144,9 +1148,6 @@ def upload():
                 card["creator"] = current["display_name"] or current["username"]
 
         now = datetime.now().isoformat(timespec="seconds")
-        # 根据表单提交的动作决定状态
-        action = request.form.get("action", "draft")
-        card_status = "draft" if action == "draft" else "pending"
         
         with get_db() as db:
             slug = unique_slug(db, card["name"])
