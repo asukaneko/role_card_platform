@@ -325,6 +325,72 @@ document.addEventListener("click", (event) => {
             renderSelected();
         }
     });
+
+    // 关注按钮交互（支持新的follow-btn类）
+    const followBtnNew = document.querySelector(".follow-btn:not(.following)");
+    if (followBtnNew) {
+        followBtnNew.addEventListener("click", async () => {
+            const followUrl = followBtnNew.dataset.followUrl;
+            if (!followUrl) return;
+
+            try {
+                const response = await fetch(followUrl, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                });
+
+                if (response.ok) {
+                    followBtnNew.textContent = "已关注";
+                    followBtnNew.classList.add("following");
+                    followBtnNew.removeAttribute("data-follow-url");
+                    
+                    // 更新粉丝数显示
+                    const followerCountEl = document.querySelector(".stat-item strong:first-child");
+                    if (followerCountEl) {
+                        followerCountEl.textContent = parseInt(followerCountEl.textContent || 0) + 1;
+                    }
+                } else {
+                    alert("关注失败，请稍后重试");
+                }
+            } catch (error) {
+                console.error("关注操作失败:", error);
+                alert("网络错误，请检查网络连接");
+            }
+        });
+    }
+
+    // 取消关注按钮交互（支持新的following类）
+    const unfollowBtnNew = document.querySelector(".follow-btn.following");
+    if (unfollowBtnNew) {
+        unfollowBtnNew.addEventListener("click", async () => {
+            const unfollowUrl = unfollowBtnNew.dataset.followUrl;
+            if (!unfollowUrl) return;
+
+            try {
+                const response = await fetch(unfollowUrl, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                });
+
+                if (response.ok) {
+                    unfollowBtnNew.textContent = "+ 关注";
+                    unfollowBtnNew.classList.remove("following");
+                    unfollowBtnNew.removeAttribute("data-follow-url");
+                    
+                    // 更新粉丝数显示
+                    const followerCountEl = document.querySelector(".stat-item strong:first-child");
+                    if (followerCountEl) {
+                        followerCountEl.textContent = Math.max(0, parseInt(followerCountEl.textContent || 1) - 1);
+                    }
+                } else {
+                    alert("取消关注失败，请稍后重试");
+                }
+            } catch (error) {
+                console.error("取消关注操作失败:", error);
+                alert("网络错误，请检查网络连接");
+            }
+        });
+    }
 })();
 
 // 确认弹窗功能

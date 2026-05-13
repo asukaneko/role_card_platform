@@ -822,10 +822,31 @@ def card_detail(identifier):
 
     # 检查是否关注了作者
     is_following_author = False
+    author_info = None  # 作者详细信息
     if user_id and card.get("user_id"):
         is_following_author = UserFollow.is_following(user_id, card["user_id"])
 
-    return render_template("detail.html", card=card, comments=comments, user_liked=user_liked, user_favorited=user_favorited, current_user_id=user_id, related_cards=related_cards, linked_by_cards=linked_by_cards, is_following_author=is_following_author, is_owner=is_owner, user_collections=user_collections)
+    # 获取作者详细信息（头像、粉丝数等）
+    if card.get("user_id"):
+        author_user = User.get_by_id(card["user_id"])
+        if author_user:
+            author_info = {
+                "id": author_user["id"],
+                "username": author_user["username"],
+                "display_name": author_user.get("display_name", ""),
+                "avatar_path": author_user.get("avatar_path", ""),
+                "follower_count": UserFollow.get_follower_count(card["user_id"]),
+                "card_count": 0,  # 稍后统计
+            }
+            # 统计作者的角色卡数量
+            with get_db() as db:
+                count_row = db.execute(
+                    "SELECT COUNT(*) as cnt FROM role_cards WHERE user_id = ? AND status = 'approved'",
+                    (card["user_id"],)
+                ).fetchone()
+                author_info["card_count"] = count_row["cnt"] if count_row else 0
+
+    return render_template("detail.html", card=card, comments=comments, user_liked=user_liked, user_favorited=user_favorited, current_user_id=user_id, related_cards=related_cards, linked_by_cards=linked_by_cards, is_following_author=is_following_author, is_owner=is_owner, user_collections=user_collections, author_info=author_info)
 
 
 @server.route("/card/<int:card_id>/preview-data")

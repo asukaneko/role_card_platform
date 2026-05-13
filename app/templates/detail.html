@@ -33,20 +33,93 @@
             <button class="like-button" disabled title="请登录后喜欢">喜欢这个角色（请登录）</button>
             <button class="favorite-button" disabled title="请登录后收藏">☆ 收藏（请登录）</button>
         {% endif %}
-        <a class="download-button" href="{{ url_for('download_card', card_id=card.id) }}">下载 JSON</a>
-        <a class="download-button" href="{{ url_for('download_nekozip', card_id=card.id) }}">下载 NekoBot ZIP</a>
+        <!-- 下载按钮（带下拉菜单） -->
+        <div class="download-dropdown" style="position:relative; z-index:9999;">
+            <button class="download-button dropdown-toggle" id="download-dropdown-btn" onclick="
+                var menu = document.getElementById('download-menu');
+                if (menu.style.display === 'block') {
+                    menu.style.display = 'none';
+                } else {
+                    menu.style.display = 'block';
+                }
+                event.stopPropagation();
+            ">
+                <svg style="width:16px;height:16px;vertical-align:middle;margin-right:4px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                下载
+                <svg style="width:12px;height:12px;vertical-align:middle;margin-left:4px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+            </button>
+            <div class="dropdown-menu" id="download-menu" style="
+                display:none;
+                position:absolute;
+                top:100%;
+                left:0;
+                right:0;
+                margin-top:4px;
+            ">
+                <a class="dropdown-item" href="{{ url_for('download_card', card_id=card.id) }}">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
+                    下载 JSON
+                </a>
+                <a class="dropdown-item" href="{{ url_for('download_nekozip', card_id=card.id) }}">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
+                    下载 NekoBot ZIP
+                </a>
+            </div>
+        </div>
+        <script>
+        // 点击页面其他地方关闭下拉菜单
+        document.addEventListener('click', function(e) {
+            var dropdown = document.querySelector('.download-dropdown');
+            var menu = document.getElementById('download-menu');
+            if (dropdown && menu && !dropdown.contains(e.target)) {
+                menu.style.display = 'none';
+            }
+        });
+        </script>
         <button class="download-button share-button" id="share-card-btn" data-share-url="{{ url_for('share_card_image', card_id=card.id) }}" data-card-url="{{ url_for('card_detail', identifier=card.slug, _external=True) }}">分享卡片</button>
         <!-- 预览角色按钮 -->
         <a class="download-button preview-button" href="{{ url_for('card_preview_page', card_id=card.id) }}">
             <svg style="width:16px;height:16px;vertical-align:middle;margin-right:4px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
             预览角色
         </a>
-        {% if current_user_id and card.user_id and card.user_id != current_user_id %}
-            {% if is_following_author %}
-                <button class="follow-button following" data-follow-url="{{ url_for('unfollow_user', user_id=card.user_id) }}">已关注</button>
-            {% else %}
-                <button class="follow-button" data-follow-url="{{ url_for('follow_user', user_id=card.user_id) }}">关注作者</button>
-            {% endif %}
+        <!-- 作者概览区域 -->
+        {% if author_info %}
+        <div class="author-overview">
+            <div class="author-header">
+                {% if author_info.avatar_path %}
+                    <a href="{{ url_for('user_profile', username=author_info.username) }}" class="author-avatar-link">
+                        <img src="{{ url_for('avatar_file', filename=author_info.avatar_path.split('/')[-1]) }}" alt="{{ author_info.display_name or author_info.username }}" class="author-avatar">
+                    </a>
+                {% else %}
+                    <a href="{{ url_for('user_profile', username=author_info.username) }}" class="author-avatar-link">
+                        <div class="author-avatar avatar-placeholder">{{ (author_info.display_name or author_info.username)[:1] }}</div>
+                    </a>
+                {% endif %}
+                <div class="author-info">
+                    <a href="{{ url_for('user_profile', username=author_info.username) }}" class="author-name">{{ author_info.display_name or author_info.username }}</a>
+                    <div class="author-stats">
+                        <span class="stat-item">
+                            <strong>{{ author_info.follower_count }}</strong>
+                            <small>粉丝</small>
+                        </span>
+                        <span class="stat-item">
+                            <strong>{{ author_info.card_count }}</strong>
+                            <small>作品</small>
+                        </span>
+                    </div>
+                </div>
+            </div>
+            <div class="author-actions">
+                {% if current_user_id and card.user_id and card.user_id != current_user_id %}
+                    {% if is_following_author %}
+                        <button class="follow-btn following" data-follow-url="{{ url_for('unfollow_user', user_id=card.user_id) }}">已关注</button>
+                    {% else %}
+                        <button class="follow-btn" data-follow-url="{{ url_for('follow_user', user_id=card.user_id) }}">+ 关注</button>
+                    {% endif %}
+                {% endif %}
+                <a href="{{ url_for('user_profile', username=author_info.username) }}" class="view-profile-btn">查看资料</a>
+            </div>
+        </div>
         {% endif %}
         {% if current_user and card.user_id == current_user.id %}
         <div class="owner-actions">
