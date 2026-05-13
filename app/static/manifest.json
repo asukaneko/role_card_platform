@@ -1,0 +1,1 @@
+{"name": "角色卡平台", "short_name": "角色卡", "description": "收藏、发布、分享你的对话角色", "start_url": "/", "display": "standalone", "background_color": "#f5f0e1", "theme_color": "#2f6f73", "orientation": "portrait-primary", "icons": [{"src": "/static/png/favicon.png", "sizes": "192x192", "type": "image/png"}, {"src": "/static/png/favicon.png", "sizes": "512x512", "type": "image/png"}]}

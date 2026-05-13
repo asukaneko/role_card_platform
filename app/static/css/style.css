@@ -689,6 +689,35 @@ textarea:focus {
     gap: 58px;
 }
 
+/* 移动端卡片瀑布流布局 - 使用CSS columns实现类瀑布流 */
+@media (max-width: 768px) {
+    .card-grid {
+        display: block;
+        column-count: 2;
+        column-gap: 16px;
+        gap: 0;
+    }
+
+    .card-grid .role-card {
+        break-inside: avoid;
+        page-break-inside: avoid;
+        display: inline-block;
+        width: 100%;
+        margin-bottom: 16px;
+    }
+}
+
+/* 超小屏幕改为单列 */
+@media (max-width: 480px) {
+    .card-grid {
+        column-count: 1;
+    }
+
+    .card-grid .role-card {
+        margin-bottom: 14px;
+    }
+}
+
 /* ========== Role Card Theme Tokens ========== */
 /* 浅色模式：暖白纸张 + 毛玻璃底栏 */
 :root {
@@ -3619,7 +3648,7 @@ pre {
 
 .share-actions {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(4, 1fr);
     gap: 10px;
 }
 
@@ -5559,4 +5588,159 @@ pre {
     padding: 16px;
     color: var(--muted);
     font-size: 13px;
+}
+
+/* ===== 移动端底部导航栏 ===== */
+.mobile-bottom-nav {
+    display: none;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 50;
+    background: var(--header-bg);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-top: 1px solid var(--line-soft);
+    padding: env(safe-area-inset-bottom, 8px) 8px 8px;
+    justify-content: space-around;
+    align-items: center;
+    height: 64px;
+    box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.08);
+}
+
+:root[data-theme="dark"] .mobile-bottom-nav {
+    box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.3);
+}
+
+.mobile-nav-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    padding: 6px 12px;
+    min-width: 56px;
+    text-decoration: none;
+    color: var(--muted);
+    font-size: 10px;
+    font-weight: 600;
+    transition: color 0.2s ease;
+    position: relative;
+}
+
+.mobile-nav-item svg {
+    width: 22px;
+    height: 22px;
+    stroke-width: 2;
+    transition: transform 0.2s ease;
+}
+
+.mobile-nav-item.active {
+    color: var(--accent);
+}
+
+.mobile-nav-item.active svg {
+    transform: scale(1.1);
+}
+
+.mobile-nav-item:hover {
+    color: var(--accent);
+}
+
+/* 移动端显示底部导航，隐藏顶部导航栏（功能已由底部导航替代） */
+@media (max-width: 768px) {
+    .mobile-bottom-nav {
+        display: flex;
+    }
+
+    /* 隐藏整个顶部导航区域 */
+    .site-header .nav {
+        display: none !important;
+    }
+
+    /* 顶部header仅保留品牌logo，更紧凑 */
+    .site-header {
+        padding: 10px 16px;
+        height: auto;
+        min-height: 48px;
+    }
+
+    .site-header .brand {
+        gap: 8px;
+    }
+
+    .site-header .brand strong {
+        font-size: 15px;
+    }
+
+    .site-header .brand small {
+        font-size: 9px;
+    }
+
+    .site-header .brand-mark {
+        width: 30px;
+        height: 30px;
+    }
+
+    /* 底部导航存在时给main留出空间避免内容被遮挡 */
+    main {
+        padding-bottom: 80px !important;
+    }
+
+    /* 移动端footer留出底部导航空间 */
+    .site-footer {
+        padding-bottom: 80px;
+    }
+}
+
+@media (max-width: 768px) and (min-width: 561px) {
+    .mobile-bottom-nav {
+        display: flex;
+    }
+
+    main {
+        padding-bottom: 80px !important;
+    }
+}
+
+/* 底部导航项动画 */
+@keyframes navItemPop {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.2); }
+    100% { transform: scale(1); }
+}
+
+.mobile-nav-item.active svg {
+    animation: navItemPop 0.3s ease;
+}
+
+/* 底部导航通知角标 */
+.mobile-nav-item .nav-badge {
+    position: absolute;
+    top: 2px;
+    right: 8px;
+    min-width: 16px;
+    height: 16px;
+    padding: 0 4px;
+    border-radius: 999px;
+    background: linear-gradient(135deg, var(--rose), #f97316);
+    color: white;
+    font-size: 9px;
+    font-weight: 700;
+    line-height: 16px;
+    text-align: center;
+}
+
+/* ===== 预览角色按钮 ===== */
+.preview-button {
+    background: linear-gradient(135deg, #8b5cf6, #6366f1) !important;
+    border-color: transparent !important;
+    color: white !important;
+}
+
+.preview-button:hover {
+    opacity: 0.9;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 14px rgba(99, 102, 241, 0.35) !important;
 }

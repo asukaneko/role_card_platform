@@ -517,4 +517,32 @@ document.addEventListener("click", (event) => {
             if (svgUrl) URL.revokeObjectURL(svgUrl);
         }
     });
+
+    // 复制预览链接
+    const sharePreviewLink = document.getElementById("share-preview-link");
+    sharePreviewLink && sharePreviewLink.addEventListener("click", async () => {
+        const previewUrl = sharePreviewLink.dataset.previewUrl || "";
+        if (!previewUrl) return;
+        try {
+            await navigator.clipboard.writeText(previewUrl);
+            const originalText = sharePreviewLink.querySelector("span:last-child").textContent;
+            sharePreviewLink.querySelector("span:last-child").textContent = "已复制";
+            setTimeout(() => {
+                sharePreviewLink.querySelector("span:last-child").textContent = originalText;
+            }, 1500);
+        } catch (err) {
+            // 降级方案
+            const input = document.createElement("input");
+            input.value = previewUrl;
+            document.body.appendChild(input);
+            input.select();
+            document.execCommand("copy");
+            document.body.removeChild(input);
+            const originalText = sharePreviewLink.querySelector("span:last-child").textContent;
+            sharePreviewLink.querySelector("span:last-child").textContent = "已复制";
+            setTimeout(() => {
+                sharePreviewLink.querySelector("span:last-child").textContent = originalText;
+            }, 1500);
+        }
+    });
 })();

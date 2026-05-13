@@ -1,0 +1,2001 @@
+{% extends "base.html" %}
+{% block title %}预览 {{ card.name }} - 角色卡平台{% endblock %}
+{% block content %}
+
+<div class="preview-container" id="previewContainer">
+    <!-- 角色信息头部栏 -->
+    <div class="preview-header">
+        <div class="preview-character-info">
+            {% if card.avatar_path %}
+                <img class="preview-avatar" src="{{ url_for('avatar_file', filename=card.avatar_path.split('/')[-1]) }}" alt="{{ card.name }}">
+            {% else %}
+                <div class="preview-avatar placeholder-avatar">{{ card.name[:1] }}</div>
+            {% endif %}
+            <div class="preview-meta">
+                <h1>{{ card.name }}</h1>
+                <p class="preview-creator">by {{ card.creator or '匿名作者' }}</p>
+                {% if card.tags %}
+                <div class="preview-tags">
+                    {% for tag in card.tags[:5] %}
+                        <span class="preview-tag">#{{ tag }}</span>
+                    {% endfor %}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        <a href="{{ url_for('card_detail', identifier=card.slug) }}" class="preview-back-link">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>
+            返回详情
+        </a>
+    </div>
+
+    <!-- 模式切换开关 -->
+    <div class="mode-switch-bar">
+        <div class="mode-switch-track">
+            <button type="button" class="mode-btn active" id="mockModeBtn" onclick="switchMode('mock')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
+                模拟模式
+            </button>
+            <button type="button" class="mode-btn" id="apiModeBtn" onclick="switchMode('api')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                API模式
+            </button>
+            <div class="mode-switch-thumb" id="modeThumb"></div>
+        </div>
+    </div>
+
+    <!-- API配置面板（仅API模式显示，模拟模式隐藏） -->
+    <div class="api-config-panel" id="apiConfigPanel" hidden aria-hidden="true">
+        <button type="button" class="api-config-toggle" id="apiConfigToggle" onclick="toggleApiConfig()">
+            <span class="api-config-toggle-icon">⚙️</span>
+            <span>API 配置</span>
+            <svg class="api-config-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <div class="api-config-content" id="apiConfigContent">
+            <!-- API地址 -->
+            <div class="config-field">
+                <label class="config-label" for="apiUrlInput">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10A15.3 15.3 0 0112 2z"/></svg>
+                    API 地址
+                </label>
+                <input type="url"
+                       class="config-input"
+                       id="apiUrlInput"
+                       placeholder="https://api.openai.com/v1 或 http://localhost:11434/v1">
+            </div>
+
+            <!-- API密钥 -->
+            <div class="config-field">
+                <label class="config-label" for="apiKeyInput">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+                    API 密钥
+                </label>
+                <div class="password-wrap">
+                    <input type="password"
+                           class="config-input"
+                           id="apiKeyInput"
+                           placeholder="sk-...">
+                    <button type="button" class="password-toggle-btn" id="passwordToggleBtn" onclick="togglePasswordVisibility()">
+                        <svg id="eyeIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                    </button>
+                </div>
+            </div>
+
+            <!-- 模型选择 -->
+            <div class="config-field">
+                <label class="config-label" for="modelSelect">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/></svg>
+                    模型
+                </label>
+                <select class="config-select" id="modelSelect" onchange="handleModelChange()">
+                    <option value="">-- 选择模型 --</option>
+                    <option value="gpt-4o">GPT-4o (OpenAI)</option>
+                    <option value="gpt-4o-mini">GPT-4o-mini (OpenAI)</option>
+                    <option value="claude-3-5-sonnet-20241022">Claude 3.5 Sonnet (Anthropic)</option>
+                    <option value="claude-3-opus-20240229">Claude 3 Opus (Anthropic)</option>
+                    <option value="deepseek-chat">DeepSeek V3</option>
+                    <option value="qwen-max">Qwen-Max</option>
+                    <option value="__ollama__">Ollama (本地模型)</option>
+                    <option value="__custom__">自定义输入...</option>
+                </select>
+                <input type="text"
+                       class="config-input custom-model-input"
+                       id="customModelInput"
+                       placeholder="输入自定义模型名称，如 llama3:latest"
+                       style="display:none;">
+            </div>
+
+            <!-- 高级参数区域 -->
+            <div class="advanced-params">
+                <div class="params-title">高级参数</div>
+
+                <!-- Temperature -->
+                <div class="param-slider-row">
+                    <label class="param-label">Temperature</label>
+                    <div class="slider-wrap">
+                        <input type="range"
+                               class="param-slider"
+                               id="tempSlider"
+                               min="0" max="2" step="0.05" value="0.8"
+                               oninput="updateSliderValue('tempValue', this.value)">
+                        <span class="param-value" id="tempValue">0.8</span>
+                    </div>
+                </div>
+
+                <!-- Max Tokens -->
+                <div class="param-input-row">
+                    <label class="param-label" for="maxTokensInput">Max Tokens</label>
+                    <input type="number"
+                           class="param-number-input"
+                           id="maxTokensInput"
+                           min="1" max="128000" value="2048">
+                </div>
+
+                <!-- Top P -->
+                <div class="param-slider-row">
+                    <label class="param-label">Top P</label>
+                    <div class="slider-wrap">
+                        <input type="range"
+                               class="param-slider"
+                               id="topPSlider"
+                               min="0" max="1" step="0.05" value="0.9"
+                               oninput="updateSliderValue('topPValue', this.value)">
+                        <span class="param-value" id="topPValue">0.9</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 操作按钮行 -->
+            <div class="config-actions">
+                <button type="button" class="btn-test" id="testConnBtn" onclick="testApiConnection()">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+                    测试连接
+                </button>
+                <button type="button" class="btn-save" onclick="saveApiConfig()">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+                    保存配置
+                </button>
+            </div>
+
+            <!-- 连接状态提示 -->
+            <div class="connection-status" id="connectionStatus"></div>
+        </div>
+    </div>
+    <!-- 聊天预览主区域 -->
+    <div class="chat-preview-area" id="chatPreviewArea">
+        <!-- 聊天消息容器 -->
+        <div class="chat-messages" id="chatMessages">
+            <!-- 角色设定信息卡片 -->
+            <div class="chat-info-card">
+                <div class="info-card-icon">📋</div>
+                <div class="info-card-content">
+                    <strong>角色设定</strong>
+                    {% if card.personality %}
+                    <p class="info-card-text">{{ card.personality[:200] }}{% if card.personality|length > 200%}...{% endif %}</p>
+                    {% else %}
+                    <p class="info-card-text-empty">暂无性格设定</p>
+                    {% endif %}
+                </div>
+            </div>
+
+            {% if card.scenario %}
+            <div class="chat-info-card scenario-card">
+                <div class="info-card-icon">🎬</div>
+                <div class="info-card-content">
+                    <strong>背景场景</strong>
+                    <p class="info-card-text">{{ card.scenario[:200] }}{% if card.scenario|length > 200%}...{% endif %}</p>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- 角色开场白 -->
+            {% if card.first_message %}
+            <div class="message-row character-message">
+                <div class="message-avatar character-avatar">
+                    {% if card.avatar_path %}
+                        <img src="{{ url_for('avatar_file', filename=card.avatar_path.split('/')[-1]) }}" alt="">
+                    {% else %}
+                        {{ card.name[:1] }}
+                    {% endif %}
+                </div>
+                <div class="message-bubble character-bubble">
+                    <div class="message-sender">{{ card.name }}</div>
+                    <div class="message-text">{{ card.first_message }}</div>
+                </div>
+            </div>
+            {% else %}
+            <div class="chat-welcome-hint">
+                <span>💬 点击下方输入框开始与 {{ card.name }} 对话预览</span>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- 示例对话（如果有） -->
+        {% if card.example_dialogues %}
+        <div class="example-dialogues-section" id="exampleSection">
+            <button type="button" class="example-toggle-btn" id="exampleToggleBtn" onclick="toggleExampleDialogues()">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                查看示例对话
+            </button>
+            <div class="example-dialogues-content" id="exampleContent" style="display:none;">
+                <pre class="example-dialogues-text">{{ card.example_dialogues }}</pre>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- 快捷回复按钮 -->
+        <div class="quick-replies" id="quickReplies">
+            <button type="button" class="quick-reply-btn" onclick="sendQuickReply('你好！')">你好！</button>
+            <button type="button" class="quick-reply-btn" onclick="sendQuickReply('你是谁？')">你是谁？</button>
+            <button type="button" class="quick-reply-btn" onclick="sendQuickReply('在做什么？')">在做什么？</button>
+        </div>
+
+        <!-- 输入区域 -->
+        <div class="chat-input-area">
+            <form class="chat-input-form" id="chatForm" onsubmit="return handleSend(event)">
+                <input type="text"
+                       class="chat-input"
+                       id="chatInput"
+                       placeholder="输入消息..."
+                       autocomplete="off"
+                       maxlength="500">
+                <button type="submit" class="chat-send-btn" id="chatSendBtn">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                </button>
+                <button type="button" class="chat-stop-btn" id="chatStopBtn" onclick="stopStreaming()" style="display:none;">
+                    <svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
+                    停止
+                </button>
+            </form>
+            <div class="input-footer">
+                <p class="chat-disclaimer" id="chatDisclaimer">⚠️ 预览模式：此处为模拟演示，非真实AI对话</p>
+                <button type="button" class="clear-chat-btn" onclick="clearChat()" title="清空对话">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
+                    清空对话
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+/* ===== 预览页面整体布局 ===== */
+.preview-container {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 20px 16px 100px;
+    min-height: calc(100vh - 200px);
+}
+
+/* ===== 头部信息栏 ===== */
+.preview-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 20px;
+    background: var(--paper-soft);
+    border: 1px solid var(--line-soft);
+    border-radius: 14px;
+    margin-bottom: 20px;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+.preview-character-info {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex: 1;
+    min-width: 0;
+}
+
+.preview-avatar {
+    width: 56px;
+    height: 56px;
+    border-radius: 14px;
+    object-fit: cover;
+    border: 2px solid var(--accent);
+    flex-shrink: 0;
+}
+
+.placeholder-avatar {
+    display: grid;
+    place-items: center;
+    font-size: 24px;
+    font-weight: 800;
+    color: white;
+    background: linear-gradient(135deg, var(--accent), #0ea5e9);
+}
+
+.preview-meta h1 {
+    margin: 0;
+    font-size: 20px;
+    line-height: 1.3;
+}
+
+.preview-creator {
+    margin: 2px 0 0;
+    font-size: 13px;
+    color: var(--muted);
+}
+
+.preview-tags {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin-top: 4px;
+}
+
+.preview-tag {
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: var(--bg-wash-a);
+    color: var(--accent);
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.preview-back-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 10px 16px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    color: var(--muted);
+    text-decoration: none;
+    font-size: 13px;
+    font-weight: 600;
+    transition: all 0.2s ease;
+    flex-shrink: 0;
+}
+
+.preview-back-link:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+.preview-back-link svg {
+    width: 16px;
+    height: 16px;
+}
+
+/* ===== 模式切换开关 ===== */
+.mode-switch-bar {
+    margin-bottom: 16px;
+}
+
+.mode-switch-track {
+    position: relative;
+    display: inline-flex;
+    background: var(--field-bg);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 4px;
+    gap: 4px;
+    user-select: none;
+}
+
+.mode-btn {
+    position: relative;
+    z-index: 2;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 9px;
+    background: transparent;
+    color: var(--muted);
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: color 0.25s ease, background 0.2s ease;
+    pointer-events: auto;
+    user-select: none;
+}
+
+.mode-btn:hover {
+    color: var(--ink);
+    background: rgba(0, 0, 0, 0.04);
+}
+
+.mode-btn:active {
+    transform: scale(0.97);
+}
+
+.mode-btn svg {
+    width: 16px;
+    height: 16px;
+}
+
+.mode-btn.active {
+    color: white;
+}
+
+.mode-switch-thumb {
+    position: absolute;
+    top: 4px;
+    left: 4px;
+    width: calc(50% - 4px);
+    height: calc(100% - 8px);
+    background: linear-gradient(135deg, var(--accent), #0ea5e9);
+    border-radius: 9px;
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s ease;
+    box-shadow: 0 2px 8px rgba(47, 111, 115, 0.25);
+    z-index: 0;
+    pointer-events: none;
+}
+
+.mode-switch-track.api-mode .mode-switch-thumb {
+    transform: translateX(calc(100% + 4px));
+}
+
+/* ===== API配置面板（默认隐藏，仅API模式显示）===== */
+.api-config-panel {
+    background: var(--paper-soft);
+    border: 1px solid var(--line-soft);
+    border-radius: 14px;
+    margin-bottom: 16px;
+    overflow: hidden;
+    display: none;
+    opacity: 0;
+    transform: translateY(-8px);
+    transition: opacity 0.3s ease, transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.api-config-panel.visible {
+    display: block !important;
+    opacity: 1;
+    transform: translateY(0);
+    pointer-events: auto;
+    box-shadow: 0 4px 20px rgba(47, 111, 115, 0.08);
+}
+
+.api-config-toggle {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 14px 18px;
+    border: none;
+    background: transparent;
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--ink);
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.api-config-toggle:hover {
+    background: var(--bg-wash-a);
+}
+
+.api-config-toggle-icon {
+    font-size: 18px;
+}
+
+.api-config-arrow {
+    width: 18px;
+    height: 18px;
+    transition: transform 0.3s ease;
+    flex-shrink: 0;
+}
+
+.api-config-toggle.open .api-config-arrow {
+    transform: rotate(180deg);
+}
+
+.api-config-content {
+    display: none;
+    padding: 0 18px 18px;
+    animation: slideDown 0.25s ease;
+}
+
+@keyframes slideDown {
+    from { opacity: 0; transform: translateY(-8px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* 配置字段通用样式 */
+.config-field {
+    margin-bottom: 14px;
+}
+
+.config-label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--ink);
+    margin-bottom: 6px;
+}
+
+.config-label svg {
+    width: 14px;
+    height: 14px;
+    color: var(--accent);
+}
+
+.config-input,
+.config-select {
+    width: 100%;
+    padding: 10px 14px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--field-bg);
+    color: var(--ink);
+    font-size: 13px;
+    outline: none;
+    transition: all 0.2s ease;
+    box-sizing: border-box;
+}
+
+.config-input:focus,
+.config-select:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(47, 111, 115, 0.12);
+}
+
+.config-select {
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23666' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    padding-right: 32px;
+}
+
+/* 密码输入框包裹器 */
+.password-wrap {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.password-wrap .config-input {
+    padding-right: 44px;
+}
+
+.password-toggle-btn {
+    position: absolute;
+    right: 8px;
+    width: 32px;
+    height: 32px;
+    border: none;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--muted);
+    cursor: pointer;
+    display: grid;
+    place-items: center;
+    transition: color 0.2s;
+}
+
+.password-toggle-btn:hover {
+    color: var(--accent);
+}
+
+.password-toggle-btn svg {
+    width: 16px;
+    height: 16px;
+}
+
+.custom-model-input {
+    margin-top: 8px;
+}
+
+/* ===== 高级参数区域 ===== */
+.advanced-params {
+    margin-top: 16px;
+    padding-top: 14px;
+    border-top: 1px dashed var(--line);
+}
+
+.params-title {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 12px;
+}
+
+.param-slider-row,
+.param-input-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.param-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--ink);
+    min-width: 90px;
+    flex-shrink: 0;
+}
+
+.slider-wrap {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.param-slider {
+    flex: 1;
+    -webkit-appearance: none;
+    appearance: none;
+    height: 6px;
+    border-radius: 3px;
+    background: var(--line);
+    outline: none;
+    transition: background 0.2s;
+}
+
+.param-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--accent), #0ea5e9);
+    cursor: pointer;
+    box-shadow: 0 2px 6px rgba(47, 111, 115, 0.3);
+    transition: transform 0.15s ease;
+}
+
+.param-slider::-webkit-slider-thumb:hover {
+    transform: scale(1.15);
+}
+
+.param-slider::-moz-range-thumb {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--accent), #0ea5e9);
+    cursor: pointer;
+    border: none;
+    box-shadow: 0 2px 6px rgba(47, 111, 115, 0.3);
+}
+
+.param-value {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--accent);
+    min-width: 36px;
+    text-align: right;
+}
+
+.param-number-input {
+    width: 120px;
+    padding: 8px 12px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--field-bg);
+    color: var(--ink);
+    font-size: 13px;
+    outline: none;
+    text-align: center;
+    transition: all 0.2s ease;
+}
+
+.param-number-input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(47, 111, 115, 0.12);
+}
+
+/* ===== 配置操作按钮 ===== */
+.config-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 16px;
+}
+
+.btn-test,
+.btn-save {
+    flex: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 10px 16px;
+    border: none;
+    border-radius: 10px;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.btn-test {
+    background: var(--field-bg);
+    color: var(--ink);
+    border: 1px solid var(--line);
+}
+
+.btn-test:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: var(--bg-wash-a);
+}
+
+.btn-save {
+    background: linear-gradient(135deg, var(--accent), #0ea5e9);
+    color: white;
+}
+
+.btn-save:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(47, 111, 115, 0.3);
+}
+
+.btn-test svg,
+.btn-save svg {
+    width: 14px;
+    height: 14px;
+}
+
+/* 连接状态提示 */
+.connection-status {
+    margin-top: 10px;
+    padding: 8px 12px;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 600;
+    text-align: center;
+    display: none;
+}
+
+.connection-status.success {
+    display: block;
+    background: rgba(34, 197, 94, 0.1);
+    color: #16a34a;
+    border: 1px solid rgba(34, 197, 94, 0.2);
+}
+
+.connection-status.error {
+    display: block;
+    background: rgba(239, 68, 68, 0.1);
+    color: #dc2626;
+    border: 1px solid rgba(239, 68, 68, 0.2);
+}
+
+.connection-status.loading {
+    display: block;
+    background: rgba(47, 111, 115, 0.08);
+    color: var(--accent);
+    border: 1px solid rgba(47, 111, 115, 0.15);
+}
+
+/* ===== 聊天区域 ===== */
+.chat-preview-area {
+    background: var(--paper-soft);
+    border: 1px solid var(--line-soft);
+    border-radius: 18px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    height: calc(100vh - 380px);
+    min-height: 480px;
+}
+
+.chat-messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px;
+    scroll-behavior: smooth;
+}
+
+/* 信息卡片 */
+.chat-info-card {
+    display: flex;
+    gap: 12px;
+    padding: 14px 16px;
+    background: var(--field-bg);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    margin-bottom: 12px;
+}
+
+.scenario-card {
+    border-color: rgba(213, 162, 63, 0.3);
+    background: linear-gradient(135deg, rgba(213, 162, 63, 0.06), transparent);
+}
+
+.info-card-icon {
+    font-size: 22px;
+    flex-shrink: 0;
+    line-height: 1;
+}
+
+.info-card-content strong {
+    display: block;
+    font-size: 13px;
+    color: var(--ink);
+    margin-bottom: 4px;
+}
+
+.info-card-text {
+    margin: 0;
+    font-size: 13px;
+    color: var(--muted);
+    line-height: 1.6;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.info-card-text-empty {
+    margin: 0;
+    font-size: 13px;
+    color: var(--muted);
+    opacity: 0.7;
+    font-style: italic;
+}
+
+/* ===== 消息样式 ===== */
+.message-row {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 16px;
+    animation: messageIn 0.3s ease;
+}
+
+@keyframes messageIn {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.character-message {
+    justify-content: flex-start;
+}
+
+.user-message {
+    justify-content: flex-end;
+}
+
+.message-avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    overflow: hidden;
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+    font-size: 14px;
+    font-weight: 700;
+    color: white;
+}
+
+.character-avatar {
+    background: linear-gradient(135deg, var(--accent-strong), var(--gold));
+}
+
+.character-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.user-avatar {
+    background: linear-gradient(135deg, #6366f1, #8b5cf6);
+}
+
+.message-bubble {
+    max-width: 75%;
+    padding: 10px 14px;
+    border-radius: 14px;
+    position: relative;
+}
+
+.character-bubble {
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-bottom-left-radius: 4px;
+}
+
+.user-bubble {
+    background: linear-gradient(135deg, var(--accent), #0ea5e9);
+    color: white;
+    border-bottom-right-radius: 4px;
+}
+
+.message-sender {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--accent);
+    margin-bottom: 3px;
+}
+
+.message-text {
+    font-size: 14px;
+    line-height: 1.6;
+    word-break: break-word;
+    margin: 0;
+}
+
+.user-bubble .message-text {
+    color: white;
+}
+
+/* 流式输出光标动画 */
+.streaming-cursor::after {
+    content: '▍';
+    animation: blinkCursor 0.8s steps(2) infinite;
+    color: var(--accent);
+    margin-left: 2px;
+    font-weight: 400;
+}
+
+@keyframes blinkCursor {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0; }
+}
+
+/* 欢迎提示 */
+.chat-welcome-hint {
+    text-align: center;
+    padding: 40px 20px;
+    color: var(--muted);
+    font-size: 14px;
+}
+
+/* 示例对话区 */
+.example-dialogues-section {
+    padding: 8px 16px;
+    border-top: 1px solid var(--line-soft);
+}
+
+.example-toggle-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 14px;
+    border: 1px dashed var(--line);
+    border-radius: 8px;
+    background: transparent;
+    color: var(--muted);
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.example-toggle-btn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+.example-toggle-btn svg {
+    width: 14px;
+    height: 14px;
+}
+
+.example-dialogues-content {
+    margin-top: 10px;
+}
+
+.example-dialogues-text {
+    margin: 0;
+    padding: 12px 14px;
+    background: var(--field-bg);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    font-family: inherit;
+    font-size: 13px;
+    line-height: 1.7;
+    white-space: pre-wrap;
+    max-height: 200px;
+    overflow-y: auto;
+    color: var(--muted);
+}
+
+/* 快捷回复 */
+.quick-replies {
+    display: flex;
+    gap: 8px;
+    padding: 10px 16px;
+    overflow-x: auto;
+    flex-shrink: 0;
+}
+
+.quick-reply-btn {
+    padding: 8px 16px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: var(--paper);
+    color: var(--ink);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.2s ease;
+    flex-shrink: 0;
+}
+
+.quick-reply-btn:hover {
+    border-color: var(--accent);
+    background: var(--bg-wash-a);
+    color: var(--accent);
+}
+
+.quick-reply-btn:active {
+    transform: scale(0.96);
+}
+
+/* ===== 输入区域 ===== */
+.chat-input-area {
+    padding: 12px 16px;
+    border-top: 1px solid var(--line-soft);
+    background: var(--paper);
+    flex-shrink: 0;
+}
+
+.chat-input-form {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.chat-input {
+    flex: 1;
+    padding: 12px 16px;
+    border: 1px solid var(--line);
+    border-radius: 24px;
+    background: var(--field-bg);
+    color: var(--ink);
+    font-size: 14px;
+    outline: none;
+    transition: all 0.2s ease;
+}
+
+.chat-input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(47, 111, 115, 0.12);
+}
+
+.chat-input:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.chat-send-btn {
+    width: 44px;
+    height: 44px;
+    border: none;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--accent), #0ea5e9);
+    color: white;
+    cursor: pointer;
+    display: grid;
+    place-items: center;
+    transition: all 0.2s ease;
+    flex-shrink: 0;
+}
+
+.chat-send-btn:hover {
+    transform: scale(1.08);
+    box-shadow: 0 4px 14px rgba(47, 111, 115, 0.35);
+}
+
+.chat-send-btn:active {
+    transform: scale(0.95);
+}
+
+.chat-send-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+}
+
+.chat-send-btn svg {
+    width: 18px;
+    height: 18px;
+}
+
+/* 停止按钮 */
+.chat-stop-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 10px 18px;
+    border: none;
+    border-radius: 24px;
+    background: linear-gradient(135deg, #ef4444, #dc2626);
+    color: white;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    flex-shrink: 0;
+    animation: pulseStop 1.5s ease-in-out infinite;
+}
+
+@keyframes pulseStop {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.3); }
+    50% { box-shadow: 0 0 0 8px rgba(239, 68, 68, 0); }
+}
+
+.chat-stop-btn:hover {
+    transform: scale(1.05);
+}
+
+.chat-stop-btn svg {
+    width: 14px;
+    height: 14px;
+}
+
+.input-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 6px;
+}
+
+.chat-disclaimer {
+    margin: 0;
+    font-size: 11px;
+    color: var(--muted);
+    opacity: 0.7;
+}
+
+.clear-chat-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 10px;
+    border: none;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.clear-chat-btn:hover {
+    color: #ef4444;
+    background: rgba(239, 68, 68, 0.06);
+}
+
+.clear-chat-btn svg {
+    width: 12px;
+    height: 12px;
+}
+
+/* ===== 移动端适配 ===== */
+@media (max-width: 600px) {
+    .preview-container {
+        padding: 12px 8px 90px;
+    }
+
+    .preview-header {
+        padding: 12px 14px;
+    }
+
+    .preview-avatar {
+        width: 44px;
+        height: 44px;
+    }
+
+    .preview-meta h1 {
+        font-size: 17px;
+    }
+
+    .preview-back-link span {
+        display: none;
+    }
+
+    .mode-switch-track {
+        width: 100%;
+    }
+
+    .mode-btn {
+        flex: 1;
+        justify-content: center;
+        padding: 8px 12px;
+        font-size: 12px;
+    }
+
+    .mode-btn svg {
+        display: none;
+    }
+
+    .chat-preview-area {
+        height: calc(100vh - 340px);
+        min-height: 360px;
+        border-radius: 14px;
+    }
+
+    .chat-messages {
+        padding: 14px;
+    }
+
+    .message-bubble {
+        max-width: 85%;
+    }
+
+    .quick-replies {
+        padding: 8px 12px;
+    }
+
+    .param-label {
+        min-width: 70px;
+        font-size: 11px;
+    }
+
+    .config-actions {
+        flex-direction: column;
+    }
+}
+</style>
+
+<script>
+console.log('[card_preview] 脚本开始加载 v2');
+
+// ========== 全局状态管理 ==========
+let chatMode = 'mock';           // 当前模式: 'mock' | 'api'
+let conversationHistory = [];     // 对话历史记录
+let currentEventSource = null;    // 当前SSE连接实例
+let currentStreamController = null; // 当前fetch流控制器
+let isStreaming = false;          // 是否正在流式输出
+let streamingMessageEl = null;    // 当前流式输出的消息元素
+const PREVIEW_TOKEN = new URLSearchParams(window.location.search).get('preview_token') || '';
+
+// 卡片数据（从Jinja2模板注入）
+const CARD_DATA = {
+    id: {{ card.id | tojson }},
+    name: {{ card.name | tojson }},
+    personality: {{ (card.personality or '') | tojson }},
+    scenario: {{ (card.scenario or '') | tojson }},
+    first_message: {{ (card.first_message or '') | tojson }},
+    system_prompt: {{ (card.system_prompt or '') | tojson }},
+    avatar_path: {{ (card.avatar_path or '') | tojson }},
+    avatar_url: {% if card.avatar_path %}{{ url_for('avatar_file', filename=card.avatar_path.split('/')[-1]) | tojson }}{% else %}''{% endif %},
+    response_format: {{ (card.response_format or '') | tojson }},
+    rules: {{ (card.rules or '') | tojson }}
+};
+
+// API配置默认值
+const DEFAULT_API_CONFIG = {
+    url: '',
+    key: '',
+    model: '',
+    temperature: 0.8,
+    max_tokens: 2048,
+    top_p: 0.9
+};
+
+// 当前API配置（从localStorage加载或使用默认值）
+let apiConfig = loadApiConfig();
+
+// ========== 页面初始化 ==========
+document.addEventListener('DOMContentLoaded', () => {
+    // 将开场白加入对话历史
+    if (CARD_DATA.first_message) {
+        conversationHistory.push({
+            role: 'assistant',
+            content: CARD_DATA.first_message
+        });
+    }
+    
+    // 应用已保存的配置到UI
+    applyConfigToUI();
+
+    const savedMode = loadChatMode();
+    const initialMode = savedMode || 'mock';
+    switchMode(initialMode, { expandConfig: false });
+    
+    // 滚动到底部显示开场白
+    const messagesContainer = document.getElementById('chatMessages');
+    if (messagesContainer) {
+        setTimeout(() => messagesContainer.scrollTop = messagesContainer.scrollHeight, 100);
+    }
+});
+
+// ========== 模式切换功能 ==========
+function switchMode(mode, options = {}) {
+    chatMode = mode;
+    saveChatMode(mode);
+    const expandConfig = options.expandConfig !== false;
+    const mockBtn = document.getElementById('mockModeBtn');
+    const apiBtn = document.getElementById('apiModeBtn');
+    const track = document.querySelector('.mode-switch-track');
+    const configPanel = document.getElementById('apiConfigPanel');
+    const configContent = document.getElementById('apiConfigContent');
+    const configToggle = document.getElementById('apiConfigToggle');
+    const disclaimer = document.getElementById('chatDisclaimer');
+    
+    if (mode === 'api') {
+        mockBtn.classList.remove('active');
+        apiBtn.classList.add('active');
+        track.classList.add('api-mode');
+        configPanel.hidden = false;
+        configPanel.setAttribute('aria-hidden', 'false');
+        configPanel.classList.add('visible');
+        if (configContent) configContent.style.display = expandConfig ? 'block' : 'none';
+        if (configToggle) configToggle.classList.toggle('open', expandConfig);
+        disclaimer.textContent = '⚡ API模式：将发送真实请求到配置的API端点';
+    } else {
+        apiBtn.classList.remove('active');
+        mockBtn.classList.add('active');
+        track.classList.remove('api-mode');
+        configPanel.classList.remove('visible');
+        configPanel.hidden = true;
+        configPanel.setAttribute('aria-hidden', 'true');
+        if (configContent) configContent.style.display = 'none';
+        if (configToggle) configToggle.classList.remove('open');
+        disclaimer.textContent = '⚠️ 预览模式：此处为模拟演示，非真实AI对话';
+    }
+}
+
+// ========== API配置面板折叠 ==========
+function toggleApiConfig() {
+    const content = document.getElementById('apiConfigContent');
+    const toggle = document.getElementById('apiConfigToggle');
+    
+    if (content.style.display === 'block') {
+        content.style.display = 'none';
+        toggle.classList.remove('open');
+    } else {
+        content.style.display = 'block';
+        toggle.classList.add('open');
+    }
+}
+
+// ========== 密码可见性切换 ==========
+function togglePasswordVisibility() {
+    const input = document.getElementById('apiKeyInput');
+    const icon = document.getElementById('eyeIcon');
+    
+    if (input.type === 'password') {
+        input.type = 'text';
+        icon.innerHTML = '<path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/>';
+    } else {
+        input.type = 'password';
+        icon.innerHTML = '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>';
+    }
+}
+
+// ========== 模型选择变化处理 ==========
+function handleModelChange() {
+    const select = document.getElementById('modelSelect');
+    const customInput = document.getElementById('customModelInput');
+    
+    if (select.value === '__custom__' || select.value === '__ollama__') {
+        customInput.style.display = 'block';
+        if (select.value === '__ollama__') {
+            customInput.placeholder = '输入本地模型名称，如 llama3:latest';
+        } else {
+            customInput.placeholder = '输入自定义模型名称';
+        }
+        customInput.focus();
+    } else {
+        customInput.style.display = 'none';
+    }
+}
+
+// ========== 滑块数值更新 ==========
+function updateSliderValue(elementId, value) {
+    document.getElementById(elementId).textContent = value;
+}
+
+// ========== 配置保存/加载 ==========
+function saveApiConfig() {
+    // 从UI收集当前配置值
+    const modelSelect = document.getElementById('modelSelect').value;
+    let finalModel = modelSelect;
+    
+    // 如果选择了自定义/ollama，取输入框的值
+    if (modelSelect === '__custom__' || modelSelect === '__ollama__') {
+        finalModel = document.getElementById('customModelInput').value.trim();
+    }
+    
+    apiConfig = {
+        url: document.getElementById('apiUrlInput').value.trim(),
+        key: document.getElementById('apiKeyInput').value.trim(),
+        model: finalModel,
+        temperature: parseFloat(document.getElementById('tempSlider').value),
+        max_tokens: parseInt(document.getElementById('maxTokensInput').value, 10),
+        top_p: parseFloat(document.getElementById('topPSlider').value)
+    };
+    
+    try {
+        localStorage.setItem('preview_api_config', JSON.stringify(apiConfig));
+        showConnectionStatus('success', '✅ 配置已保存到本地存储');
+    } catch (e) {
+        showConnectionStatus('error', '❌ 保存失败：' + e.message);
+    }
+}
+
+function loadApiConfig() {
+    try {
+        const saved = localStorage.getItem('preview_api_config');
+        if (saved) {
+            return JSON.parse(saved);
+        }
+    } catch (e) {
+        console.warn('加载API配置失败:', e);
+    }
+    return { ...DEFAULT_API_CONFIG };
+}
+
+function saveChatMode(mode) {
+    try {
+        localStorage.setItem('preview_chat_mode', mode);
+    } catch (e) {}
+}
+
+function loadChatMode() {
+    try {
+        const saved = localStorage.getItem('preview_chat_mode');
+        return saved === 'api' || saved === 'mock' ? saved : '';
+    } catch (e) {
+        return '';
+    }
+}
+
+function hasUsableApiConfig() {
+    return Boolean((apiConfig.url || '').trim() && (apiConfig.model || '').trim());
+}
+
+function applyConfigToUI() {
+    document.getElementById('apiUrlInput').value = apiConfig.url || '';
+    document.getElementById('apiKeyInput').value = apiConfig.key || '';
+    document.getElementById('tempSlider').value = apiConfig.temperature || DEFAULT_API_CONFIG.temperature;
+    document.getElementById('tempValue').textContent = apiConfig.temperature || DEFAULT_API_CONFIG.temperature;
+    document.getElementById('maxTokensInput').value = apiConfig.max_tokens || DEFAULT_API_CONFIG.max_tokens;
+    document.getElementById('topPSlider').value = apiConfig.top_p || DEFAULT_API_CONFIG.top_p;
+    document.getElementById('topPValue').textContent = apiConfig.top_p || DEFAULT_API_CONFIG.top_p;
+    
+    // 设置模型选择
+    if (apiConfig.model) {
+        const presetModels = ['gpt-4o', 'gpt-4o-mini', 'claude-3-5-sonnet-20241022', 
+                              'claude-3-opus-20240229', 'deepseek-chat', 'qwen-max'];
+        if (presetModels.includes(apiConfig.model)) {
+            document.getElementById('modelSelect').value = apiConfig.model;
+        } else {
+            document.getElementById('modelSelect').value = '__custom__';
+            document.getElementById('customModelInput').value = apiConfig.model;
+            document.getElementById('customModelInput').style.display = 'block';
+        }
+    }
+}
+
+// ========== 测试API连接 ==========
+async function testApiConnection() {
+    const statusEl = document.getElementById('connectionStatus');
+    const testBtn = document.getElementById('testConnBtn');
+    
+    // 收集当前配置
+    collectCurrentConfig();
+    const testUrl = apiConfig.url;
+    
+    if (!testUrl) {
+        showConnectionStatus('error', '❌ 请先输入API地址');
+        return;
+    }
+    if (!apiConfig.model) {
+        showConnectionStatus('error', '❌ 请先选择或输入模型');
+        return;
+    }
+    
+    // 显示加载状态
+    showConnectionStatus('loading', '🔄 正在测试连接...');
+    testBtn.disabled = true;
+    
+    try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000);
+        
+        const response = await fetch('/card/' + CARD_DATA.id + '/chat-test', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(apiConfig),
+            signal: controller.signal
+        });
+        
+        clearTimeout(timeoutId);
+        const data = await response.json();
+        
+        if (response.ok && data.ok) {
+            showConnectionStatus('success', `✅ ${data.message || '连接成功'}`);
+        } else {
+            showConnectionStatus('error', `❌ ${data.error || '连接失败'}`);
+        }
+    } catch (err) {
+        if (err.name === 'AbortError') {
+            showConnectionStatus('error', '❌ 连接超时（10秒），请检查地址和网络');
+        } else {
+            showConnectionStatus('error', `❌ 连接错误: ${err.message}`);
+        }
+    } finally {
+        testBtn.disabled = false;
+    }
+}
+
+function showConnectionStatus(type, message) {
+    const el = document.getElementById('connectionStatus');
+    el.className = 'connection-status ' + type;
+    el.textContent = message;
+    el.style.display = '';
+    
+    // 成功/错误信息5秒后自动隐藏
+    if (type !== 'loading') {
+        setTimeout(() => {
+            el.style.display = 'none';
+        }, 5000);
+    }
+}
+
+// ========== 消息发送处理 ==========
+function handleSend(e) {
+    e.preventDefault();
+    
+    // 流式输出中禁止发送新消息
+    if (isStreaming) return false;
+    
+    const input = document.getElementById('chatInput');
+    const text = input.value.trim();
+    if (!text) return false;
+    
+    // 清空输入框
+    input.value = '';
+    
+    collectCurrentConfig();
+
+    // 根据当前模式分发处理
+    if (chatMode === 'api') {
+        sendApiMessage(text);
+    } else {
+        sendMockMessage(text);
+    }
+    
+    return false;
+}
+
+// ========== Mock模式消息处理 ==========
+function sendMockMessage(userMessage) {
+    // 显示用户消息
+    addMessage(userMessage, 'user');
+    
+    // 加入对话历史
+    conversationHistory.push({ role: 'user', content: userMessage });
+    
+    // 模拟打字延迟后显示角色回复
+    setTimeout(() => {
+        const response = generateMockResponse(userMessage);
+        addMessage(response, 'character');
+        conversationHistory.push({ role: 'assistant', content: response });
+    }, 600 + Math.random() * 800);
+}
+
+// 基于角色设定的简单回复生成（模拟）
+function generateMockResponse(userMessage) {
+    const lowerMsg = userMessage.toLowerCase();
+    const responses = [
+        `（微微一笑）${userMessage}吗？真有意思呢...`,
+        `嗯...让我想想。${userMessage.slice(0, 20)}，这让我想起了什么...`,
+        `（眼神闪烁）你说的"${userMessage.slice(0, 15)}"...我有些意外你会提到这个。`,
+        `哈，没想到你会这么说。不过我倒是觉得挺有趣的~`,
+        `（轻轻点头）我明白了你的意思。关于这件事...`,
+        `哎呀，你突然说这个，让我有点不知所措呢...`
+    ];
+    
+    // 特定关键词匹配回复
+    if (lowerMsg.includes('你好') || lowerMsg.includes('hi') || lowerMsg.includes('嗨')) {
+        return `你好呀！很高兴见到你~我是${CARD_DATA.name}，有什么想聊的吗？😊`;
+    }
+    if (lowerMsg.includes('谁') || lowerMsg.includes('名字')) {
+        return `我叫${CARD_DATA.name}哦！很高兴认识你~${CARD_DATA.personality ? '\n' + CARD_DATA.personality.slice(0, 60) + (CARD_DATA.personality.length > 60 ? '...' : '') : ''}`;
+    }
+    if (lowerMsg.includes('做') || lowerMsg.includes('在')) {
+        return `（思考中）嗯...我现在正在想事情呢。${CARD_DATA.scenario ? '\n' + CARD_DATA.scenario.slice(0, 80) + (CARD_DATA.scenario.length > 80 ? '...' : '') : '没什么特别的事啦~'}`;
+    }
+    if (lowerMsg.includes('喜欢') || lowerMsg.includes('爱')) {
+        return `（脸微微泛红）诶？！你、你怎么突然问这个...（偏过头去）`;
+    }
+    if (lowerMsg.includes('帮助') || lowerMsg.includes('帮')) {
+        return `当然可以帮你呀！告诉我你需要什么吧，我会尽力帮忙的~`;
+    }
+    
+    // 随机选择一个通用回复
+    return responses[Math.floor(Math.random() * responses.length)];
+}
+
+// ========== API模式消息处理（SSE流式输出）==========
+function sendApiMessage(userMessage) {
+    // 收集最新配置
+    collectCurrentConfig();
+    
+    // 校验必要配置
+    if (!apiConfig.url) {
+        showConnectionStatus('error', '❌ 请先配置API地址');
+        return;
+    }
+    if (!apiConfig.model) {
+        showConnectionStatus('error', '❌ 请先选择或输入模型');
+        return;
+    }
+    
+    // 显示用户消息
+    addMessage(userMessage, 'user');
+    
+    const requestHistory = [...conversationHistory];
+
+    // 加入对话历史
+    conversationHistory.push({ role: 'user', content: userMessage });
+    
+    // 创建助手消息气泡（带光标动画占位）
+    createStreamingBubble();
+    
+    // 进入流式输出状态
+    isStreaming = true;
+    updateStreamingUI(true);
+    
+    // 构造请求数据
+    const requestBody = {
+        message: userMessage,
+        history: requestHistory,
+        preview_token: PREVIEW_TOKEN,
+        api_config: {
+            url: apiConfig.url,
+            key: apiConfig.key,
+            model: apiConfig.model,
+            temperature: apiConfig.temperature,
+            max_tokens: apiConfig.max_tokens,
+            top_p: apiConfig.top_p
+        },
+        card_data: {
+            name: CARD_DATA.name,
+            system_prompt: CARD_DATA.system_prompt,
+            personality: CARD_DATA.personality,
+            scenario: CARD_DATA.scenario,
+            first_message: CARD_DATA.first_message,
+            response_format: CARD_DATA.response_format,
+            rules: CARD_DATA.rules
+        }
+    };
+    
+    // 使用fetch + ReadableStream实现SSE流式接收
+    currentStreamController = new AbortController();
+
+    fetch('/card/' + CARD_DATA.id + '/chat-stream', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': window.csrfToken
+        },
+        body: JSON.stringify(requestBody),
+        signal: currentStreamController.signal
+    })
+    .then(response => {
+        if (!response.ok) {
+            return response.text().then(text => {
+                let message = text || response.statusText;
+                try {
+                    const parsed = JSON.parse(text);
+                    message = parsed.error || message;
+                } catch (e) {}
+                throw new Error(message);
+            });
+        }
+        
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        
+        function pump() {
+            return reader.read().then(({ done, value }) => {
+                if (done) {
+                    finishStreaming();
+                    return;
+                }
+                
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split('\n');
+                buffer = lines.pop(); // 保留未完成的行
+                
+                for (const line of lines) {
+                    if (line.startsWith('data: ')) {
+                        const data = line.slice(6).trim();
+                        
+                        // 结束标记
+                        if (data === '[DONE]') {
+                            finishStreaming();
+                            reader.cancel();
+                            return;
+                        }
+                        
+                        // 解析并追加内容
+                        const deltaContent = parseSSEData(data);
+                        if (deltaContent) appendStreamingText(deltaContent);
+                    }
+                }
+                
+                return pump();
+            });
+        }
+        
+        return pump();
+    })
+    .catch(err => {
+        console.error('SSE流错误:', err);
+        finishStreaming(err.name === 'AbortError' ? '（已停止生成）' : err.message);
+    });
+}
+
+// 从UI收集当前配置
+function collectCurrentConfig() {
+    const modelSelect = document.getElementById('modelSelect').value;
+    let finalModel = modelSelect;
+    
+    if (modelSelect === '__custom__' || modelSelect === '__ollama__') {
+        finalModel = document.getElementById('customModelInput').value.trim();
+    }
+    
+    apiConfig = {
+        url: document.getElementById('apiUrlInput').value.trim(),
+        key: document.getElementById('apiKeyInput').value.trim(),
+        model: finalModel,
+        temperature: parseFloat(document.getElementById('tempSlider').value),
+        max_tokens: parseInt(document.getElementById('maxTokensInput').value, 10),
+        top_p: parseFloat(document.getElementById('topPSlider').value)
+    };
+}
+
+// 创建流式输出消息气泡
+function createStreamingBubble() {
+    const container = document.getElementById('chatMessages');
+    
+    // 移除欢迎提示
+    const welcomeHint = container.querySelector('.chat-welcome-hint');
+    if (welcomeHint) welcomeHint.remove();
+    
+    const row = document.createElement('div');
+    row.className = 'message-row character-message';
+    row.innerHTML = `
+        <div class="message-avatar character-avatar">
+            ${CARD_DATA.avatar_path ? `<img src="${CARD_DATA.avatar_url}" alt="">` : CARD_DATA.name[0]}
+        </div>
+        <div class="message-bubble character-bubble">
+            <div class="message-sender">${CARD_DATA.name}</div>
+            <div class="message-text streaming-cursor"></div>
+        </div>`;
+    
+    container.appendChild(row);
+    streamingMessageEl = row.querySelector('.message-text');
+    scrollToBottom();
+}
+
+// SSE数据解析（兼容OpenAI格式）
+function parseSSEData(line) {
+    let json;
+    try {
+        json = JSON.parse(line);
+    } catch (e) {
+        console.warn('SSE数据解析警告:', e.message);
+        return '';
+    }
+
+    if (json.error) {
+        const message = typeof json.error === 'string' ? json.error : (json.error.message || JSON.stringify(json.error));
+        throw new Error(message);
+    }
+
+    const choice = json.choices && json.choices[0];
+    return (choice && choice.delta && choice.delta.content) || (choice && choice.message && choice.message.content) || '';
+}
+
+// 追加流式文本内容
+function appendStreamingText(text) {
+    if (!streamingMessageEl) return;
+    streamingMessageEl.textContent += text;
+    scrollToBottom();
+}
+
+// 完成流式输出
+function finishStreaming(errorMessage) {
+    isStreaming = false;
+    updateStreamingUI(false);
+    currentStreamController = null;
+    
+    if (streamingMessageEl) {
+        // 移除光标动画类
+        streamingMessageEl.classList.remove('streaming-cursor');
+        const assistantText = streamingMessageEl.textContent.trim();
+        
+        // 如果有错误，显示在消息中
+        if (errorMessage) {
+            streamingMessageEl.innerHTML += '<br><span style="color:#ef4444;font-size:12px;">⚠️ ' + escapeHtml(errorMessage) + '</span>';
+        }
+        
+        // 将完成的内容加入对话历史
+        if (assistantText) {
+            conversationHistory.push({ role: 'assistant', content: assistantText });
+        }
+        
+        streamingMessageEl = null;
+    }
+}
+
+// 停止流式生成
+function stopStreaming() {
+    if (!isStreaming) return;
+    
+    // 关闭当前连接
+    if (currentEventSource) {
+        currentEventSource.close();
+        currentEventSource = null;
+    }
+    if (currentStreamController) {
+        currentStreamController.abort();
+        return;
+    }
+    
+    // 手动结束
+    finishStreaming('（已停止生成）');
+}
+
+// 更新流式输出时的UI状态
+function updateStreamingUI(streaming) {
+    const sendBtn = document.getElementById('chatSendBtn');
+    const stopBtn = document.getElementById('chatStopBtn');
+    const input = document.getElementById('chatInput');
+    
+    if (streaming) {
+        sendBtn.style.display = 'none';
+        stopBtn.style.display = 'inline-flex';
+        input.disabled = true;
+    } else {
+        sendBtn.style.display = 'grid';
+        stopBtn.style.display = 'none';
+        input.disabled = false;
+        input.focus();
+    }
+}
+
+// ========== 清空对话 ==========
+function clearChat() {
+    // 如果正在流式输出，先停止
+    if (isStreaming) {
+        stopStreaming();
+    }
+    
+    // 清空对话历史（保留系统提示和开场白）
+    conversationHistory = [];
+    if (CARD_DATA.first_message) {
+        conversationHistory.push({
+            role: 'assistant',
+            content: CARD_DATA.first_message
+        });
+    }
+    
+    // 重建消息DOM
+    const container = document.getElementById('chatMessages');
+    container.innerHTML = buildInitialMessagesHTML();
+    
+    // 滚动到底部
+    setTimeout(() => scrollToBottom(), 50);
+}
+
+// 构建初始消息HTML（用于清空对话后重建）
+function buildInitialMessagesHTML() {
+    let html = '';
+    
+    // 角色设定卡片
+    html += `
+        <div class="chat-info-card">
+            <div class="info-card-icon">📋</div>
+            <div class="info-card-content">
+                <strong>角色设定</strong>
+                ${CARD_DATA.personality ? 
+                    `<p class="info-card-text">${escapeHtml(CARD_DATA.personality.slice(0, 200))}${CARD_DATA.personality.length > 200 ? '...' : ''}</p>` :
+                    `<p class="info-card-text-empty">暂无性格设定</p>`
+                }
+            </div>
+        </div>`;
+    
+    // 场景背景卡片
+    if (CARD_DATA.scenario) {
+        html += `
+        <div class="chat-info-card scenario-card">
+            <div class="info-card-icon">🎬</div>
+            <div class="info-card-content">
+                <strong>背景场景</strong>
+                <p class="info-card-text">${escapeHtml(CARD_DATA.scenario.slice(0, 200))}${CARD_DATA.scenario.length > 200 ? '...' : ''}</p>
+            </div>
+        </div>`;
+    }
+    
+    // 开场白
+    if (CARD_DATA.first_message) {
+        html += `
+        <div class="message-row character-message">
+            <div class="message-avatar character-avatar">
+                ${CARD_DATA.avatar_path ? `<img src="${CARD_DATA.avatar_url}" alt="">` : escapeHtml(CARD_DATA.name[0])}
+            </div>
+            <div class="message-bubble character-bubble">
+                <div class="message-sender">${escapeHtml(CARD_DATA.name)}</div>
+                <div class="message-text">${escapeHtml(CARD_DATA.first_message)}</div>
+            </div>
+        </div>`;
+    } else {
+        html += `<div class="chat-welcome-hint"><span>💬 点击下方输入框开始与 ${escapeHtml(CARD_DATA.name)} 对话预览</span></div>`;
+    }
+    
+    return html;
+}
+
+// ========== 消息DOM操作工具函数 ==========
+function addMessage(text, sender) {
+    const container = document.getElementById('chatMessages');
+    
+    // 移除欢迎提示
+    const welcomeHint = container.querySelector('.chat-welcome-hint');
+    if (welcomeHint) welcomeHint.remove();
+    
+    const row = document.createElement('div');
+    row.className = `message-row ${sender === 'user' ? 'user-message' : 'character-message'}`;
+    
+    if (sender === 'character') {
+        row.innerHTML = `
+            <div class="message-avatar character-avatar">
+                ${CARD_DATA.avatar_path ? `<img src="${CARD_DATA.avatar_url}" alt="">` : escapeHtml(CARD_DATA.name[0])}
+            </div>
+            <div class="message-bubble character-bubble">
+                <div class="message-sender">${escapeHtml(CARD_DATA.name)}</div>
+                <div class="message-text">${escapeHtml(text).replace(/\n/g, '<br>')}</div>
+            </div>`;
+    } else {
+        row.innerHTML = `
+            <div class="message-bubble user-bubble">
+                <div class="message-text">${escapeHtml(text).replace(/\n/g, '<br>')}</div>
+            </div>
+            <div class="message-avatar user-avatar">我</div>`;
+    }
+    
+    container.appendChild(row);
+    scrollToBottom();
+}
+
+function sendQuickReply(text) {
+    document.getElementById('chatInput').value = text;
+    handleSend(new Event('submit'));
+}
+
+function toggleExampleDialogues() {
+    const content = document.getElementById('exampleContent');
+    const btn = document.getElementById('exampleToggleBtn');
+    if (content.style.display === 'none') {
+        content.style.display = 'block';
+        btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="18 15 12 9 6 15"/></svg> 收起示例对话';
+    } else {
+        content.style.display = 'none';
+        btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> 查看示例对话';
+    }
+}
+
+// HTML转义防XSS
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+// 自动滚动到底部
+function scrollToBottom() {
+    const container = document.getElementById('chatMessages');
+    if (container) {
+        requestAnimationFrame(() => {
+            container.scrollTop = container.scrollHeight;
+        });
+    }
+}
+console.log('[card_preview] 脚本加载完成 ✓ switchMode:', typeof switchMode);
+</script>
+{% endblock %}

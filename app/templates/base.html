@@ -12,6 +12,11 @@
         })();
     </script>
     <link rel="icon" type="image/png" href="{{ url_for('static', filename='png/favicon.png') }}">
+    <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
+    <meta name="theme-color" content="#2f6f73">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="角色卡平台">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=20260510-improvements">
 </head>
 <body>
@@ -164,6 +169,37 @@
         </div>
     </footer>
 
+    <!-- 移动端底部导航栏 -->
+    <nav class="mobile-bottom-nav" id="mobileBottomNav">
+        <a href="{{ url_for('landing') }}" class="mobile-nav-item {% if request.endpoint == 'landing' %}active{% endif %}" data-page="home">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+            <span>首页</span>
+        </a>
+        <a href="{{ url_for('index') }}" class="mobile-nav-item {% if request.endpoint == 'index' %}active{% endif %}" data-page="plaza">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+            <span>广场</span>
+        </a>
+        <a href="{{ url_for('search') }}" class="mobile-nav-item {% if request.endpoint == 'search' %}active{% endif %}" data-page="search">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <span>搜索</span>
+        </a>
+        {% if current_user %}
+        <a href="{{ url_for('feed') }}" class="mobile-nav-item {% if request.endpoint == 'feed' %}active{% endif %}" data-page="feed">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93z"/></svg>
+            <span>动态</span>
+        </a>
+        <a href="{{ url_for('user_profile', username=current_user.username) }}" class="mobile-nav-item {% if request.endpoint == 'user_profile' and (username|default('') == current_user.username) %}active{% endif %}" data-page="profile">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            <span>我的</span>
+        </a>
+        {% else %}
+        <a href="{{ url_for('login') }}" class="mobile-nav-item" data-page="login">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
+            <span>登录</span>
+        </a>
+        {% endif %}
+    </nav>
+
     <!-- 确认弹窗 -->
     <div id="confirm-modal" class="confirm-modal-overlay">
         <div class="confirm-modal">
@@ -257,7 +293,13 @@
                     e.stopPropagation();
                 });
             });
+
+            // 注册Service Worker (PWA支持)
+            if ('serviceWorker' in navigator) {
+              window.addEventListener('load', function() {
+                navigator.serviceWorker.register("{{ url_for('static', filename='sw.js') }}?v=3").catch(function() {});
+              });
+            }
         });
     </script>
-</body>
 </html>

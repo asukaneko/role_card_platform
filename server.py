@@ -16,6 +16,7 @@ from pathlib import Path
 
 from flask import (
     Flask,
+    Response,
     abort,
     flash,
     jsonify,
@@ -25,6 +26,7 @@ from flask import (
     send_file,
     send_from_directory,
     session,
+    stream_with_context,
     url_for,
 )
 from flask_limiter import Limiter
@@ -494,8 +496,9 @@ def edit_profile(username):
 
 
 @server.route("/assets/uploads/avatars/<path:filename>")
+@limiter.exempt
 def avatar_file(filename):
-    """提供头像文件访问 - 只允许访问 uploads/avatars 目录"""
+    """提供头像文件访问 - 只允许访问 uploads/avatars 目录（豁免速率限制）"""
     # 清理文件名，防止路径遍历攻击
     safe_name = secure_filename(filename)
     if not safe_name:
@@ -506,8 +509,9 @@ def avatar_file(filename):
 
 
 @server.route("/assets/uploads/cards/<path:filename>")
+@limiter.exempt
 def card_asset_file(filename):
-    """提供角色卡导出文件访问 - 只允许访问 uploads/cards 目录"""
+    """提供角色卡导出文件访问 - 只允许访问 uploads/cards 目录（豁免速率限制）"""
     # 清理文件名，防止路径遍历攻击
     safe_name = secure_filename(filename)
     if not safe_name or not safe_name.endswith(".json"):
@@ -822,6 +826,321 @@ def card_detail(identifier):
         is_following_author = UserFollow.is_following(user_id, card["user_id"])
 
     return render_template("detail.html", card=card, comments=comments, user_liked=user_liked, user_favorited=user_favorited, current_user_id=user_id, related_cards=related_cards, linked_by_cards=linked_by_cards, is_following_author=is_following_author, is_owner=is_owner, user_collections=user_collections)
+
+
+@server.route("/card/<int:card_id>/preview-data")
+def card_preview_data(card_id):
+    """获取角色卡预览数据（用于前端聊天预览器）
+
+    返回角色的核心对话数据：名称、性格、背景、开场白、系统提示词等
+    """
+    with get_db() as db:
+        row = db.execute("SELECT * FROM role_cards WHERE id = ?", (card_id,)).fetchone()
+
+    if not row:
+        return jsonify({"error": "卡片不存在"}), 404
+
+    card = RoleCard.row_to_card(row)
+
+    # 权限检查：未审核通过的公开卡片不能预览
+    if card.get("status") != "approved" or card.get("visibility") != "public":
+        user_id = session.get("user_id")
+        api_user_id = resolve_api_user()
+        is_owner = user_id and card.get("user_id") == user_id
+        is_admin = is_admin_user(user_id) or is_admin_user(api_user_id)
+        is_reviewer = user_id and Reviewer.is_reviewer(user_id)
+
+        # 检查preview_token
+        preview_token = request.args.get("preview_token", "").strip()
+        has_valid_preview = False
+        if preview_token:
+            has_valid_preview = PreviewToken.verify(card["id"], preview_token)
+
+        if not (is_owner or is_admin or is_reviewer or has_valid_preview):
+            return jsonify({"error": "无权访问此卡片"}), 403
+
+    # 增加浏览量
+    if card.get("status") == "approved" and card.get("visibility") == "public":
+        RoleCard.increment_views(card_id)
+
+    # 解析标签
+    tags = card.get("tags") or []
+    if isinstance(card.get("tags_json"), str):
+        try:
+            tags = json.loads(card["tags_json"]) if card["tags_json"] else []
+        except Exception:
+            tags = []
+
+    # 构建预览数据
+    preview_data = {
+        "id": card["id"],
+        "name": card["name"],
+        "description": card.get("description", ""),
+        "personality": card.get("personality", ""),
+        "scenario": card.get("scenario", ""),
+        "first_message": card.get("first_message", ""),
+        "system_prompt": card.get("system_prompt", ""),
+        "tags": tags,
+        "creator": card.get("creator", ""),
+        "avatar_path": card.get("avatar_path", ""),
+        "example_dialogues": card.get("example_dialogues", ""),
+        "basic_info": card.get("basic_info", ""),
+        "state": card.get("state") if isinstance(card.get("state"), dict) else {},
+    }
+
+    return jsonify(preview_data)
+
+
+@server.route("/preview/<int:card_id>")
+def card_preview_page(card_id):
+    """独立预览页面 - 可通过链接分享
+
+    提供一个独立的聊天式预览页面，无需登录即可体验角色
+    """
+    with get_db() as db:
+        row = db.execute("SELECT * FROM role_cards WHERE id = ?", (card_id,)).fetchone()
+
+    if not row:
+        abort(404)
+
+    card = RoleCard.row_to_card(row)
+
+    # 权限检查
+    if card.get("status") != "approved" or card.get("visibility") != "public":
+        preview_token = request.args.get("preview_token", "").strip()
+        has_valid_preview = False
+        if preview_token:
+            has_valid_preview = PreviewToken.verify(card["id"], preview_token)
+
+        if not has_valid_preview:
+            abort(404)
+
+    return render_template("card_preview.html", card=card, preview_mode=True)
+
+
+@server.route("/card/<int:card_id>/chat-stream", methods=["POST"])
+def chat_stream(card_id):
+    """流式聊天代理 - 将请求转发到用户配置的LLM API并SSE流式返回
+
+    支持OpenAI兼容格式的API（如OpenAI、Claude、本地Ollama、vLLM等）
+    """
+    data = request.get_json(silent=True) or {}
+    user_message = data.get("message", "").strip()
+    history = data.get("history", [])  # 对话历史 [{role, content}, ...]
+    api_config = data.get("api_config", {}) or {}
+    preview_token = data.get("preview_token", "").strip()
+
+    if not user_message:
+        return jsonify({"error": "消息不能为空"}), 400
+
+    api_url = (api_config.get("url") or "").rstrip("/")
+    api_key = api_config.get("key") or ""
+    model = api_config.get("model") or ""
+
+    if not api_url:
+        return jsonify({"error": "请配置API地址"}), 400
+    if not model:
+        return jsonify({"error": "请选择模型"}), 400
+
+    # 获取卡片数据构建系统提示词
+    with get_db() as db:
+        row = db.execute("SELECT * FROM role_cards WHERE id = ?", (card_id,)).fetchone()
+
+    if not row:
+        return jsonify({"error": "卡片不存在"}), 404
+
+    card = RoleCard.row_to_card(row)
+
+    # 权限检查
+    if card.get("status") != "approved" or card.get("visibility") != "public":
+        user_id = session.get("user_id")
+        is_owner = user_id and card.get("user_id") == user_id
+        api_user_id = resolve_api_user()
+        is_admin = is_admin_user(user_id) or is_admin_user(api_user_id)
+        is_reviewer = Reviewer.is_reviewer(user_id) if user_id else False
+        has_valid_preview = False
+        if preview_token:
+            has_valid_preview = PreviewToken.verify(card["id"], preview_token)
+
+        if not (is_owner or is_admin or is_reviewer or has_valid_preview):
+            return jsonify({"error": "无权访问此卡片"}), 403
+
+    # 构建系统提示词
+    system_prompt_parts = []
+    if card.get("system_prompt"):
+        system_prompt_parts.append(card["system_prompt"])
+    if card.get("personality"):
+        system_prompt_parts.append(f"【性格设定】{card['personality']}")
+    if card.get("scenario"):
+        system_prompt_parts.append(f"【背景场景】{card['scenario']}")
+    if card.get("basic_info"):
+        system_prompt_parts.append(f"【基本信息】{card['basic_info']}")
+    if card.get("response_format"):
+        system_prompt_parts.append(f"【回复格式要求】{card['response_format']}")
+    if card.get("rules"):
+        rules_text = "\n".join(card["rules"]) if isinstance(card["rules"], list) else str(card["rules"])
+        system_prompt_parts.append(f"【行为规则】\n{rules_text}")
+
+    system_prompt = "\n\n".join(system_prompt_parts)
+
+    # 构建消息列表：系统提示 + 历史对话 + 当前消息
+    messages = [{"role": "system", "content": system_prompt}]
+
+    # 添加历史对话（限制最近20轮避免token超限）
+    for msg in history[-40:]:
+        if msg.get("role") in ("user", "assistant") and msg.get("content"):
+            messages.append({"role": msg["role"], "content": msg["content"]})
+
+    # 添加当前用户消息
+    messages.append({"role": "user", "content": user_message})
+
+    # 构建请求体（OpenAI兼容格式）
+    request_body = {
+        "model": model,
+        "messages": messages,
+        "stream": True,
+        "temperature": float(api_config.get("temperature", 0.8)),
+        "max_tokens": int(api_config.get("max_tokens", 2048)),
+        "top_p": float(api_config.get("top_p", 0.9)),
+    }
+
+    # 设置请求头
+    headers = {
+        "Content-Type": "application/json",
+    }
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
+
+    def generate():
+        """生成器函数：转发流式响应"""
+        try:
+            import httpx
+
+            with httpx.Client(timeout=60.0) as client:
+                with client.stream(
+                    "POST",
+                    f"{api_url}/chat/completions",
+                    json=request_body,
+                    headers=headers,
+                ) as response:
+                    if response.status_code != 200:
+                        error_msg = f"API错误({response.status_code}): "
+                        error_body = response.read().decode("utf-8", errors="replace")
+                        try:
+                            error_data = json.loads(error_body)
+                            error_msg += error_data.get("error", {}).get("message", str(error_data))
+                        except Exception:
+                            error_msg += error_body[:500]
+                        yield f"data: {json.dumps({'error': error_msg}, ensure_ascii=False)}\n\n"
+                        yield "data: [DONE]\n\n"
+                        return
+
+                    # 逐块转发SSE数据
+                    for line in response.iter_lines():
+                        if line.startswith("data: ") and line[6:].strip() not in ("", "[DONE]"):
+                            yield f"{line}\n\n"
+                        elif line == "data: [DONE]":
+                            yield "data: [DONE]\n\n"
+
+        except ImportError:
+            # 降级到urllib3（httpx不可用时）
+            import urllib.request
+            import urllib.error
+
+            req = urllib.request.Request(
+                f"{api_url}/chat/completions",
+                data=json.dumps(request_body).encode("utf-8"),
+                headers=headers,
+                method="POST",
+            )
+
+            try:
+                with urllib.request.urlopen(req, timeout=60) as resp:
+                    buffer = b""
+                    while True:
+                        chunk = resp.read(1024)
+                        if not chunk:
+                            break
+                        buffer += chunk
+                        while b"\n\n" in buffer:
+                            line, buffer = buffer.split(b"\n\n", 1)
+                            text = line.decode("utf-8", errors="replace")
+                            if text.startswith("data: ") and text[6:].strip() not in ("", "[DONE]"):
+                                yield f"data: {text[6:]}\n\n"
+                            elif text == "data: [DONE]":
+                                yield "data: [DONE]\n\n"
+                    # 处理剩余buffer
+                    if buffer:
+                        text = buffer.decode("utf-8", errors="replace").strip()
+                        if text:
+                            yield f"data: {text}\n\n"
+                    yield "data: [DONE]\n\n"
+
+            except urllib.error.HTTPError as e:
+                body = e.read().decode("utf-8", errors="replace")[:500]
+                yield f"data: {json.dumps({'error': f'API错误({e.code}): {body}'}, ensure_ascii=False)}\n\n"
+                yield "data: [DONE]\n\n"
+
+        except Exception as e:
+            yield f"data: {json.dumps({'error': f'连接失败: {str(e)}'}, ensure_ascii=False)}\n\n"
+            yield "data: [DONE]\n\n"
+
+    return Response(
+        stream_with_context(generate()),
+        mimetype="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+            "Connection": "keep-alive",
+        },
+    )
+
+
+@server.route("/card/<int:card_id>/chat-test", methods=["POST"])
+def chat_test_api(card_id):
+    """测试API连通性"""
+    data = request.get_json(silent=True) or {}
+    api_url = (data.get("url") or "").rstrip("/")
+    api_key = data.get("key") or ""
+    model = data.get("model") or ""
+
+    if not api_url or not model:
+        return jsonify({"ok": False, "error": "请填写完整的API配置"})
+
+    try:
+        import httpx
+
+        headers = {
+            "Content-Type": "application/json",
+        }
+        if api_key:
+            headers["Authorization"] = f"Bearer {api_key}"
+
+        resp = httpx.post(
+            f"{api_url}/chat/completions",
+            json={
+                "model": model,
+                "messages": [{"role": "user", "content": "Hi"}],
+                "max_tokens": 5,
+                "stream": False,
+            },
+            headers=headers,
+            timeout=15.0,
+        )
+
+        if resp.status_code == 200:
+            return jsonify({"ok": True, "message": "连接成功！"})
+        else:
+            detail = ""
+            try:
+                err = resp.json()
+                detail = err.get("error", {}).get("message", str(err))
+            except Exception:
+                detail = resp.text[:200]
+            return jsonify({"ok": False, "error": f"API返回错误({resp.status_code}): {detail}"})
+
+    except Exception as e:
+        return jsonify({"ok": False, "error": f"连接失败: {str(e)}"})
 
 
 @server.route("/card/<int:card_id>/relate", methods=["POST"])
