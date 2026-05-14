@@ -2417,6 +2417,39 @@ pre {
     border-color: var(--accent);
 }
 
+/* 个人主页退出登录按钮 */
+.logout-profile-btn {
+    display: inline-block;
+    margin-top: 12px;
+    margin-left: 8px;
+    padding: 8px 16px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--paper);
+    color: var(--muted);
+    font-size: 14px;
+    font-family: inherit;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.logout-profile-btn:hover {
+    background: rgba(244, 63, 94, 0.08);
+    border-color: var(--rose);
+    color: var(--rose);
+}
+
+/* 移动端专用：默认隐藏，仅在移动端显示 */
+.mobile-only {
+    display: none !important;
+}
+
+@media (max-width: 768px) {
+    .mobile-only {
+        display: inline-block !important;
+    }
+}
+
 /* 头像上传样式 */
 .avatar-upload {
     display: flex;

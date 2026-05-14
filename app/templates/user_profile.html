@@ -23,6 +23,7 @@
             </p>
             {% if is_self %}
                 <a href="{{ url_for('edit_profile', username=profile_user.username) }}" class="edit-profile-btn">编辑资料</a>
+                <button type="button" class="logout-profile-btn mobile-only" onclick="document.getElementById('mobile-logout-form').submit()">退出登录</button>
             {% else %}
                 {% if is_following %}
                     <button class="follow-profile-btn following" data-follow-url="{{ url_for('unfollow_user', user_id=profile_user.id) }}">已关注</button>
