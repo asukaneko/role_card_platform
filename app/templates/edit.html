@@ -118,6 +118,55 @@
     </section>
 
     <section class="form-band">
+        <h2>角色状态</h2>
+        <p class="form-hint">定义角色的初始状态变量，对话中可动态变化。例如：心情、体力、好感度等。</p>
+        <div id="state-container">
+            {% if card.state and card.state | length > 0 %}
+                {% for key, val in card.state.items() %}
+                {# 检测是否为好感度字段 #}
+                {% set key_lower = key | lower %}
+                {% set is_affinity = (key_lower in ['好感度','好感','亲密度','affinity','favor'] | map('lower') | list) %}
+                {% if is_affinity %}
+                {% set num_val = val | float | default(0) %}
+                <div class="state-card affinity-mode">
+                    <button type="button" class="state-card-remove" onclick="removeStateCard(this)" title="删除">×</button>
+                    <input name="state_keys" value="{{ key }}" class="state-card-label state-key-input" oninput="onStateKeyChange(this)">
+                    <input type="number" name="state_values" value="{{ num_val }}" class="state-card-value-input state-value-input state-affinity-value" oninput="onAffinityValueChange(this)">
+                    <div class="state-card-slider-wrap">
+                        <input type="range" class="state-card-slider state-affinity-slider" min="-100" max="100" value="{{ num_val }}" step="1" oninput="onAffinitySliderChange(this)">
+                        <div class="state-card-slider-range-row">
+                            <span class="state-card-slider-range-label">最小</span>
+                            <input type="number" class="state-card-slider-range-input state-affinity-min" value="-100" onchange="onAffinityRangeChange(this)" title="最小值">
+                            <span class="state-card-slider-range-label">最大</span>
+                            <input type="number" class="state-card-slider-range-input state-affinity-max" value="100" onchange="onAffinityRangeChange(this)" title="最大值">
+                        </div>
+                    </div>
+                </div>
+                {% else %}
+                <div class="state-card">
+                    <button type="button" class="state-card-remove" onclick="removeStateCard(this)" title="删除">×</button>
+                    <input name="state_keys" value="{{ key }}" class="state-card-label state-key-input" oninput="onStateKeyChange(this)">
+                    <input name="state_values" value="{{ val }}" placeholder="值" class="state-card-value-input state-value-input">
+                </div>
+                {% endif %}
+                {% endfor %}
+            {% else %}
+                <div class="state-card">
+                    <button type="button" class="state-card-remove" onclick="removeStateCard(this)" title="删除">×</button>
+                    <input name="state_keys" placeholder="键：例如 心情" class="state-card-label state-key-input" oninput="onStateKeyChange(this)">
+                    <input name="state_values" placeholder="值：例如 开心" class="state-card-value-input state-value-input">
+                </div>
+                <div class="state-card">
+                    <button type="button" class="state-card-remove" onclick="removeStateCard(this)" title="删除">×</button>
+                    <input name="state_keys" placeholder="键：例如 体力" class="state-card-label state-key-input" oninput="onStateKeyChange(this)">
+                    <input name="state_values" placeholder="值：例如 100%" class="state-card-value-input state-value-input">
+                </div>
+            {% endif %}
+        </div>
+        <button type="button" class="btn-secondary" onclick="addState()">+ 添加状态</button>
+    </section>
+
+    <section class="form-band">
         <h2>系统提示词（可选）</h2>
         <label>
             <span>系统提示词</span>
@@ -146,5 +195,132 @@ function addRule() {
     div.innerHTML = `<input name="rules" placeholder="规则 ${count}">`;
     container.appendChild(div);
 }
+
+function addState() {
+    const container = document.getElementById('state-container');
+    const div = document.createElement('div');
+    div.className = 'state-card';
+    div.innerHTML = `
+        <button type="button" class="state-card-remove" onclick="removeStateCard(this)" title="删除">×</button>
+        <input name="state_keys" placeholder="键" class="state-card-label state-key-input" oninput="onStateKeyChange(this)">
+        <input name="state_values" placeholder="值" class="state-card-value-input state-value-input">
+    `;
+    container.appendChild(div);
+}
+
+function removeStateCard(btn) {
+    btn.closest('.state-card').remove();
+}
+
+function onStateKeyChange(input) {
+    const card = input.closest('.state-card');
+    const key = (input.value || '').trim();
+    const affinityKeywords = ['好感度', '好感', '亲密度', 'affinity', 'favor'];
+    const isAffinity = affinityKeywords.some(kw => key.toLowerCase().includes(kw.toLowerCase()));
+    
+    if (isAffinity && !card.classList.contains('affinity-mode')) {
+        convertToAffinityMode(card, key);
+    } else if (!isAffinity && card.classList.contains('affinity-mode')) {
+        convertToNormalMode(card);
+    }
+}
+
+function convertToAffinityMode(card, key) {
+    const valueInput = card.querySelector('.state-value-input');
+    const currentValue = valueInput ? parseFloat(valueInput.value) || 0 : 0;
+    
+    card.classList.add('affinity-mode');
+    
+    if (valueInput) {
+        valueInput.type = 'number';
+        valueInput.className = 'state-card-value-input state-value-input state-affinity-value';
+        valueInput.value = currentValue;
+        valueInput.setAttribute('oninput', 'onAffinityValueChange(this)');
+    }
+    
+    const existingSlider = card.querySelector('.state-card-slider-wrap');
+    if (existingSlider) existingSlider.remove();
+    
+    const sliderWrap = document.createElement('div');
+    sliderWrap.className = 'state-card-slider-wrap';
+    sliderWrap.innerHTML = `
+        <input type="range" class="state-card-slider state-affinity-slider" min="-100" max="100" value="${currentValue}" step="1" oninput="onAffinitySliderChange(this)">
+        <div class="state-card-slider-range-row">
+            <span class="state-card-slider-range-label">最小</span>
+            <input type="number" class="state-card-slider-range-input state-affinity-min" value="-100" onchange="onAffinityRangeChange(this)" title="最小值">
+            <span class="state-card-slider-range-label">最大</span>
+            <input type="number" class="state-card-slider-range-input state-affinity-max" value="100" onchange="onAffinityRangeChange(this)" title="最大值">
+        </div>
+    `;
+    card.appendChild(sliderWrap);
+}
+
+function convertToNormalMode(card) {
+    card.classList.remove('affinity-mode');
+    
+    const valueInput = card.querySelector('.state-value-input');
+    if (valueInput) {
+        valueInput.type = 'text';
+        valueInput.className = 'state-card-value-input state-value-input';
+        valueInput.removeAttribute('oninput');
+    }
+    
+    const sliderWrap = card.querySelector('.state-card-slider-wrap');
+    if (sliderWrap) sliderWrap.remove();
+}
+
+function onAffinitySliderChange(slider) {
+    const card = slider.closest('.state-card');
+    const valueInput = card.querySelector('.state-affinity-value');
+    if (valueInput) valueInput.value = slider.value;
+    updateSliderTrack(slider);
+}
+
+function onAffinityValueChange(input) {
+    const card = input.closest('.state-card');
+    const slider = card.querySelector('.state-affinity-slider');
+    if (slider) {
+        slider.value = input.value;
+        updateSliderTrack(slider);
+    }
+}
+
+function onAffinityRangeChange(input) {
+    const card = input.closest('.state-card');
+    const slider = card.querySelector('.state-affinity-slider');
+    const minInput = card.querySelector('.state-affinity-min');
+    const maxInput = card.querySelector('.state-affinity-max');
+    if (slider && minInput && maxInput) {
+        let min = parseFloat(minInput.value) || -100;
+        let max = parseFloat(maxInput.value) || 100;
+        if (min >= max) {
+            if (input === minInput) min = max - 1; else max = min + 1;
+            input.value = input === minInput ? min : max;
+        }
+        slider.min = min;
+        slider.max = max;
+        let val = parseFloat(slider.value) || 0;
+        val = Math.max(min, Math.min(max, val));
+        slider.value = val;
+        const valueInput = card.querySelector('.state-affinity-value');
+        if (valueInput) valueInput.value = val;
+        updateSliderTrack(slider);
+    }
+}
+
+function updateSliderTrack(slider) {
+    const min = parseFloat(slider.min);
+    const max = parseFloat(slider.max);
+    const val = parseFloat(slider.value);
+    const percent = ((val - min) / (max - min)) * 100;
+    slider.style.background = `linear-gradient(90deg, var(--rose) 0%, var(--rose) ${Math.min(percent, 50)}%, var(--line) ${Math.min(percent, 50)}%, var(--line) ${Math.max(percent, 50)}%, var(--accent) ${Math.max(percent, 50)}%, var(--accent) 100%)`;
+}
+
+// 页面加载时初始化已有滑块的轨道颜色
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('.state-affinity-slider').forEach(function(slider) {
+        updateSliderTrack(slider);
+    });
+});
 </script>
 {% endblock %}

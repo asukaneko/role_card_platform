@@ -53,6 +53,16 @@ def normalize_role_card_data(data: dict, visibility: str = "public") -> dict:
 
 def card_from_form(form) -> dict:
     """从表单数据创建角色卡字典"""
+    # 解析角色状态键值对
+    state_keys = form.getlist("state_keys") if hasattr(form, "getlist") else [form.get("state_keys", "")]
+    state_values = form.getlist("state_values") if hasattr(form, "getlist") else [form.get("state_values", "")]
+    state = {}
+    for k, v in zip(state_keys, state_values):
+        key = (k or "").strip()
+        val = (v or "").strip()
+        if key:
+            state[key] = val
+
     card = {
         "name": limit_text(form.get("name"), 80),
         "description": limit_text(form.get("description"), 500),
@@ -68,7 +78,7 @@ def card_from_form(form) -> dict:
         "example_dialogues": limit_text(form.get("example_dialogues"), 5000),
         "response_format": limit_text(form.get("response_format"), 500),
         "rules": normalize_tags(form.get("rules")),
-        "state": {},
+        "state": state,
     }
     return card
 

@@ -661,6 +661,14 @@ class CardVersion:
             item["tags"] = json.loads(item.pop("tags_json", "[]") or "[]")
         except Exception:
             item["tags"] = []
+        try:
+            item["rules"] = json.loads(item.pop("rules_json", "[]") or "[]")
+        except Exception:
+            item["rules"] = []
+        try:
+            item["state"] = json.loads(item.pop("state_json", "{}") or "{}")
+        except Exception:
+            item["state"] = {}
         return item
 
     @staticmethod
@@ -730,6 +738,36 @@ class CardVersion:
                 "diff_ops": _compute_diff(old_tags, new_tags),
             })
 
+        # 对比行为规则
+        rules1 = v1.get("rules", [])
+        rules2 = v2.get("rules", [])
+        if rules1 != rules2:
+            old_rules = "\n".join(rules1) if rules1 else "(无)"
+            new_rules = "\n".join(rules2) if rules2 else "(无)"
+            differences.append({
+                "field": "rules",
+                "label": "行为规则",
+                "old": old_rules,
+                "new": new_rules,
+                "diff_ops": _compute_diff(old_rules, new_rules),
+            })
+
+        # 对比角色状态（字典转为排序后的文本）
+        state1 = v1.get("state", {}) or {}
+        state2 = v2.get("state", {}) or {}
+        if state1 != state2:
+            def _state_to_text(s):
+                if not s:
+                    return "(无)"
+                return "\n".join(f"{k}: {v}" for k, v in sorted(s.items()))
+            differences.append({
+                "field": "state",
+                "label": "角色状态",
+                "old": _state_to_text(state1),
+                "new": _state_to_text(state2),
+                "diff_ops": _compute_diff(_state_to_text(state1), _state_to_text(state2)),
+            })
+
         return {
             "version1": v1,
             "version2": v2,
@@ -769,8 +807,8 @@ class CardVersion:
                     version.get("basic_info", ""),
                     version.get("example_dialogues", ""),
                     version.get("response_format", ""),
-                    version.get("rules_json", "[]") or "[]",
-                    version.get("state_json", "{}") or "{}",
+                    json.dumps(version.get("rules", []), ensure_ascii=False),
+                    json.dumps(version.get("state", {}), ensure_ascii=False),
                     now,
                     card_id,
                 ),

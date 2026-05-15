@@ -81,6 +81,29 @@
         </div>
         {% endif %}
 
+        {% if version.rules %}
+        <div class="version-block">
+            <h3>行为规则</h3>
+            <ul class="version-rules-list">
+                {% for rule in version.rules %}
+                    <li>{{ rule }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+
+        {% if version.state and version.state | length > 0 %}
+        <div class="version-block">
+            <h3>角色状态</h3>
+            <dl class="version-state-list">
+                {% for key, val in version.state.items() %}
+                    <dt>{{ key }}</dt>
+                    <dd>{{ val }}</dd>
+                {% endfor %}
+            </dl>
+        </div>
+        {% endif %}
+
         {% if version.system_prompt %}
         <div class="version-block">
             <h3>系统提示词</h3>
@@ -201,6 +224,40 @@
     font-style: italic;
     color: var(--ink);
     line-height: 1.7;
+}
+
+/* 行为规则列表 */
+.version-rules-list {
+    margin: 0;
+    padding-left: 20px;
+}
+
+.version-rules-list li {
+    font-size: 14px;
+    line-height: 1.7;
+    color: var(--ink);
+    margin-bottom: 4px;
+}
+
+/* 角色状态键值列表 */
+.version-state-list {
+    margin: 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 8px 16px;
+}
+
+.version-state-list dt {
+    font-size: 12px;
+    color: var(--muted);
+    font-weight: 500;
+}
+
+.version-state-list dd {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--ink);
+    margin: 0;
 }
 
 .form-actions .btn-danger {

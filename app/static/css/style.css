@@ -1648,6 +1648,253 @@ textarea:focus {
     width: 100%;
 }
 
+/* 角色状态卡片式布局 */
+#state-container {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 12px;
+}
+
+.state-card {
+    background: var(--field-bg);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 14px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    overflow: hidden;
+    box-sizing: border-box;
+    position: relative;
+}
+
+.state-card:hover {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px rgba(47, 111, 115, 0.12);
+}
+
+/* 删除按钮：悬浮在右上角 */
+.state-card-remove {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    background: rgba(0, 0, 0, 0.06);
+    border: none;
+    color: var(--muted);
+    cursor: pointer;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    font-size: 13px;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 0.2s, color 0.15s, background 0.15s;
+    z-index: 5;
+    flex-shrink: 0;
+}
+
+.state-card:hover .state-card-remove {
+    opacity: 1;
+}
+
+.state-card-remove:hover {
+    color: #fff;
+    background: var(--rose);
+}
+
+/* 键输入框 */
+.state-card-label {
+    width: 100% !important;
+    font-size: 13px !important;
+    color: var(--muted) !important;
+    background: transparent !important;
+    border: 1px solid transparent !important;
+    padding: 6px 4px !important;
+    height: auto !important;
+    box-sizing: border-box !important;
+    outline: none;
+    border-radius: 4px;
+    transition: border-color 0.15s, background 0.15s;
+}
+
+.state-card-label:focus,
+.state-card-label:hover {
+    border-color: var(--line) !important;
+    background: var(--paper) !important;
+}
+
+/* 值输入框 */
+.state-card-value-input {
+    width: 100% !important;
+    background: transparent !important;
+    border: 1px solid transparent !important;
+    font-size: 16px !important;
+    font-weight: 600;
+    color: var(--ink) !important;
+    text-align: right;
+    outline: none;
+    padding: 8px 4px !important;
+    height: auto !important;
+    box-sizing: border-box !important;
+    border-radius: 4px;
+    transition: border-color 0.15s, background 0.15s;
+}
+
+.state-card-value-input:focus,
+.state-card-value-input:hover {
+    border-color: var(--line) !important;
+    background: var(--paper) !important;
+}
+
+/* 状态进度条 */
+.state-card-bar {
+    height: 4px;
+    background: var(--line);
+    border-radius: 2px;
+    overflow: hidden;
+    margin-top: 2px;
+}
+
+.state-card-bar-fill {
+    height: 100%;
+    border-radius: 2px;
+    background: linear-gradient(90deg, var(--accent), var(--gold));
+    transition: width 0.25s ease;
+}
+
+/* 好感度滑块样式 */
+.state-card.affinity-mode .state-card-slider-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 2px;
+}
+
+.state-card-slider-track {
+    position: relative;
+    height: 6px;
+    background: var(--line);
+    border-radius: 3px;
+}
+
+.state-card-slider-track::before {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: -3px;
+    bottom: -3px;
+    width: 2px;
+    background: var(--muted);
+    opacity: 0.5;
+    border-radius: 1px;
+}
+
+.state-card-slider {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 6px;
+    background: transparent;
+    cursor: pointer;
+    position: relative;
+    z-index: 1;
+    margin: 0;
+}
+
+.state-card-slider::-webkit-slider-runnable-track {
+    height: 6px;
+    border-radius: 3px;
+    background: linear-gradient(90deg,
+        var(--rose) 0%,
+        var(--rose) 45%,
+        var(--line) 45%,
+        var(--line) 55%,
+        var(--accent) 55%,
+        var(--accent) 100%
+    );
+}
+
+.state-card-slider::-moz-range-track {
+    height: 6px;
+    border-radius: 3px;
+    background: var(--line);
+    border: none;
+}
+
+.state-card-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--paper);
+    border: 2px solid var(--accent);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+    cursor: grab;
+    margin-top: -6px;
+    transition: transform 0.1s, box-shadow 0.1s;
+}
+
+.state-card-slider::-webkit-slider-thumb:hover {
+    transform: scale(1.15);
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.25);
+}
+
+.state-card-slider::-webkit-slider-thumb:active {
+    cursor: grabbing;
+    transform: scale(1.1);
+}
+
+.state-card-slider::-moz-range-thumb {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--paper);
+    border: 2px solid var(--accent);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+    cursor: grab;
+    border: none;
+}
+
+.state-card-slider-range-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 6px;
+}
+
+.state-card-slider-range-label {
+    font-size: 11px;
+    color: var(--muted);
+    white-space: nowrap;
+}
+
+.state-card-slider-range-input {
+    width: 52px;
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    padding: 2px 5px;
+    font-size: 11px;
+    color: var(--ink);
+    text-align: center;
+    outline: none;
+    transition: border-color 0.15s;
+}
+
+.state-card-slider-range-input:focus {
+    border-color: var(--accent);
+}
+
+/* 兼容旧版 state-item，隐藏不显示 */
+.state-item {
+    display: none !important;
+}
+
 .btn-secondary {
     background: transparent;
     border: 1px solid var(--line);
