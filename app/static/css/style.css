@@ -1863,6 +1863,14 @@ pre {
     margin-top: 30px;
 }
 
+/* 夜间模式下系统提示词区域样式修复 */
+:root[data-theme="dark"] blockquote,
+:root[data-theme="dark"] pre {
+    background: rgba(16, 23, 34, 0.92);
+    color: #d0d6e0;
+    border-left-color: var(--accent);
+}
+
 /* 角色卡详情页新字段样式 */
 .card-description {
     font-size: 18px;
