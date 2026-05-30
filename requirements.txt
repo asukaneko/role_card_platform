@@ -10,3 +10,9 @@ Flask-WTF>=1.2.0
 # QR Code Generation
 segno>=1.6.0
 qrcode>=8.0
+
+# HTTP Client (used for streaming proxy)
+httpx>=0.25.0
+
+# Production Server
+gunicorn>=21.2.0
